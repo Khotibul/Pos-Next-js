@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
-import { ArrowRight, Chrome, Lock, Mail, Store, User } from "lucide-react";
+import { ArrowRight, Globe, Lock, Mail, Store, User } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +70,7 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
                 onClick={onGoogleSignup}
                 disabled={isLoading}
               >
-                <Chrome className="h-4 w-4" />
+                <Globe className="h-4 w-4" />
                 Daftar dengan Google
               </Button>
 

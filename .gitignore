@@ -24,6 +24,7 @@ Thumbs.db
 # misc generated
 overview.json
 overview_architecture.puml
+*.tsbuildinfo
 
 # legacy UI folders (keep local only)
 UI/

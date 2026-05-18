@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getProviders, signIn } from "next-auth/react";
-import { ArrowRight, Chrome, Lock, Mail } from "lucide-react";
+import { ArrowRight, Globe, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -107,7 +107,7 @@ export default function LoginPage() {
 
           {googleEnabled ? (
             <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl" onClick={onGoogle} disabled={isLoading}>
-              <Chrome className="h-4 w-4" />
+              <Globe className="h-4 w-4" />
               Masuk dengan Google
             </Button>
           ) : null}
