@@ -49,6 +49,7 @@ Setiap page/action melakukan:
 2. Siapkan env:
    - `copy .env.example .env`
    - Sesuaikan `DATABASE_URL` dan `AUTH_SECRET`
+   - (Opsional OAuth Google) isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET`
 3. Generate Prisma client:
    - PostgreSQL: `npm run prisma:generate`
    - MySQL: `npm run prisma:generate:mysql`

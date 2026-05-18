@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import { ArrowRight, Lock, Mail } from "lucide-react";
+import { getProviders, signIn } from "next-auth/react";
+import { ArrowRight, Chrome, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  useEffect(() => {
+    getProviders()
+      .then((p) => setGoogleEnabled(Boolean(p?.google)))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +40,12 @@ export default function LoginPage() {
       return;
     }
     router.push("/dashboard");
+  }
+
+  async function onGoogle() {
+    setIsLoading(true);
+    setError(null);
+    await signIn("google", { callbackUrl: "/onboarding" });
   }
 
   return (
@@ -85,6 +98,19 @@ export default function LoginPage() {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <div className="text-xs text-muted-foreground">atau</div>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          {googleEnabled ? (
+            <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl" onClick={onGoogle} disabled={isLoading}>
+              <Chrome className="h-4 w-4" />
+              Masuk dengan Google
+            </Button>
+          ) : null}
 
           <p className="mt-6 text-sm text-muted-foreground">
             Belum punya akun?{" "}

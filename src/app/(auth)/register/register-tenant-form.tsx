@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lock, Mail, Store, User } from "lucide-react";
+import { getProviders, signIn } from "next-auth/react";
+import { ArrowRight, Chrome, Lock, Mail, Store, User } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,13 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  useEffect(() => {
+    getProviders()
+      .then((p) => setGoogleEnabled(Boolean(p?.google)))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +45,12 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
     router.push("/login");
   }
 
+  async function onGoogleSignup() {
+    setIsLoading(true);
+    setError(null);
+    await signIn("google", { callbackUrl: `/onboarding?plan=${encodeURIComponent(planSlug)}` });
+  }
+
   return (
     <div className="w-full max-w-lg">
       <Card className="rounded-2xl">
@@ -47,6 +61,27 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {googleEnabled ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2 rounded-xl"
+                onClick={onGoogleSignup}
+                disabled={isLoading}
+              >
+                <Chrome className="h-4 w-4" />
+                Daftar dengan Google
+              </Button>
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <div className="text-xs text-muted-foreground">atau daftar dengan email</div>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            </>
+          ) : null}
+
           <form onSubmit={onSubmit} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="ownerName">Nama Lengkap</Label>
@@ -102,4 +137,3 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
     </div>
   );
 }
-
