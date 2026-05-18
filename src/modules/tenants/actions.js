@@ -2,19 +2,19 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
+import { fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { auth } from "@/lib/auth";
 import { createTenantFromOnboardingSchema } from "@/modules/tenants/validators";
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 
-function formDataToObject(formData: FormData) {
-  const obj: Record<string, unknown> = {};
+function formDataToObject(formData) {
+  const obj = {};
   for (const [k, v] of formData.entries()) obj[k] = v;
   return obj;
 }
 
-export async function completeOnboardingAction(_prev: unknown, formData: FormData): Promise<ActionResult<never>> {
+export async function completeOnboardingAction(_prev, formData) {
   try {
     const session = await auth();
     if (!session?.user?.id) return { ok: false, message: "Silakan login terlebih dahulu." };

@@ -11,14 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
+export function RegisterTenantForm({ planSlug }) {
   const router = useRouter();
   const [tenantName, setTenantName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
       .catch(() => setGoogleEnabled(false));
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -38,7 +38,7 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
     });
     setIsLoading(false);
     if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      const data = await res.json().catch(() => null);
       setError(data?.message ?? "Registrasi gagal.");
       return;
     }
@@ -57,7 +57,7 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
         <CardHeader>
           <CardTitle className="text-2xl">Mulai Bisnis Anda</CardTitle>
           <CardDescription>
-            Lengkapi formulir di bawah untuk mendaftarkan tenant Anda (paket: {planSlug.toUpperCase()}).
+            Lengkapi formulir di bawah untuk mendaftarkan tenant Anda (paket: {String(planSlug).toUpperCase()}).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -87,14 +87,26 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
               <Label htmlFor="ownerName">Nama Lengkap</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="ownerName" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required className="pl-10" />
+                <Input
+                  id="ownerName"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  required
+                  className="pl-10"
+                />
               </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="tenantName">Nama Bisnis</Label>
               <div className="relative">
                 <Store className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="tenantName" value={tenantName} onChange={(e) => setTenantName(e.target.value)} required className="pl-10" />
+                <Input
+                  id="tenantName"
+                  value={tenantName}
+                  onChange={(e) => setTenantName(e.target.value)}
+                  required
+                  className="pl-10"
+                />
               </div>
             </div>
             <div className="grid gap-2">
@@ -137,3 +149,4 @@ export function RegisterTenantForm({ planSlug }: { planSlug: string }) {
     </div>
   );
 }
+

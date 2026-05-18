@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function LoginPage() {
       .catch(() => setGoogleEnabled(false));
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -99,17 +99,19 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <div className="text-xs text-muted-foreground">atau</div>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
           {googleEnabled ? (
-            <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl" onClick={onGoogle} disabled={isLoading}>
-              <Globe className="h-4 w-4" />
-              Masuk dengan Google
-            </Button>
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <div className="text-xs text-muted-foreground">atau</div>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
+              <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl" onClick={onGoogle} disabled={isLoading}>
+                <Globe className="h-4 w-4" />
+                Masuk dengan Google
+              </Button>
+            </>
           ) : null}
 
           <p className="mt-6 text-sm text-muted-foreground">
@@ -123,3 +125,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

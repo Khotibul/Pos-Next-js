@@ -8,21 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
-import type { ActionResult } from "@/lib/action";
 import { completeOnboardingAction } from "@/modules/tenants/actions";
 
-export function OnboardingForm({
-  defaultPlanSlug,
-}: {
-  defaultPlanSlug: string;
-}) {
+export function OnboardingForm({ defaultPlanSlug }) {
   const sp = useSearchParams();
   const planFromUrl = (sp.get("plan") || defaultPlanSlug || "pro").toLowerCase();
 
-  const [state, formAction, isPending] = useActionState<ActionResult<never> | null, FormData>(
-    completeOnboardingAction,
-    null
-  );
+  const [state, formAction, isPending] = useActionState(completeOnboardingAction, null);
 
   const fieldErrors = (state && !state.ok ? state.fieldErrors : undefined) ?? {};
   const message = state && !state.ok ? state.message : null;

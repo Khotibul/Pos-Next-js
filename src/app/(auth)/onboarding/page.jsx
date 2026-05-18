@@ -3,11 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { OnboardingForm } from "@/app/(auth)/onboarding/onboarding-form";
 
-export default async function OnboardingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ plan?: string }>;
-}) {
+export default async function OnboardingPage({ searchParams }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
@@ -19,7 +15,7 @@ export default async function OnboardingPage({
   if (user?.memberships?.length) redirect("/dashboard");
 
   const sp = await searchParams;
-  const planSlug = (sp.plan || "pro").toLowerCase();
+  const planSlug = (sp?.plan || "pro").toLowerCase();
   return <OnboardingForm defaultPlanSlug={planSlug} />;
 }
 

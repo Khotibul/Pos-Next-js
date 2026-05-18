@@ -5,5 +5,3 @@ export const createTenantFromOnboardingSchema = z.object({
   planSlug: z.string().trim().min(2).max(40).optional(),
 });
 
-export type CreateTenantFromOnboardingInput = z.infer<typeof createTenantFromOnboardingSchema>;
-
