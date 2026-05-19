@@ -33,7 +33,7 @@ export function AuthHero({ variant }) {
   const isRegister = variant === "register";
 
   return (
-    <div className="relative min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-600 via-blue-700 to-blue-900 text-white">
+    <div className="relative h-full min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-600 via-blue-700 to-blue-900 text-white lg:min-h-0">
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.04),rgba(0,0,0,0.35))]" />
 
       <div className="absolute inset-0 opacity-25">
