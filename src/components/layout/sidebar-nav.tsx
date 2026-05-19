@@ -20,6 +20,7 @@ export function SidebarNav({
   const pathname = usePathname();
 
   const allowed = (item: (typeof NAV_ITEMS)[number]) => {
+    if ("superAdminOnly" in item && item.superAdminOnly && !isSuperAdmin) return false;
     if (isSuperAdmin) return true;
     if (!permissions) return true;
     return permissions.includes(item.permission);

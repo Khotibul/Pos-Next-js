@@ -1,0 +1,29 @@
+import {
+  Activity,
+  Bell,
+  Building2,
+  CreditCard,
+  Globe,
+  KeyRound,
+  LayoutDashboard,
+  Receipt,
+  Settings2,
+  Shield,
+  Users,
+} from "lucide-react";
+
+export const SUPER_ADMIN_NAV = [
+  { href: "/super-admin", label: "Dashboard SaaS", icon: LayoutDashboard },
+  { href: "/super-admin/tenants", label: "Tenant / Bisnis", icon: Building2 },
+  { href: "/super-admin/plans", label: "Paket & Harga", icon: CreditCard },
+  { href: "/super-admin/invoices", label: "Invoice Langganan", icon: Receipt },
+  { href: "/super-admin/payments", label: "Pembayaran", icon: CreditCard },
+  { href: "/super-admin/domains", label: "Domain / Subdomain", icon: Globe },
+  { href: "/super-admin/licenses", label: "Lisensi", icon: KeyRound },
+  { href: "/super-admin/announcements", label: "Broadcast", icon: Bell },
+  { href: "/super-admin/admins", label: "Admin Internal", icon: Users },
+  { href: "/super-admin/audit-logs", label: "Audit Trail", icon: Activity },
+  { href: "/super-admin/system-settings", label: "Pengaturan Global", icon: Settings2 },
+  { href: "/super-admin/system-logs", label: "Log Aktivitas", icon: Shield },
+] as const;
+

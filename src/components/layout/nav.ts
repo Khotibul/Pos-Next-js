@@ -11,4 +11,5 @@ export const NAV_ITEMS = [
   { href: "/suppliers", label: "Suppliers", icon: Truck, section: "more", permission: PERMISSIONS.suppliers_read },
   { href: "/inventory", label: "Stock Ops", icon: Warehouse, section: "more", permission: PERMISSIONS.inventory_read },
   { href: "/billing", label: "Billing", icon: CreditCard, section: "more", permission: PERMISSIONS.billing_read },
+  { href: "/super-admin", label: "Super Admin", icon: Settings, section: "more", permission: PERMISSIONS.dashboard_read, superAdminOnly: true },
 ] as const;

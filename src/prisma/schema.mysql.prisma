@@ -15,6 +15,12 @@ enum TenantStatus {
   EXPIRED
 }
 
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 model Plan {
   id           String   @id @default(cuid())
   slug         String   @unique
@@ -35,6 +41,8 @@ model Tenant {
   id        String       @id @default(cuid())
   name      String
   slug      String       @unique
+  domain    String?
+  subdomain String?
   status    TenantStatus @default(TRIAL)
   trialEndsAt DateTime?
   planId    String?
@@ -56,6 +64,8 @@ model Tenant {
   settings   Setting[]
   auditLogs   AuditLog[]
 
+  @@unique([domain])
+  @@unique([subdomain])
   @@index([planId])
 }
 
@@ -71,6 +81,25 @@ model Setting {
 
   @@unique([tenantId, key])
   @@index([tenantId])
+}
+
+model Announcement {
+  id        String             @id @default(cuid())
+  title     String
+  message   String
+  status    AnnouncementStatus @default(DRAFT)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model GlobalSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
