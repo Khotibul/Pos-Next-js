@@ -74,8 +74,16 @@ export default async function SettingsPage() {
               Keamanan
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            RBAC, session management, audit log, dan proteksi tenant isolation.
+          <CardContent className="grid gap-3 text-sm text-muted-foreground">
+            <div>RBAC, session management, audit log, dan proteksi tenant isolation.</div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm" className="rounded-xl">
+                <Link href="/settings/roles">Role & Permission</Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="rounded-xl">
+                <Link href="/audit-logs">Audit Log</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

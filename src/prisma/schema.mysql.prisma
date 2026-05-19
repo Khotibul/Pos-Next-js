@@ -21,6 +21,18 @@ enum AnnouncementStatus {
   ARCHIVED
 }
 
+enum PurchaseStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
 model Plan {
   id           String   @id @default(cuid())
   slug         String   @unique
@@ -63,6 +75,8 @@ model Tenant {
   suppliers  Supplier[]
   settings   Setting[]
   auditLogs   AuditLog[]
+  purchaseOrders PurchaseOrder[]
+  cashierShifts  CashierShift[]
 
   @@unique([domain])
   @@unique([subdomain])
@@ -118,6 +132,7 @@ model User {
   sessions    Session[]
   memberships TenantUser[]
   auditLogs   AuditLog[]
+  cashierShifts CashierShift[]
 }
 
 model TenantUser {
@@ -240,6 +255,7 @@ model Product {
   brand    ProductBrand?     @relation(fields: [brandId], references: [id], onDelete: SetNull)
   unit     ProductUnit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
   saleItems SaleItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -353,11 +369,74 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
 
   @@index([tenantId])
   @@index([name])
   @@index([email])
   @@index([phone])
+}
+
+model PurchaseOrder {
+  id        String         @id @default(cuid())
+  tenantId  String
+  supplierId String?
+  orderNo   String
+  status    PurchaseStatus @default(DRAFT)
+  notes     String?
+  subtotal  Decimal        @default(0)
+  tax       Decimal        @default(0)
+  total     Decimal        @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items    PurchaseOrderItem[]
+
+  @@unique([tenantId, orderNo])
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id        String   @id @default(cuid())
+  tenantId  String
+  purchaseOrderId String
+  productId String
+  name      String
+  sku       String
+  costPrice Decimal  @default(0)
+  qty       Int      @default(1)
+  lineTotal Decimal  @default(0)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model CashierShift {
+  id          String      @id @default(cuid())
+  tenantId    String
+  cashierUserId String
+  status      ShiftStatus @default(OPEN)
+  openedAt    DateTime    @default(now())
+  closedAt    DateTime?
+  openingCash Decimal     @default(0)
+  closingCash Decimal     @default(0)
+  note        String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashier User  @relation(fields: [cashierUserId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([cashierUserId])
+  @@index([openedAt])
+  @@index([status])
 }
 
 // NextAuth / Auth.js models (Prisma Adapter)
