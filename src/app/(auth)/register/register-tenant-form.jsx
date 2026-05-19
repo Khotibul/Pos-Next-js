@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lock, Mail, Store, User } from "lucide-react";
+import { getProviders, signIn } from "next-auth/react";
+import { ArrowRight, Globe, Lock, Mail, Store, User } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GooglePopupButton } from "@/components/auth/google-popup-button";
 
 export function RegisterTenantForm({ planSlug }) {
   const router = useRouter();
@@ -19,6 +19,13 @@ export function RegisterTenantForm({ planSlug }) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  useEffect(() => {
+    getProviders()
+      .then((p) => setGoogleEnabled(Boolean(p?.google)))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -38,6 +45,12 @@ export function RegisterTenantForm({ planSlug }) {
     router.push("/login");
   }
 
+  async function onGoogleSignup() {
+    setIsLoading(true);
+    setError(null);
+    await signIn("google", { callbackUrl: `/onboarding?plan=${encodeURIComponent(planSlug)}` });
+  }
+
   return (
     <div className="w-full max-w-lg">
       <Card className="rounded-2xl">
@@ -48,14 +61,18 @@ export function RegisterTenantForm({ planSlug }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
+          {googleEnabled ? (
             <>
-              <GooglePopupButton
-                clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-                callbackUrl={`/onboarding?plan=${encodeURIComponent(planSlug)}`}
-                label="Daftar dengan Google"
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2 rounded-xl"
+                onClick={onGoogleSignup}
                 disabled={isLoading}
-              />
+              >
+                <Globe className="h-4 w-4" />
+                Daftar dengan Google
+              </Button>
 
               <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-border" />
@@ -132,3 +149,4 @@ export function RegisterTenantForm({ planSlug }) {
     </div>
   );
 }
+

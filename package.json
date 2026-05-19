@@ -28,7 +28,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "bcryptjs": "^3.0.2",
     "clsx": "2.1.1",
-    "google-auth-library": "^10.6.2",
     "lucide-react": "^1.14.0",
     "next": "^15.3.2",
     "next-auth": "^5.0.0-beta.28",
