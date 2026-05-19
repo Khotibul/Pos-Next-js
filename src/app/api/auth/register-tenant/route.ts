@@ -8,6 +8,7 @@ const registerSchema = z.object({
   tenantName: z.string().min(2).max(120),
   ownerName: z.string().min(2).max(120),
   email: z.string().email(),
+  phone: z.string().trim().min(6).max(32).optional(),
   password: z.string().min(8).max(200),
   planSlug: z.string().trim().min(2).max(40).optional(),
 });
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Data tidak valid." }, { status: 400 });
   }
 
-  const { tenantName, ownerName, email, password, planSlug } = parsed.data;
+  const { tenantName, ownerName, email, phone, password, planSlug } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ message: "Email sudah terdaftar." }, { status: 409 });
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     const user = await tx.user.create({
-      data: { name: ownerName, email, passwordHash },
+      data: { name: ownerName, email, phone: phone || null, passwordHash },
     });
 
     await tx.tenantUser.create({
