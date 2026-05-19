@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getProviders, signIn } from "next-auth/react";
-import { ArrowRight, Globe, Lock, Mail } from "lucide-react";
+import { signIn } from "next-auth/react";
+import { ArrowRight, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
+import { GooglePopupButton } from "@/components/auth/google-popup-button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,13 +18,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [googleEnabled, setGoogleEnabled] = useState(false);
-
-  useEffect(() => {
-    getProviders()
-      .then((p) => setGoogleEnabled(Boolean(p?.google)))
-      .catch(() => setGoogleEnabled(false));
-  }, []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -40,12 +34,6 @@ export default function LoginPage() {
       return;
     }
     router.push("/dashboard");
-  }
-
-  async function onGoogle() {
-    setIsLoading(true);
-    setError(null);
-    await signIn("google", { callbackUrl: "/onboarding" });
   }
 
   return (
@@ -99,18 +87,19 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {googleEnabled ? (
+          {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
             <>
               <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-border" />
                 <div className="text-xs text-muted-foreground">atau</div>
                 <div className="h-px flex-1 bg-border" />
               </div>
-
-              <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl" onClick={onGoogle} disabled={isLoading}>
-                <Globe className="h-4 w-4" />
-                Masuk dengan Google
-              </Button>
+              <GooglePopupButton
+                clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+                callbackUrl="/onboarding"
+                label="Masuk dengan Google"
+                disabled={isLoading}
+              />
             </>
           ) : null}
 
@@ -125,4 +114,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
