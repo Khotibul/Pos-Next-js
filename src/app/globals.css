@@ -86,11 +86,22 @@
     text-wrap: balance;
   }
 
+  .bg-app {
+    background-image:
+      radial-gradient(900px circle at 8% 0%, hsl(var(--primary) / 0.12), transparent 55%),
+      radial-gradient(900px circle at 92% 8%, hsl(var(--primary) / 0.08), transparent 55%),
+      linear-gradient(to bottom, hsl(var(--background)), hsl(var(--muted) / 0.25));
+  }
+
   .bg-grid {
     background-image: linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
       linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
     background-size: 24px 24px;
     opacity: 0.18;
+  }
+
+  .dark .bg-grid {
+    opacity: 0.12;
   }
 }
 

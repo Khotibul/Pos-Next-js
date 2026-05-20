@@ -26,8 +26,9 @@ function GoogleMark({ className }) {
   );
 }
 
-export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline" }) {
+export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride }) {
   async function onClick() {
+    if (onClickOverride) return onClickOverride();
     await signIn("google", { callbackUrl: callbackUrl || "/onboarding" });
   }
 

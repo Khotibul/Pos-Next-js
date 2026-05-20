@@ -5,7 +5,7 @@ import { SuperAdminTopbar } from "@/components/super-admin/topbar";
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireSuperAdmin();
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
       <div className="flex">
         <SuperAdminSidebar />
@@ -19,4 +19,3 @@ export default async function SuperAdminLayout({ children }: { children: React.R
     </div>
   );
 }
-

@@ -54,6 +54,53 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
 
   if (!user) throw Errors.unauthorized("User not found.");
 
+  const cookieStore = await cookies();
+  const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
+
+  // Super Admin can access all tenants.
+  if (user.isSuperAdmin) {
+    const tenants = await prisma.tenant.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, slug: true, status: true, trialEndsAt: true },
+      take: 5000,
+    });
+
+    const memberships = tenants.map((t) => ({
+      tenantId: t.id,
+      tenantName: t.name,
+      tenantSlug: t.slug,
+      tenantStatus: t.status,
+    }));
+
+    const activeTenantId =
+      (cookieTenantId && tenants.find((t) => t.id === cookieTenantId)?.id) || tenants[0]?.id;
+
+    if (!activeTenantId) throw Errors.forbidden("Tenant tidak ditemukan.");
+
+    const activeTenant = tenants.find((t) => t.id === activeTenantId) ?? null;
+    if (!activeTenant) throw Errors.forbidden("Tenant tidak valid.");
+
+    const activeMembership = user.memberships.find((m) => m.tenantId === activeTenantId) ?? null;
+    const permissions = (activeMembership?.role?.permissions ?? []).map((rp) => rp.permission.key);
+    const roleName = activeMembership?.role?.name ?? null;
+
+    return {
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      userImage: user.image,
+      isSuperAdmin: true,
+      tenantId: activeTenant.id,
+      tenantName: activeTenant.name,
+      tenantSlug: activeTenant.slug,
+      tenantStatus: activeTenant.status,
+      tenantTrialEndsAt: activeTenant.trialEndsAt,
+      permissions,
+      roleName,
+      memberships,
+    };
+  }
+
   const memberships = user.memberships.map((m) => ({
     tenantId: m.tenantId,
     tenantName: m.tenant.name,
@@ -61,49 +108,33 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     tenantStatus: m.tenant.status,
   }));
 
-  if (!user.isSuperAdmin && memberships.length === 0) {
+  if (memberships.length === 0) {
     throw Errors.forbidden("Anda belum tergabung ke tenant manapun.");
   }
 
-  const cookieStore = await cookies();
-  const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
-
   const activeTenantId =
-    (cookieTenantId && memberships.find((m) => m.tenantId === cookieTenantId)?.tenantId) ||
-    memberships[0]?.tenantId;
+    (cookieTenantId && memberships.find((m) => m.tenantId === cookieTenantId)?.tenantId) || memberships[0]?.tenantId;
 
   if (!activeTenantId) throw Errors.forbidden("Tenant tidak ditemukan.");
 
   const activeMembership = user.memberships.find((m) => m.tenantId === activeTenantId) ?? null;
-  if (!user.isSuperAdmin && !activeMembership) throw Errors.forbidden("Anda tidak punya akses tenant ini.");
+  if (!activeMembership) throw Errors.forbidden("Anda tidak punya akses tenant ini.");
 
-  const activeTenantInfo =
-    memberships.find((m) => m.tenantId === activeTenantId) ??
-    (activeMembership
-      ? {
-          tenantId: activeMembership.tenantId,
-          tenantName: activeMembership.tenant.name,
-          tenantSlug: activeMembership.tenant.slug,
-          tenantStatus: activeMembership.tenant.status,
-        }
-      : null);
+  const tenantStatus = activeMembership.tenant.status;
+  const tenantTrialEndsAt = activeMembership.tenant.trialEndsAt ?? null;
 
-  const tenantStatus = activeMembership?.tenant.status ?? activeTenantInfo?.tenantStatus;
-  if (!tenantStatus) throw Errors.forbidden("Tenant tidak valid.");
-  const tenantTrialEndsAt = activeMembership?.tenant.trialEndsAt ?? null;
-
-  const permissions = (activeMembership?.role?.permissions ?? []).map((rp) => rp.permission.key);
-  const roleName = activeMembership?.role?.name ?? null;
+  const permissions = (activeMembership.role?.permissions ?? []).map((rp) => rp.permission.key);
+  const roleName = activeMembership.role?.name ?? null;
 
   return {
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
     userImage: user.image,
-    isSuperAdmin: user.isSuperAdmin,
+    isSuperAdmin: false,
     tenantId: activeTenantId,
-    tenantName: activeTenantInfo?.tenantName ?? activeMembership?.tenant.name ?? "Tenant",
-    tenantSlug: activeTenantInfo?.tenantSlug ?? activeMembership?.tenant.slug ?? "tenant",
+    tenantName: activeMembership.tenant.name,
+    tenantSlug: activeMembership.tenant.slug,
     tenantStatus,
     tenantTrialEndsAt,
     permissions,

@@ -133,6 +133,34 @@ model User {
   memberships TenantUser[]
   auditLogs   AuditLog[]
   cashierShifts CashierShift[]
+  emailVerificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model OauthRegistration {
+  id         String   @id @default(cuid())
+  tenantName String
+  ownerName  String
+  phone      String?
+  planSlug   String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
 }
 
 model TenantUser {

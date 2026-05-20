@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { ArrowRight, Lock, Mail, Phone, Store, User } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
-export function RegisterTenantForm({ planSlug }) {
+export function RegisterTenantForm({ planSlug, initialError }) {
   const router = useRouter();
   const [tenantName, setTenantName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -18,7 +20,7 @@ export function RegisterTenantForm({ planSlug }) {
   const [password, setPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(initialError || null);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -40,7 +42,34 @@ export function RegisterTenantForm({ planSlug }) {
       setError(data?.message ?? "Registrasi gagal.");
       return;
     }
-    router.push("/login");
+    router.push("/login?registered=1");
+  }
+
+  async function onRegisterWithGoogle() {
+    if (!agreed) {
+      setError("Anda harus menyetujui syarat & ketentuan.");
+      return;
+    }
+    if (!tenantName.trim() || tenantName.trim().length < 2 || !ownerName.trim() || ownerName.trim().length < 2) {
+      setError("Nama lengkap dan nama bisnis wajib diisi untuk daftar dengan Google.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    const res = await fetch("/api/auth/oauth-registration", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantName, ownerName, phone, planSlug }),
+    });
+    setIsLoading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.message ?? "Registrasi Google gagal.");
+      return;
+    }
+
+    await signIn("google", { callbackUrl: "/onboarding" });
   }
 
   return (
@@ -151,6 +180,20 @@ export function RegisterTenantForm({ planSlug }) {
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </form>
+
+      <div className="my-8 flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <div className="text-xs text-muted-foreground">atau daftar dengan</div>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <GoogleOAuthButton
+        label="Daftar dengan Google"
+        disabled={isLoading}
+        callbackUrl="/onboarding"
+        variant="outline"
+        onClickOverride={onRegisterWithGoogle}
+      />
 
       <div className="mt-10 border-t pt-6 text-center text-sm text-muted-foreground">
         Butuh bantuan?{" "}

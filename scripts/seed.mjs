@@ -242,8 +242,8 @@ async function seedTenant({
     for (const u of users) {
       const user = await tx.user.upsert({
         where: { email: u.email },
-        update: { name: u.name, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin) },
-        create: { name: u.name, email: u.email, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin) },
+        update: { name: u.name, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
+        create: { name: u.name, email: u.email, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
       });
 
       await tx.tenantUser.upsert({

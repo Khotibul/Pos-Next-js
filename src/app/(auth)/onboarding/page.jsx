@@ -2,10 +2,15 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { OnboardingForm } from "@/app/(auth)/onboarding/onboarding-form";
+import { cookies } from "next/headers";
 
 export default async function OnboardingPage({ searchParams }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  // Clear oauth registration cookie once we reach onboarding.
+  // Prevents accidentally treating future Google sign-ins as a registration flow.
+  cookies().delete("oauth_reg_id");
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -18,4 +23,3 @@ export default async function OnboardingPage({ searchParams }) {
   const planSlug = (sp?.plan || "pro").toLowerCase();
   return <OnboardingForm defaultPlanSlug={planSlug} />;
 }
-

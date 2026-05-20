@@ -110,7 +110,7 @@ export default async function PricingPage() {
   const sorted = [...plans].sort((a, b) => (order.get(a.slug) ?? 99) - (order.get(b.slug) ?? 99));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-6 py-12">

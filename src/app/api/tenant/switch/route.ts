@@ -23,6 +23,12 @@ export async function POST(req: Request) {
   const allowed = user.isSuperAdmin || user.memberships.some((m) => m.tenantId === parsed.data.tenantId);
   if (!allowed) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: parsed.data.tenantId },
+    select: { id: true },
+  });
+  if (!tenant) return NextResponse.json({ message: "Tenant not found" }, { status: 404 });
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set("active_tenant_id", parsed.data.tenantId, {
     httpOnly: true,

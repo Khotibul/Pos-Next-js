@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
+import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
 
 const registerSchema = z.object({
   tenantName: z.string().min(2).max(120),
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const tenant = await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const slugInUse = await tx.tenant.findUnique({ where: { slug: baseSlug } });
     const slug = slugInUse ? `${baseSlug}-${Math.random().toString(36).slice(2, 8)}` : baseSlug;
 
@@ -93,15 +94,25 @@ export async function POST(req: Request) {
     }
 
     const user = await tx.user.create({
-      data: { name: ownerName, email, phone: phone || null, passwordHash },
+      data: { name: ownerName, email, phone: phone || null, passwordHash, emailVerified: null },
+      select: { id: true, email: true, name: true },
     });
 
     await tx.tenantUser.create({
       data: { tenantId: createdTenant.id, userId: user.id, roleId: roleMap.get("OWNER")! },
     });
 
-    return createdTenant;
+    return { tenant: createdTenant, user };
   });
 
-  return NextResponse.json({ tenantId: tenant.id }, { status: 201 });
+  // Send email verification after transaction commits (requires RESEND_API_KEY + EMAIL_FROM).
+  await createEmailVerificationToken({
+    userId: created.user.id,
+    email,
+    userName: created.user.name ?? null,
+  }).catch(() => {
+    // Don't block registration if email provider is not configured; verification link can be resent later.
+  });
+
+  return NextResponse.json({ tenantId: created.tenant.id, requiresEmailVerification: true }, { status: 201 });
 }

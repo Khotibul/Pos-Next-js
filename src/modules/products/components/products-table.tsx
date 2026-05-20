@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DeleteProductButton } from "@/modules/products/components/delete-product-button";
 import { deleteManyProductsAction } from "@/modules/products/actions";
+import { Code128Mark } from "@/components/barcode/code128-mark";
 
 type Item = {
   id: string;
@@ -147,6 +148,7 @@ export function ProductsTable({
                 </TableHead>
                 <TableHead>Nama Produk</TableHead>
                 <TableHead>SKU</TableHead>
+                <TableHead>Barcode</TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Harga</TableHead>
                 <TableHead>Status</TableHead>
@@ -156,7 +158,7 @@ export function ProductsTable({
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                     Tidak ada data.
                   </TableCell>
                 </TableRow>
@@ -174,6 +176,9 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                    <TableCell className="min-w-[160px]">
+                      <Code128Mark value={(p.barcode ?? p.sku) as string} label={p.barcode ?? p.sku} height={28} moduleWidth={1.2} className="max-w-[220px]" />
+                    </TableCell>
                     <TableCell>{p.categoryName}</TableCell>
                     <TableCell>{formatRupiah(p.sellingPrice)}</TableCell>
                     <TableCell>

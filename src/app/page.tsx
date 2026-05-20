@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-6 py-12">
@@ -204,4 +204,3 @@ export default function LandingPage() {
     </div>
   );
 }
-

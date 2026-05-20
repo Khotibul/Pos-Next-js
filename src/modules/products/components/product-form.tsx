@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ActionResult } from "@/lib/action";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
+import { Code128Mark } from "@/components/barcode/code128-mark";
 
 type Meta = {
   categories: Array<{ id: string; name: string }>;
@@ -43,6 +44,15 @@ export function ProductForm({
   const fieldErrors = (state && !state.ok ? state.fieldErrors : undefined) ?? {};
   const message = state && !state.ok ? state.message : null;
 
+  const [skuPreview, setSkuPreview] = useState(String(initial?.sku ?? ""));
+  const [barcodePreview, setBarcodePreview] = useState(String(initial?.barcode ?? ""));
+  const barcodeValue = useMemo(() => {
+    const b = barcodePreview.trim();
+    if (b) return b;
+    const s = skuPreview.trim();
+    return s;
+  }, [barcodePreview, skuPreview]);
+
   return (
     <Card className="max-w-2xl">
       <CardHeader>
@@ -63,7 +73,12 @@ export function ProductForm({
 
         <div className="grid gap-2">
           <Label htmlFor="sku">SKU</Label>
-          <Input id="sku" name="sku" defaultValue={initial?.sku ?? ""} />
+          <Input
+            id="sku"
+            name="sku"
+            defaultValue={initial?.sku ?? ""}
+            onInput={(e) => setSkuPreview((e.currentTarget as HTMLInputElement).value)}
+          />
           {fieldErrors.sku ? <p className="text-xs text-destructive">{fieldErrors.sku}</p> : null}
         </div>
 
@@ -75,8 +90,23 @@ export function ProductForm({
 
         <div className="grid gap-2">
           <Label htmlFor="barcode">Barcode</Label>
-          <Input id="barcode" name="barcode" defaultValue={initial?.barcode ?? ""} />
+          <Input
+            id="barcode"
+            name="barcode"
+            defaultValue={initial?.barcode ?? ""}
+            onInput={(e) => setBarcodePreview((e.currentTarget as HTMLInputElement).value)}
+          />
           {fieldErrors.barcode ? <p className="text-xs text-destructive">{fieldErrors.barcode}</p> : null}
+        </div>
+
+        <div className="rounded-2xl border bg-muted/10 p-4">
+          <div className="text-sm font-medium">Preview Barcode</div>
+          <div className="mt-3 overflow-hidden rounded-xl border bg-background p-3">
+            <Code128Mark value={barcodeValue} label={barcodeValue} height={44} moduleWidth={2} />
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Jika field barcode kosong, sistem akan menampilkan barcode berdasarkan SKU.
+          </div>
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">

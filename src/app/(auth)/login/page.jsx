@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -19,6 +19,16 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [queryError, setQueryError] = useState(null);
+  const [queryRegistered, setQueryRegistered] = useState(false);
+
+  // Avoid `useSearchParams` CSR bailout warning in prerender.
+  // Parse query params on client only.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    setQueryError(sp.get("error"));
+    setQueryRegistered(Boolean(sp.get("registered")));
+  }, []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -31,6 +41,10 @@ export default function LoginPage() {
     });
     setIsLoading(false);
     if (res?.error) {
+      if (res.error === "EMAIL_NOT_VERIFIED") {
+        setError("Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi.");
+        return;
+      }
       setError("Login gagal. Periksa email/password.");
       return;
     }
@@ -41,6 +55,18 @@ export default function LoginPage() {
     <div className="w-full">
       <h1 className="text-3xl font-semibold tracking-tight">Selamat Datang Kembali</h1>
       <p className="mt-2 text-sm text-muted-foreground">Silakan masuk ke akun Anda untuk melanjutkan operasional.</p>
+
+      {queryRegistered ? (
+        <div className="mt-6 rounded-2xl border bg-muted/20 p-4 text-sm">
+          Registrasi berhasil. Silakan cek email Anda untuk verifikasi, lalu login.
+        </div>
+      ) : null}
+
+      {queryError === "GOOGLE_NOT_REGISTERED" ? (
+        <Alert variant="destructive" className="mt-6">
+          Login Google hanya bisa untuk akun yang sudah didaftarkan lewat menu Registrasi dengan Google.
+        </Alert>
+      ) : null}
 
       <form onSubmit={onSubmit} className="mt-8 grid gap-5">
         <div className="grid gap-2">

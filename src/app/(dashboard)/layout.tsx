@@ -8,7 +8,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!ctx) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
       <div className="flex">
         <SidebarShell permissions={ctx.permissions} isSuperAdmin={ctx.isSuperAdmin} />
