@@ -44,12 +44,20 @@ export default async function ProductsPage({
         title="Manajemen Inventaris"
         description="Pantau stok dan kelola produk Anda secara real-time."
         actions={
-          <Button asChild className="gap-2">
-            <Link href="/products/new">
-              <Plus className="h-4 w-4" />
-              Tambah Produk
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/products/categories">Kategori</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/products/units">Satuan</Link>
+            </Button>
+            <Button asChild className="gap-2 rounded-xl">
+              <Link href="/products/new">
+                <Plus className="h-4 w-4" />
+                Tambah Produk
+              </Link>
+            </Button>
+          </div>
         }
       />
 
