@@ -39,7 +39,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
       </div>
       <Separator />
       <div className={cn(collapsed && "px-1")}>
-        <SidebarNav collapsed={collapsed} permissions={permissions} isSuperAdmin={isSuperAdmin} />
+        <SidebarNav variant="sidebar" collapsed={collapsed} permissions={permissions} isSuperAdmin={isSuperAdmin} />
       </div>
       <div className="mt-auto px-3 pb-3">
         <div className={cn("mb-3", collapsed && "hidden")}>

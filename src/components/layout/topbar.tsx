@@ -11,15 +11,27 @@ export async function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-background/80 px-4 backdrop-blur">
       <div className="flex items-center gap-3">
-        <MobileNav permissions={ctx.permissions} isSuperAdmin={ctx.isSuperAdmin} />
-        <TenantSwitcher
+        <MobileNav
+          permissions={ctx.permissions}
+          isSuperAdmin={ctx.isSuperAdmin}
           currentTenantId={ctx.tenantId}
-          options={ctx.memberships.map((m) => ({
+          tenantOptions={ctx.memberships.map((m) => ({
             tenantId: m.tenantId,
             tenantName: m.tenantName,
             tenantStatus: m.tenantStatus,
           }))}
         />
+        <div className="md:hidden text-sm font-semibold tracking-tight">POS Pro</div>
+        <div className="hidden md:flex">
+          <TenantSwitcher
+            currentTenantId={ctx.tenantId}
+            options={ctx.memberships.map((m) => ({
+              tenantId: m.tenantId,
+              tenantName: m.tenantName,
+              tenantStatus: m.tenantStatus,
+            }))}
+          />
+        </div>
       </div>
       <div className="hidden flex-1 px-4 md:block">
         <div className="relative max-w-xl">
@@ -32,10 +44,10 @@ export async function Topbar() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" className="h-10 w-10 p-0" aria-label="Notifications">
+        <Button variant="ghost" size="sm" className="hidden h-10 w-10 p-0 md:inline-flex" aria-label="Notifications">
           <Bell className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="sm" className="h-10 w-10 p-0" aria-label="Apps">
+        <Button variant="ghost" size="sm" className="hidden h-10 w-10 p-0 md:inline-flex" aria-label="Apps">
           <LayoutGrid className="h-4 w-4" />
         </Button>
         <ThemeToggle />

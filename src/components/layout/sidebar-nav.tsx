@@ -11,11 +11,13 @@ export function SidebarNav({
   collapsed,
   permissions,
   isSuperAdmin,
+  variant = "sidebar",
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
   permissions?: string[];
   isSuperAdmin?: boolean;
+  variant?: "sidebar" | "sheet";
 }) {
   const pathname = usePathname();
 
@@ -33,35 +35,37 @@ export function SidebarNav({
     { key: "main", label: null, items: main },
     { key: "more", label: "MORE", items: more },
   ] as const;
-  return (
-    <TooltipProvider delayDuration={200}>
-      <nav className="grid gap-1 px-2 py-3">
-        {sections.map((section) => (
-          section.items.length > 0 ? (
+
+  const labelClass =
+    variant === "sidebar" ? "text-white/40" : "text-muted-foreground";
+
+  const linkClass = (active: boolean) =>
+    cn(
+      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+      active ? "bg-primary text-primary-foreground" : variant === "sidebar" ? "text-white/80 hover:bg-white/10 hover:text-white" : "text-foreground/80 hover:bg-muted/60 hover:text-foreground",
+      collapsed && "justify-center px-2"
+    );
+
+  const content = (
+    <nav className={cn("grid gap-1 px-2 py-3", variant === "sheet" && "px-3")}>
+      {sections.map((section) =>
+        section.items.length > 0 ? (
           <div key={section.key} className="grid gap-1">
             {section.label && !collapsed ? (
-              <div className="px-3 pt-2 text-[10px] font-semibold tracking-wider text-white/40">{section.label}</div>
+              <div className={cn("px-3 pt-2 text-[10px] font-semibold tracking-wider", labelClass)}>{section.label}</div>
             ) : null}
             {section.items.map((item) => {
               const Icon = item.icon;
               const match = ("match" in item && typeof item.match === "string" ? item.match : item.href) as string;
               const active = pathname === match || pathname === item.href || pathname.startsWith(`${match}/`);
               const link = (
-                <Link
-                  href={item.href}
-                  onClick={onNavigate}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    active ? "bg-primary text-primary-foreground" : "text-white/80 hover:bg-white/10 hover:text-white",
-                    collapsed && "justify-center px-2"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
+                <Link href={item.href} onClick={onNavigate} className={linkClass(active)}>
+                  <Icon className="h-4 w-4 shrink-0" />
                   <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
                 </Link>
               );
 
-              if (!collapsed) return <div key={item.href}>{link}</div>;
+              if (!collapsed || variant === "sheet") return <div key={item.href}>{link}</div>;
 
               return (
                 <Tooltip key={item.href}>
@@ -70,11 +74,18 @@ export function SidebarNav({
                 </Tooltip>
               );
             })}
-            {section.key === "main" && more.length > 0 ? <div className="my-2 h-px bg-white/10" /> : null}
+            {section.key === "main" && more.length > 0 ? (
+              <div className={cn("my-2 h-px", variant === "sidebar" ? "bg-white/10" : "bg-border")} />
+            ) : null}
           </div>
-          ) : null
-        ))}
-      </nav>
-    </TooltipProvider>
+        ) : null
+      )}
+    </nav>
   );
+
+  if (collapsed && variant === "sidebar") {
+    return <TooltipProvider delayDuration={200}>{content}</TooltipProvider>;
+  }
+
+  return content;
 }

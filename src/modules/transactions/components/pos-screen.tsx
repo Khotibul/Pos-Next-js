@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
 
 type Product = {
   id: string;
@@ -33,6 +34,7 @@ export function PosScreen({ products }: { products: Product[] }) {
   const [error, setError] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
+  const [printPayload, setPrintPayload] = useState<{ saleId: string; auto: boolean } | null>(null);
   const [autoPrint, setAutoPrint] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -222,9 +224,10 @@ export function PosScreen({ products }: { products: Product[] }) {
                   }
                   setInvoice(res.data.invoiceNo);
                   setSaleId(res.data.id);
+                  // Show receipt preview popup in-place (no new tab).
+                  setPrintPayload({ saleId: res.data.id, auto: Boolean(autoPrint) });
                   setCart({});
                   router.refresh();
-                  if (autoPrint) window.open(`/pos/receipt/${res.data.id}`, "_blank", "noopener,noreferrer");
                 });
               }}
             >
@@ -235,7 +238,7 @@ export function PosScreen({ products }: { products: Product[] }) {
                 type="button"
                 variant="outline"
                 className="rounded-xl"
-                onClick={() => window.open(`/pos/receipt/${saleId}`, "_blank", "noopener,noreferrer")}
+                onClick={() => setPrintPayload({ saleId, auto: false })}
               >
                 Cetak Struk
               </Button>
@@ -246,6 +249,72 @@ export function PosScreen({ products }: { products: Product[] }) {
           </div>
         </CardContent>
       </Card>
+
+      {printPayload ? <PosReceiptPopup saleId={printPayload.saleId} auto={printPayload.auto} onDone={() => setPrintPayload(null)} /> : null}
     </div>
+  );
+}
+
+type ReceiptApiResponse = {
+  ok: true;
+  data: {
+    sale: {
+      id: string;
+      invoiceNo: string;
+      status: string;
+      createdAt: string;
+      subtotal: number;
+      discount: number;
+      tax: number;
+      total: number;
+      items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
+      payments: Array<{ id: string; method: string; amount: number; reference: string | null }>;
+    };
+    printer: import("@/modules/settings/printer/validators").PrinterSettings;
+  };
+};
+
+function PosReceiptPopup({ saleId, auto, onDone }: { saleId: string; auto: boolean; onDone: () => void }) {
+  const [data, setData] = useState<ReceiptApiResponse["data"] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+    setErr(null);
+    fetch(`/api/pos/receipt/${saleId}`)
+      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(new Error(j?.message || "Gagal memuat struk")))))
+      .then((json: ReceiptApiResponse) => {
+        if (ignore) return;
+        setData(json?.data ?? null);
+      })
+      .catch((e) => {
+        if (ignore) return;
+        setErr(e?.message || "Gagal memuat struk");
+      })
+      .finally(() => {
+        if (ignore) return;
+        setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [saleId]);
+
+  if (loading) return null;
+  if (err || !data) return null;
+
+  return (
+    <PrintReceiptDialog
+      sale={data.sale}
+      printer={data.printer}
+      triggerLabel={null}
+      defaultOpen
+      autoPrintOnOpen={auto}
+      onOpenChange={(v) => {
+        if (!v) onDone();
+      }}
+    />
   );
 }

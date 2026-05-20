@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getSaleById } from "@/modules/transactions/service";
+import { getPrinterSettings } from "@/modules/settings/printer/service";
+import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
 
 function rupiah(value: unknown) {
   const num = typeof value === "number" ? value : Number(value);
@@ -14,10 +16,41 @@ function rupiah(value: unknown) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 }
 
+function toNumber(value: unknown) {
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requirePermission(PERMISSIONS.sales_read);
   const p = await params;
   const sale = await getSaleById({ tenantId: ctx.tenantId, id: p.id });
+  const printer = await getPrinterSettings({ tenantId: ctx.tenantId });
+
+  const saleForPrint = {
+    id: sale.id,
+    invoiceNo: sale.invoiceNo,
+    status: sale.status,
+    createdAt: sale.createdAt.toISOString(),
+    subtotal: toNumber(sale.subtotal),
+    discount: toNumber(sale.discount),
+    tax: toNumber(sale.tax),
+    total: toNumber(sale.total),
+    items: sale.items.map((i) => ({
+      id: i.id,
+      name: i.name,
+      sku: i.sku,
+      price: toNumber(i.price),
+      qty: i.qty,
+      lineTotal: toNumber(i.lineTotal),
+    })),
+    payments: sale.payments.map((pmt) => ({
+      id: pmt.id,
+      method: pmt.method,
+      amount: toNumber(pmt.amount),
+      reference: pmt.reference ?? null,
+    })),
+  };
 
   return (
     <div className="grid gap-4">
@@ -25,12 +58,15 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
         title={`Transaksi ${sale.invoiceNo}`}
         description={`Status: ${sale.status} • ${new Date(sale.createdAt).toLocaleString("id-ID")}`}
         actions={
-          <Button asChild variant="outline" className="gap-2 rounded-xl">
-            <Link href="/pos/history">
-              <ArrowLeft className="h-4 w-4" />
-              Kembali
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" className="gap-2 rounded-xl">
+              <Link href="/pos/history">
+                <ArrowLeft className="h-4 w-4" />
+                Kembali
+              </Link>
+            </Button>
+            <PrintReceiptDialog sale={saleForPrint} printer={printer} />
+          </div>
         }
       />
 
@@ -100,6 +136,10 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                   </div>
                 ))
               )}
+            </div>
+
+            <div className="mt-4">
+              <PrintReceiptDialog sale={saleForPrint} printer={printer} triggerVariant="outline" />
             </div>
           </CardContent>
         </Card>

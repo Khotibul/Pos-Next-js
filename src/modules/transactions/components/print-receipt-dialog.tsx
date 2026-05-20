@@ -1,0 +1,120 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { PrinterSettings } from "@/modules/settings/printer/validators";
+import { ReceiptView } from "@/modules/transactions/components/receipt-view";
+
+type ReceiptSale = {
+  id: string;
+  invoiceNo: string;
+  status: string;
+  createdAt: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
+  payments: Array<{ id: string; method: string; amount: number; reference: string | null }>;
+};
+
+function requestPrint() {
+  document.body.classList.add("print-receipt");
+  window.print();
+}
+
+export function PrintReceiptDialog({
+  sale,
+  printer,
+  triggerLabel = "Cetak Struk",
+  triggerVariant = "default",
+  defaultOpen = false,
+  autoPrintOnOpen = false,
+  onOpenChange,
+}: {
+  sale: ReceiptSale;
+  printer: PrinterSettings;
+  triggerLabel?: string | null;
+  triggerVariant?: "default" | "outline" | "secondary";
+  defaultOpen?: boolean;
+  autoPrintOnOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  const canUseAfterPrint = useMemo(() => typeof window !== "undefined" && "onafterprint" in window, []);
+
+  useEffect(() => {
+    const cleanup = () => document.body.classList.remove("print-receipt");
+    if (!canUseAfterPrint) return cleanup;
+    window.addEventListener("afterprint", cleanup);
+    return () => window.removeEventListener("afterprint", cleanup);
+  }, [canUseAfterPrint]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!autoPrintOnOpen) return;
+    // Some browsers may block this because it's not a direct user gesture.
+    const t = window.setTimeout(() => {
+      requestPrint();
+      window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [open, autoPrintOnOpen]);
+
+  return (
+    <>
+      {triggerLabel ? (
+        <Button type="button" className="rounded-xl gap-2" variant={triggerVariant} onClick={() => setOpen(true)}>
+          <Printer className="h-4 w-4" />
+          {triggerLabel}
+        </Button>
+      ) : null}
+
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          onOpenChange?.(v);
+        }}
+      >
+        <DialogContent className="max-w-3xl rounded-2xl p-0 overflow-hidden">
+          <div className="p-6">
+            <DialogHeader>
+              <DialogTitle>Preview Struk</DialogTitle>
+              <DialogDescription>{sale.invoiceNo}</DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="bg-muted/20 px-6 pb-6">
+            <div className="print-area">
+              <ReceiptView sale={sale} printer={printer} autoPrint={false} showPrintButton={false} />
+            </div>
+          </div>
+
+          <div className="border-t bg-background px-6 py-4">
+            <DialogFooter className="mt-0">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
+                Tutup
+              </Button>
+              <Button
+                type="button"
+                className="rounded-xl"
+                onClick={() => {
+                  // Ensure dialog stays open while printing so print-area exists in DOM.
+                  requestPrint();
+                  // Fallback cleanup for browsers that don't fire afterprint reliably.
+                  window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+                }}
+              >
+                Cetak
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
