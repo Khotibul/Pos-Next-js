@@ -69,7 +69,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
       return;
     }
 
-    await signIn("google", { callbackUrl: "/onboarding" });
+    await signIn("google", { callbackUrl: "/api/auth/clear-oauth-reg?next=/onboarding" });
   }
 
   return (
