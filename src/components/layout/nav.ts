@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler } from "lucide-react";
+import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2 } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 
 export const NAV_ITEMS = [
@@ -7,8 +7,11 @@ export const NAV_ITEMS = [
   { href: "/products", label: "Produk", icon: Boxes, section: "main", permission: PERMISSIONS.products_read },
   { href: "/products/categories", label: "Kategori Produk", icon: Tags, section: "more", permission: PERMISSIONS.products_read },
   { href: "/products/units", label: "Satuan Produk", icon: Ruler, section: "more", permission: PERMISSIONS.products_read },
+  { href: "/branches", label: "Cabang", icon: Building2, section: "more", permission: PERMISSIONS.branches_read },
+  { href: "/branches/categories", label: "Kategori Cabang", icon: Tags, section: "more", permission: PERMISSIONS.branches_read },
   { href: "/reports", label: "Laporan", icon: BarChart3, section: "main", permission: PERMISSIONS.reports_read },
   { href: "/settings", label: "Pengaturan", icon: Settings, section: "main", permission: PERMISSIONS.settings_read },
+  { href: "/settings/staff", label: "Pegawai", icon: Users, section: "more", permission: PERMISSIONS.staff_read },
   { href: "/customers", label: "Pelanggan", icon: Users, section: "more", permission: PERMISSIONS.customers_read },
   { href: "/suppliers", label: "Supplier", icon: Truck, section: "more", permission: PERMISSIONS.suppliers_read },
   { href: "/inventory", label: "Inventory", icon: Warehouse, section: "more", permission: PERMISSIONS.inventory_read },

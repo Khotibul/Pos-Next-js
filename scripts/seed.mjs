@@ -15,6 +15,12 @@ const permissions = [
   { key: "products.read", name: "Read products" },
   { key: "products.write", name: "Create/update products" },
   { key: "products.delete", name: "Delete products" },
+  { key: "branches.read", name: "Read branches" },
+  { key: "branches.write", name: "Create/update branches" },
+  { key: "branches.delete", name: "Delete branches" },
+  { key: "staff.read", name: "Read staff/users" },
+  { key: "staff.write", name: "Create/update staff/users" },
+  { key: "staff.delete", name: "Delete staff/users" },
   { key: "customers.read", name: "Read customers" },
   { key: "customers.write", name: "Create/update customers" },
   { key: "customers.delete", name: "Delete customers" },
@@ -39,6 +45,12 @@ const rolePermissionMatrix = {
     "products.read",
     "products.write",
     "products.delete",
+    "branches.read",
+    "branches.write",
+    "branches.delete",
+    "staff.read",
+    "staff.write",
+    "staff.delete",
     "customers.read",
     "customers.write",
     "customers.delete",
@@ -61,6 +73,12 @@ const rolePermissionMatrix = {
     "products.read",
     "products.write",
     "products.delete",
+    "branches.read",
+    "branches.write",
+    "branches.delete",
+    "staff.read",
+    "staff.write",
+    "staff.delete",
     "customers.read",
     "customers.write",
     "customers.delete",
@@ -76,9 +94,9 @@ const rolePermissionMatrix = {
     "billing.read",
   ],
   CASHIER: ["dashboard.read", "sales.read", "sales.write", "products.read", "customers.read"],
-  WAREHOUSE: ["dashboard.read", "products.read", "products.write", "inventory.read", "inventory.write"],
-  ACCOUNTANT: ["dashboard.read", "sales.read", "reports.read", "products.read", "customers.read", "suppliers.read", "billing.read"],
-  BRANCH_MANAGER: ["dashboard.read", "sales.read", "sales.write", "products.read", "products.write", "customers.read", "customers.write", "suppliers.read", "suppliers.write", "inventory.read", "inventory.write", "reports.read", "settings.read"],
+  WAREHOUSE: ["dashboard.read", "branches.read", "products.read", "products.write", "inventory.read", "inventory.write"],
+  ACCOUNTANT: ["dashboard.read", "branches.read", "sales.read", "reports.read", "products.read", "customers.read", "suppliers.read", "billing.read"],
+  BRANCH_MANAGER: ["dashboard.read", "sales.read", "sales.write", "branches.read", "products.read", "products.write", "customers.read", "customers.write", "suppliers.read", "suppliers.write", "inventory.read", "inventory.write", "reports.read", "settings.read"],
 };
 
 const DEFAULT_PRINTER_SETTINGS = {
@@ -239,6 +257,20 @@ async function seedTenant({
       create: { id: `${tenant.id}-sup-1`, tenantId: tenant.id, name: "PT Sumber Makmur", email: "sales@sumbermakmur.co", phone: "021555000", address: "Bandung", isActive: true },
     });
 
+    const branchCategory = await tx.branchCategory.upsert({
+      where: { tenantId_name: { tenantId: tenant.id, name: "Default" } },
+      update: {},
+      create: { tenantId: tenant.id, name: "Default" },
+      select: { id: true },
+    });
+
+    const mainBranch = await tx.branch.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: "MAIN" } },
+      update: { name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
+      create: { tenantId: tenant.id, code: "MAIN", name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
+      select: { id: true },
+    });
+
     for (const u of users) {
       const user = await tx.user.upsert({
         where: { email: u.email },
@@ -248,8 +280,8 @@ async function seedTenant({
 
       await tx.tenantUser.upsert({
         where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
-        update: { roleId: roleMap.get(u.role) ?? null },
-        create: { tenantId: tenant.id, userId: user.id, roleId: roleMap.get(u.role) ?? null },
+        update: { roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
+        create: { tenantId: tenant.id, userId: user.id, roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
       });
     }
 

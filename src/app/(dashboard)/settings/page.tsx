@@ -4,7 +4,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Building2, Mail, Printer, Shield } from "lucide-react";
+import { Building2, Mail, Printer, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default async function SettingsPage() {
@@ -80,6 +80,14 @@ export default async function SettingsPage() {
               <Button asChild variant="outline" size="sm" className="rounded-xl">
                 <Link href="/settings/roles">Role & Permission</Link>
               </Button>
+              {ctx.isSuperAdmin || ctx.permissions.includes(PERMISSIONS.staff_read) ? (
+                <Button asChild variant="outline" size="sm" className="rounded-xl gap-2">
+                  <Link href="/settings/staff">
+                    <Users className="h-4 w-4" />
+                    Pegawai
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="outline" size="sm" className="rounded-xl">
                 <Link href="/audit-logs">Audit Log</Link>
               </Button>

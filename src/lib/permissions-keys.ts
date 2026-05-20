@@ -6,6 +6,12 @@ export const PERMISSIONS = {
   products_read: "products.read",
   products_write: "products.write",
   products_delete: "products.delete",
+  branches_read: "branches.read",
+  branches_write: "branches.write",
+  branches_delete: "branches.delete",
+  staff_read: "staff.read",
+  staff_write: "staff.write",
+  staff_delete: "staff.delete",
   customers_read: "customers.read",
   customers_write: "customers.write",
   customers_delete: "customers.delete",
@@ -22,4 +28,3 @@ export const PERMISSIONS = {
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
-
