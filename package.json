@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "prisma": {
-    "schema": "src/prisma/schema.prisma"
+    "schema": "src/prisma/schema.prisma",
+    "seed": "node scripts/seed.mjs"
   },
   "scripts": {
     "dev": "next dev",

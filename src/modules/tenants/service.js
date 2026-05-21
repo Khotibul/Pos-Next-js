@@ -15,13 +15,18 @@ function slugify(input) {
 export async function createTenantForExistingUser({ userId, tenantName, planSlug }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, memberships: { select: { tenantId: true }, take: 1 } },
+    select: { id: true, name: true, email: true, memberships: { select: { tenantId: true }, take: 1 } },
   });
   if (!user) throw Errors.unauthorized("User tidak ditemukan.");
   if (user.memberships.length > 0) throw Errors.badRequest("Akun ini sudah terhubung ke tenant.");
 
-  const baseSlug = slugify(tenantName);
-  if (!baseSlug) throw Errors.badRequest("Nama bisnis tidak valid.");
+  const derivedTenantName =
+    (tenantName && tenantName.trim()) ||
+    (user.name && user.name.trim().length >= 2 ? `Bisnis ${user.name.trim()}` : null) ||
+    (user.email ? `Bisnis ${user.email.split("@")[0]}` : null) ||
+    "Bisnis Baru";
+
+  const baseSlug = slugify(derivedTenantName) || `tenant-${userId.slice(0, 8)}`;
 
   const tenant = await prisma.$transaction(async (tx) => {
     const slugInUse = await tx.tenant.findUnique({ where: { slug: baseSlug } });
@@ -29,12 +34,13 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
 
     const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
     const plan = await tx.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
-    const trialDays = plan?.trialDays ?? 14;
+    // Requirement: tenant without serial number uses 30 days trial by default.
+    const trialDays = 30;
     const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
 
     const createdTenant = await tx.tenant.create({
       data: {
-        name: tenantName,
+        name: derivedTenantName,
         slug,
         planId: plan?.id ?? null,
         status: trialDays > 0 ? "TRIAL" : "ACTIVE",
@@ -87,4 +93,3 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
 
   return tenant;
 }
-

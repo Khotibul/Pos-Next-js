@@ -46,7 +46,8 @@ export async function POST(req: Request) {
 
     const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
     const plan = await tx.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
-    const trialDays = plan?.trialDays ?? 14;
+    // Requirement: if tenant has no serial number yet, default to 30 days trial.
+    const trialDays = 30;
     const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
 
     const createdTenant = await tx.tenant.create({
@@ -79,18 +80,18 @@ export async function POST(req: Request) {
       permMap.set(p.key, perm.id);
     }
 
+    const rows: Array<{ roleId: string; permissionId: string }> = [];
     for (const roleName of DEFAULT_ROLES) {
       const roleId = roleMap.get(roleName);
       if (!roleId) continue;
       for (const key of DEFAULT_ROLE_PERMISSION_MATRIX[roleName] ?? []) {
         const permissionId = permMap.get(key);
         if (!permissionId) continue;
-        await tx.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId, permissionId } },
-          update: {},
-          create: { roleId, permissionId },
-        });
+        rows.push({ roleId, permissionId });
       }
+    }
+    if (rows.length) {
+      await tx.rolePermission.createMany({ data: rows, skipDuplicates: true });
     }
 
     const user = await tx.user.create({

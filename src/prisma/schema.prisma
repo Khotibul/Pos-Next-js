@@ -50,6 +50,7 @@ model Plan {
   updatedAt    DateTime @updatedAt
 
   tenants Tenant[]
+  licenseKeys LicenseKey[]
 }
 
 model Tenant {
@@ -66,6 +67,7 @@ model Tenant {
   updatedAt DateTime     @updatedAt
 
   plan      Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+  licenseKeys LicenseKey[]
   memberships TenantUser[]
   roles       Role[]
   permissions Permission[]
@@ -86,6 +88,23 @@ model Tenant {
   @@unique([domain])
   @@unique([subdomain])
   @@index([planId])
+}
+
+model LicenseKey {
+  id        String   @id @default(cuid())
+  serial    String   @unique
+  planId    String?
+  tenantId  String?  @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  redeemedAt DateTime?
+  createdAt DateTime @default(now())
+
+  plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([expiresAt])
 }
 
 model Setting {

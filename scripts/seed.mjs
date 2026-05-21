@@ -129,223 +129,215 @@ async function seedTenant({
 }) {
   const passwordHash = await bcrypt.hash(seedPassword, 12);
 
-  return prisma.$transaction(async (tx) => {
-    const effectiveTrialDays = typeof trialDays === "number" ? trialDays : 0;
-    const effectiveTrialEndsAt =
-      status === "TRIAL" && effectiveTrialDays > 0 ? new Date(Date.now() + effectiveTrialDays * 24 * 60 * 60 * 1000) : null;
+  // Neon note: avoid a long interactive transaction (can be flaky with poolers).
+  const effectiveTrialDays = typeof trialDays === "number" ? trialDays : 0;
+  const effectiveTrialEndsAt =
+    status === "TRIAL" && effectiveTrialDays > 0 ? new Date(Date.now() + effectiveTrialDays * 24 * 60 * 60 * 1000) : null;
 
-    const tenant = await tx.tenant.upsert({
-      where: { slug },
-      update: { name, status, planId: planId ?? null, trialEndsAt: effectiveTrialEndsAt ?? undefined },
-      create: { name, slug, status, planId: planId ?? null, trialEndsAt: effectiveTrialEndsAt ?? null },
+  const tenant = await prisma.tenant.upsert({
+    where: { slug },
+    update: { name, status, planId: planId ?? null, trialEndsAt: effectiveTrialEndsAt ?? undefined },
+    create: { name, slug, status, planId: planId ?? null, trialEndsAt: effectiveTrialEndsAt ?? null },
+  });
+
+  await prisma.setting.upsert({
+    where: { tenantId_key: { tenantId: tenant.id, key: "printer" } },
+    update: { value: DEFAULT_PRINTER_SETTINGS },
+    create: { tenantId: tenant.id, key: "printer", value: DEFAULT_PRINTER_SETTINGS },
+  });
+
+  const roleMap = new Map();
+  for (const roleName of roles) {
+    const role = await prisma.role.upsert({
+      where: { tenantId_name: { tenantId: tenant.id, name: roleName } },
+      update: {},
+      create: { tenantId: tenant.id, name: roleName },
+    });
+    roleMap.set(roleName, role.id);
+  }
+
+  const permissionMap = new Map();
+  for (const p of permissions) {
+    const permission = await prisma.permission.upsert({
+      where: { tenantId_key: { tenantId: tenant.id, key: p.key } },
+      update: { name: p.name },
+      create: { tenantId: tenant.id, key: p.key, name: p.name },
+    });
+    permissionMap.set(p.key, permission.id);
+  }
+
+  const rolePermissionRows = [];
+  for (const roleName of roles) {
+    const roleId = roleMap.get(roleName);
+    if (!roleId) continue;
+    const keys = rolePermissionMatrix[roleName] ?? [];
+    for (const key of keys) {
+      const permissionId = permissionMap.get(key);
+      if (!permissionId) continue;
+      rolePermissionRows.push({ roleId, permissionId });
+    }
+  }
+  if (rolePermissionRows.length > 0) {
+    await prisma.rolePermission.createMany({ data: rolePermissionRows, skipDuplicates: true });
+  }
+
+  const catFood = await prisma.productCategory.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "Food" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "Food" },
+  });
+  const catDrink = await prisma.productCategory.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "Drink" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "Drink" },
+  });
+
+  const brandGeneric = await prisma.productBrand.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "Generic" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "Generic" },
+  });
+
+  const unitPcs = await prisma.productUnit.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "pcs" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "pcs" },
+  });
+  const unitPack = await prisma.productUnit.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "pack" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "pack" },
+  });
+
+  const productSeeds = [
+    { sku: "SKU-0001", name: "Cheeseburger Deluxe", barcode: "899000000001", categoryId: catFood.id, unitId: unitPcs.id, costPrice: 25000, sellingPrice: 45000 },
+    { sku: "SKU-0002", name: "Caramel Latte", barcode: "899000000002", categoryId: catDrink.id, unitId: unitPack.id, costPrice: 14000, sellingPrice: 32000 },
+    { sku: "SKU-0003", name: "Wireless Headphone", barcode: "899000000003", categoryId: catFood.id, unitId: unitPcs.id, costPrice: 600000, sellingPrice: 850000 },
+    { sku: "SKU-0004", name: "French Fries Large", barcode: "899000000004", categoryId: catFood.id, unitId: unitPack.id, costPrice: 12000, sellingPrice: 20000 },
+    { sku: "SKU-0005", name: "Iced Lemon Tea", barcode: "899000000005", categoryId: catDrink.id, unitId: unitPack.id, costPrice: 6000, sellingPrice: 15000 },
+  ];
+
+  const productIds = [];
+  for (const p of productSeeds) {
+    const up = await prisma.product.upsert({
+      where: { tenantId_sku: { tenantId: tenant.id, sku: p.sku } },
+      update: { name: p.name, sellingPrice: p.sellingPrice, costPrice: p.costPrice, isActive: true },
+      create: {
+        tenantId: tenant.id,
+        sku: p.sku,
+        name: p.name,
+        barcode: p.barcode,
+        categoryId: p.categoryId,
+        brandId: brandGeneric.id,
+        unitId: p.unitId,
+        costPrice: p.costPrice,
+        sellingPrice: p.sellingPrice,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    productIds.push(up.id);
+  }
+
+  await prisma.customer.upsert({
+    where: { id: `${tenant.id}-cust-1` },
+    update: { name: "Budi Kusuma", email: "budi@example.com", phone: "081234567890", isActive: true },
+    create: { id: `${tenant.id}-cust-1`, tenantId: tenant.id, name: "Budi Kusuma", email: "budi@example.com", phone: "081234567890", address: "Jakarta", isActive: true },
+  });
+
+  await prisma.supplier.upsert({
+    where: { id: `${tenant.id}-sup-1` },
+    update: { name: "PT Sumber Makmur", email: "sales@sumbermakmur.co", phone: "021555000", isActive: true },
+    create: { id: `${tenant.id}-sup-1`, tenantId: tenant.id, name: "PT Sumber Makmur", email: "sales@sumbermakmur.co", phone: "021555000", address: "Bandung", isActive: true },
+  });
+
+  const branchCategory = await prisma.branchCategory.upsert({
+    where: { tenantId_name: { tenantId: tenant.id, name: "Default" } },
+    update: {},
+    create: { tenantId: tenant.id, name: "Default" },
+    select: { id: true },
+  });
+
+  const mainBranch = await prisma.branch.upsert({
+    where: { tenantId_code: { tenantId: tenant.id, code: "MAIN" } },
+    update: { name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
+    create: { tenantId: tenant.id, code: "MAIN", name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
+    select: { id: true },
+  });
+
+  for (const u of users) {
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
+      create: { name: u.name, email: u.email, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
     });
 
-    await tx.setting.upsert({
-      where: { tenantId_key: { tenantId: tenant.id, key: "printer" } },
-      update: { value: DEFAULT_PRINTER_SETTINGS },
-      create: { tenantId: tenant.id, key: "printer", value: DEFAULT_PRINTER_SETTINGS },
+    await prisma.tenantUser.upsert({
+      where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
+      update: { roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
+      create: { tenantId: tenant.id, userId: user.id, roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
     });
+  }
 
-    const roleMap = new Map();
-    for (const roleName of roles) {
-      const role = await tx.role.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: roleName } },
-        update: {},
-        create: { tenantId: tenant.id, name: roleName },
+  const now = new Date();
+  const cashier = users.find((u) => u.role === "CASHIER")?.email || users[0]?.email;
+  const cashierUser = cashier ? await prisma.user.findUnique({ where: { email: cashier }, select: { id: true } }) : null;
+
+  const existingSales = await prisma.sale.count({ where: { tenantId: tenant.id } });
+  if (existingSales < 8) {
+    for (let i = 0; i < 8; i++) {
+      const createdAt = new Date(now.getTime() - (i % 7) * 24 * 60 * 60 * 1000 - i * 60 * 60 * 1000);
+      const pick1 = productIds[i % productIds.length];
+      const pick2 = productIds[(i + 1) % productIds.length];
+      const prod = await prisma.product.findMany({
+        where: { tenantId: tenant.id, id: { in: [pick1, pick2] } },
+        select: { id: true, name: true, sku: true, sellingPrice: true },
       });
-      roleMap.set(roleName, role.id);
-    }
-
-    const permissionMap = new Map();
-    for (const p of permissions) {
-      const permission = await tx.permission.upsert({
-        where: { tenantId_key: { tenantId: tenant.id, key: p.key } },
-        update: { name: p.name },
-        create: { tenantId: tenant.id, key: p.key, name: p.name },
+      const map = new Map(prod.map((p) => [p.id, p]));
+      const items = [
+        { productId: pick1, qty: 1 + (i % 2) },
+        { productId: pick2, qty: 1 },
+      ].map((it) => {
+        const p = map.get(it.productId);
+        const price = Number(p?.sellingPrice ?? 0);
+        const lineTotal = price * it.qty;
+        return { ...it, name: p?.name ?? "Unknown", sku: p?.sku ?? "-", price, lineTotal };
       });
-      permissionMap.set(p.key, permission.id);
-    }
+      const subtotal = items.reduce((a, x) => a + x.lineTotal, 0);
+      const tax = subtotal * 0.11;
+      const total = subtotal + tax;
 
-    for (const roleName of roles) {
-      const roleId = roleMap.get(roleName);
-      if (!roleId) continue;
-      const keys = rolePermissionMatrix[roleName] ?? [];
-      for (const key of keys) {
-        const permissionId = permissionMap.get(key);
-        if (!permissionId) continue;
-        await tx.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId, permissionId } },
-          update: {},
-          create: { roleId, permissionId },
-        });
-      }
-    }
-
-    const [catFood, catDrink] = await Promise.all([
-      tx.productCategory.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: "Food" } },
-        update: {},
-        create: { tenantId: tenant.id, name: "Food" },
-      }),
-      tx.productCategory.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: "Drink" } },
-        update: {},
-        create: { tenantId: tenant.id, name: "Drink" },
-      }),
-    ]);
-
-    const [brandGeneric] = await Promise.all([
-      tx.productBrand.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: "Generic" } },
-        update: {},
-        create: { tenantId: tenant.id, name: "Generic" },
-      }),
-    ]);
-
-    const [unitPcs, unitPack] = await Promise.all([
-      tx.productUnit.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: "pcs" } },
-        update: {},
-        create: { tenantId: tenant.id, name: "pcs" },
-      }),
-      tx.productUnit.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: "pack" } },
-        update: {},
-        create: { tenantId: tenant.id, name: "pack" },
-      }),
-    ]);
-
-    const productSeeds = [
-      { sku: "SKU-0001", name: "Cheeseburger Deluxe", barcode: "899000000001", categoryId: catFood.id, unitId: unitPcs.id, costPrice: 25000, sellingPrice: 45000 },
-      { sku: "SKU-0002", name: "Caramel Latte", barcode: "899000000002", categoryId: catDrink.id, unitId: unitPack.id, costPrice: 14000, sellingPrice: 32000 },
-      { sku: "SKU-0003", name: "Wireless Headphone", barcode: "899000000003", categoryId: catFood.id, unitId: unitPcs.id, costPrice: 600000, sellingPrice: 850000 },
-      { sku: "SKU-0004", name: "French Fries Large", barcode: "899000000004", categoryId: catFood.id, unitId: unitPack.id, costPrice: 12000, sellingPrice: 20000 },
-      { sku: "SKU-0005", name: "Iced Lemon Tea", barcode: "899000000005", categoryId: catDrink.id, unitId: unitPack.id, costPrice: 6000, sellingPrice: 15000 },
-    ];
-
-    const productIds = [];
-    for (const p of productSeeds) {
-      const up = await tx.product.upsert({
-        where: { tenantId_sku: { tenantId: tenant.id, sku: p.sku } },
-        update: { name: p.name, sellingPrice: p.sellingPrice, costPrice: p.costPrice, isActive: true },
-        create: {
+      await prisma.sale.create({
+        data: {
           tenantId: tenant.id,
-          sku: p.sku,
-          name: p.name,
-          barcode: p.barcode,
-          categoryId: p.categoryId,
-          brandId: brandGeneric.id,
-          unitId: p.unitId,
-          costPrice: p.costPrice,
-          sellingPrice: p.sellingPrice,
-          isActive: true,
+          invoiceNo: inv("TRX"),
+          cashierId: cashierUser?.id ?? null,
+          subtotal,
+          discount: 0,
+          tax,
+          total,
+          status: "PAID",
+          createdAt,
+          updatedAt: createdAt,
+          items: {
+            create: items.map((l) => ({
+              tenantId: tenant.id,
+              productId: l.productId,
+              name: l.name,
+              sku: l.sku,
+              price: l.price,
+              qty: l.qty,
+              lineTotal: l.lineTotal,
+            })),
+          },
+          payments: { create: { tenantId: tenant.id, method: "CASH", amount: total, reference: null, createdAt } },
         },
         select: { id: true },
       });
-      productIds.push(up.id);
     }
+  }
 
-    await tx.customer.upsert({
-      where: { id: `${tenant.id}-cust-1` },
-      update: { name: "Budi Kusuma", email: "budi@example.com", phone: "081234567890", isActive: true },
-      create: { id: `${tenant.id}-cust-1`, tenantId: tenant.id, name: "Budi Kusuma", email: "budi@example.com", phone: "081234567890", address: "Jakarta", isActive: true },
-    });
-
-    await tx.supplier.upsert({
-      where: { id: `${tenant.id}-sup-1` },
-      update: { name: "PT Sumber Makmur", email: "sales@sumbermakmur.co", phone: "021555000", isActive: true },
-      create: { id: `${tenant.id}-sup-1`, tenantId: tenant.id, name: "PT Sumber Makmur", email: "sales@sumbermakmur.co", phone: "021555000", address: "Bandung", isActive: true },
-    });
-
-    const branchCategory = await tx.branchCategory.upsert({
-      where: { tenantId_name: { tenantId: tenant.id, name: "Default" } },
-      update: {},
-      create: { tenantId: tenant.id, name: "Default" },
-      select: { id: true },
-    });
-
-    const mainBranch = await tx.branch.upsert({
-      where: { tenantId_code: { tenantId: tenant.id, code: "MAIN" } },
-      update: { name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
-      create: { tenantId: tenant.id, code: "MAIN", name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
-      select: { id: true },
-    });
-
-    for (const u of users) {
-      const user = await tx.user.upsert({
-        where: { email: u.email },
-        update: { name: u.name, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
-        create: { name: u.name, email: u.email, passwordHash, isSuperAdmin: Boolean(u.isSuperAdmin), emailVerified: new Date() },
-      });
-
-      await tx.tenantUser.upsert({
-        where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
-        update: { roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
-        create: { tenantId: tenant.id, userId: user.id, roleId: roleMap.get(u.role) ?? null, branchId: mainBranch.id },
-      });
-    }
-
-    // Seed demo sales (last 7 days)
-    const now = new Date();
-    const cashier = users.find((u) => u.role === "CASHIER")?.email || users[0]?.email;
-    const cashierUser = cashier ? await tx.user.findUnique({ where: { email: cashier }, select: { id: true } }) : null;
-
-    const existingSales = await tx.sale.count({ where: { tenantId: tenant.id } });
-    if (existingSales < 8) {
-      for (let i = 0; i < 8; i++) {
-        const createdAt = new Date(now.getTime() - (i % 7) * 24 * 60 * 60 * 1000 - i * 60 * 60 * 1000);
-        const pick1 = productIds[i % productIds.length];
-        const pick2 = productIds[(i + 1) % productIds.length];
-        const prod = await tx.product.findMany({
-          where: { tenantId: tenant.id, id: { in: [pick1, pick2] } },
-          select: { id: true, name: true, sku: true, sellingPrice: true },
-        });
-        const map = new Map(prod.map((p) => [p.id, p]));
-        const items = [
-          { productId: pick1, qty: 1 + (i % 2) },
-          { productId: pick2, qty: 1 },
-        ].map((it) => {
-          const p = map.get(it.productId);
-          const price = Number(p?.sellingPrice ?? 0);
-          const lineTotal = price * it.qty;
-          return { ...it, name: p?.name ?? "Unknown", sku: p?.sku ?? "-", price, lineTotal };
-        });
-        const subtotal = items.reduce((a, x) => a + x.lineTotal, 0);
-        const tax = subtotal * 0.11;
-        const total = subtotal + tax;
-
-        await tx.sale.create({
-          data: {
-            tenantId: tenant.id,
-            invoiceNo: inv("TRX"),
-            cashierId: cashierUser?.id ?? null,
-            subtotal,
-            discount: 0,
-            tax,
-            total,
-            status: "PAID",
-            createdAt,
-            updatedAt: createdAt,
-            items: {
-              create: items.map((l) => ({
-                tenantId: tenant.id,
-                productId: l.productId,
-                name: l.name,
-                sku: l.sku,
-                price: l.price,
-                qty: l.qty,
-                lineTotal: l.lineTotal,
-              })),
-            },
-            payments: { create: { tenantId: tenant.id, method: "CASH", amount: total, reference: null, createdAt } },
-          },
-          select: { id: true },
-        });
-      }
-    }
-
-    return tenant;
-  });
+  return tenant;
 }
 
 async function main() {

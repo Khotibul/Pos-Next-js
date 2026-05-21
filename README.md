@@ -69,6 +69,7 @@ Setiap page/action melakukan:
 
 Catatan:
 - Gunakan `prisma migrate deploy` untuk hosted DB seperti Neon (lebih aman untuk CI/CD dibanding `migrate dev`).
+- Alternatif: `npx prisma db seed` (akan memakai seed command dari `package.json`).
 
 ## Notes
 

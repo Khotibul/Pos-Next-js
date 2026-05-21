@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Building2, ArrowRight } from "lucide-react";
+import { ArrowRight, KeyRound } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,9 @@ export function OnboardingForm({ defaultPlanSlug }) {
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle className="text-2xl">Aktifkan Tenant</CardTitle>
-          <CardDescription>Lengkapi nama bisnis untuk mulai menggunakan POS Pro.</CardDescription>
+          <CardDescription>
+            Masukkan serial number untuk aktivasi. Jika belum punya, kosongkan untuk mulai trial 30 hari.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {message ? <Alert variant="destructive">{message}</Alert> : null}
@@ -33,12 +35,18 @@ export function OnboardingForm({ defaultPlanSlug }) {
             <input type="hidden" name="planSlug" value={planFromUrl} />
 
             <div className="grid gap-2">
-              <Label htmlFor="tenantName">Nama Bisnis</Label>
+              <Label htmlFor="serial">Serial Number (Opsional)</Label>
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="tenantName" name="tenantName" required className="pl-10" placeholder="Nama toko/perusahaan" />
+                <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="serial"
+                  name="serial"
+                  className="pl-10"
+                  placeholder="PPOS-XXXX-XXXX-XXXX-XXXX"
+                  autoComplete="off"
+                />
               </div>
-              {fieldErrors.tenantName ? <p className="text-xs text-destructive">{fieldErrors.tenantName}</p> : null}
+              {fieldErrors.serial ? <p className="text-xs text-destructive">{fieldErrors.serial}</p> : null}
             </div>
 
             <Button type="submit" disabled={isPending} className="h-12 gap-2 rounded-xl">
@@ -55,4 +63,3 @@ export function OnboardingForm({ defaultPlanSlug }) {
     </div>
   );
 }
-
