@@ -34,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
         discount: toNumber(sale.discount),
         tax: toNumber(sale.tax),
         total: toNumber(sale.total),
-        items: sale.items.map((i) => ({
+        items: sale.items.map((i: { id: string; name: string; sku: string; price: unknown; qty: number; lineTotal: unknown }) => ({
           id: i.id,
           name: i.name,
           sku: i.sku,
@@ -52,4 +52,3 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
     },
   });
 }
-
