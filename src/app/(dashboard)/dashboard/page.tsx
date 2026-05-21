@@ -82,7 +82,7 @@ export default async function DashboardHome() {
             {topProducts.length === 0 ? (
               <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">Belum ada data.</div>
             ) : (
-              topProducts.map((p) => (
+              topProducts.map((p: { productId: string; name: string; qty: number; revenue: number }) => (
                 <div key={p.productId} className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{p.name}</div>
