@@ -1,5 +1,4 @@
 import { RegisterTenantForm } from "@/app/(auth)/register/register-tenant-form";
-import { AuthShell } from "@/components/auth/auth-shell";
 
 export default async function RegisterTenantPage({ searchParams }) {
   const sp = await searchParams;
@@ -9,16 +8,6 @@ export default async function RegisterTenantPage({ searchParams }) {
     error === "OAUTH_REG_EXPIRED"
       ? "Registrasi Google sudah kedaluwarsa. Silakan klik \"Daftar dengan Google\" lagi."
       : null;
-  return (
-    <AuthShell
-      variant="register"
-      heroSide="right"
-      topText="Sudah punya akun?"
-      topLinkLabel="Masuk"
-      topLinkHref="/login"
-    >
-      <RegisterTenantForm planSlug={planSlug} initialError={initialError} />
-    </AuthShell>
-  );
+  return <RegisterTenantForm planSlug={planSlug} initialError={initialError} />;
 }
 

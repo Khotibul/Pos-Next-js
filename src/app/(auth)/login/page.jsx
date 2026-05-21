@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
-import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,13 +52,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell
-      variant="login"
-      heroSide="left"
-      topText="Belum punya akun?"
-      topLinkLabel="Daftar Akun Baru"
-      topLinkHref="/register"
-    >
+    <div className="w-full">
       <h1 className="text-3xl font-semibold tracking-tight">Selamat Datang Kembali</h1>
       <p className="mt-2 text-sm text-muted-foreground">Silakan masuk ke akun Anda untuk melanjutkan operasional.</p>
 
@@ -141,13 +134,6 @@ export default function LoginPage() {
       </div>
 
       <GoogleOAuthButton callbackUrl="/onboarding" label="Masuk dengan Google" disabled={isLoading} />
-
-      <p className="mt-8 text-center text-sm text-muted-foreground">
-        Belum punya akun?{" "}
-        <Link className="font-medium text-primary hover:underline" href="/register">
-          Daftar Akun Baru
-        </Link>
-      </p>
-    </AuthShell>
+    </div>
   );
 }
