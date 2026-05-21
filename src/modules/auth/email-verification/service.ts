@@ -3,7 +3,7 @@ import "server-only";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
-import { sendEmail } from "@/lib/email/resend";
+import { sendEmail } from "@/lib/email/smtp";
 import { verifyEmailTemplate } from "@/lib/email/templates/verify-email";
 
 function appBaseUrl() {
@@ -66,4 +66,3 @@ export async function verifyEmailByToken(params: { token: string }) {
 
   return { ok: true as const };
 }
-

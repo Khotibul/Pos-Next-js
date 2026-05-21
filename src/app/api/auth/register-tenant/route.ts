@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
 import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
@@ -22,6 +24,14 @@ function slugify(input: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+function makeId() {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+function randomSuffix() {
+  return Math.random().toString(36).slice(2, 8);
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
@@ -40,73 +50,108 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const slugInUse = await tx.tenant.findUnique({ where: { slug: baseSlug } });
-    const slug = slugInUse ? `${baseSlug}-${Math.random().toString(36).slice(2, 8)}` : baseSlug;
+  const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
+  const plan = await prisma.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
 
-    const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
-    const plan = await tx.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
-    // Requirement: if tenant has no serial number yet, default to 30 days trial.
-    const trialDays = 30;
-    const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
+  // Requirement: if tenant has no serial number yet, default to 30 days trial.
+  const trialDays = 30;
+  const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
 
-    const createdTenant = await tx.tenant.create({
-      data: {
-        name: tenantName,
-        slug,
-        planId: plan?.id ?? null,
-        status: trialDays > 0 ? "TRIAL" : "ACTIVE",
-        trialEndsAt,
-      },
-    });
+  // Avoid interactive transactions (P2028) on serverless poolers (Neon/Vercel).
+  // Pre-generate IDs so dependent writes can be done via `$transaction([])`.
+  const tenantId = makeId();
+  const userId = makeId();
 
-    const roleMap = new Map<string, string>();
-    for (const roleName of DEFAULT_ROLES) {
-      const role = await tx.role.upsert({
-        where: { tenantId_name: { tenantId: createdTenant.id, name: roleName } },
-        update: {},
-        create: { tenantId: createdTenant.id, name: roleName },
-      });
-      roleMap.set(roleName, role.id);
+  const roleIdsByName = new Map<string, string>();
+  const roleRows: Array<{ id: string; tenantId: string; name: string }> = [];
+  for (const roleName of DEFAULT_ROLES) {
+    const id = makeId();
+    roleIdsByName.set(roleName, id);
+    roleRows.push({ id, tenantId, name: roleName });
+  }
+
+  const permIdsByKey = new Map<string, string>();
+  const permRows: Array<{ id: string; tenantId: string; key: string; name: string }> = [];
+  for (const p of DEFAULT_PERMISSIONS) {
+    const id = makeId();
+    permIdsByKey.set(p.key, id);
+    permRows.push({ id, tenantId, key: p.key, name: p.name });
+  }
+
+  const rolePermRows: Array<{ id: string; roleId: string; permissionId: string }> = [];
+  for (const roleName of DEFAULT_ROLES) {
+    const roleId = roleIdsByName.get(roleName);
+    if (!roleId) continue;
+    for (const key of DEFAULT_ROLE_PERMISSION_MATRIX[roleName] ?? []) {
+      const permissionId = permIdsByKey.get(key);
+      if (!permissionId) continue;
+      rolePermRows.push({ id: makeId(), roleId, permissionId });
     }
+  }
 
-    const permMap = new Map<string, string>();
-    for (const p of DEFAULT_PERMISSIONS) {
-      const perm = await tx.permission.upsert({
-        where: { tenantId_key: { tenantId: createdTenant.id, key: p.key } },
-        update: { name: p.name },
-        create: { tenantId: createdTenant.id, key: p.key, name: p.name },
-      });
-      permMap.set(p.key, perm.id);
+  const ownerRoleId = roleIdsByName.get("OWNER") ?? null;
+
+  type CreatedTenant = { id: string; name: string; slug: string };
+  type CreatedUser = { id: string; email: string | null; name: string | null };
+  type PrismaErr = { code?: string; meta?: { target?: string[] | string } };
+
+  const createAll = async (slug: string) => {
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      prisma.tenant.create({
+        data: {
+          id: tenantId,
+          name: tenantName,
+          slug,
+          planId: plan?.id ?? null,
+          status: trialDays > 0 ? "TRIAL" : "ACTIVE",
+          trialEndsAt,
+        },
+        select: { id: true, name: true, slug: true },
+      }),
+      prisma.user.create({
+        data: { id: userId, name: ownerName, email, phone: phone || null, passwordHash, emailVerified: null },
+        select: { id: true, email: true, name: true },
+      }),
+      prisma.role.createMany({ data: roleRows, skipDuplicates: true }),
+      prisma.permission.createMany({ data: permRows, skipDuplicates: true }),
+    ];
+    if (rolePermRows.length) ops.push(prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true }));
+    ops.push(
+      prisma.tenantUser.create({
+        data: { tenantId, userId, roleId: ownerRoleId },
+        select: { id: true },
+      }),
+    );
+
+    const [tenant, user] = await prisma.$transaction(ops);
+    return { tenant: tenant as CreatedTenant, user: user as CreatedUser };
+  };
+
+  // Keep slug nice if possible, otherwise fallback to random suffix.
+  const slugInUse = await prisma.tenant.findUnique({ where: { slug: baseSlug }, select: { id: true } }).catch(() => null);
+  const preferredSlug = slugInUse ? `${baseSlug}-${randomSuffix()}` : baseSlug;
+
+  let created: { tenant: CreatedTenant; user: CreatedUser };
+  try {
+    created = await createAll(preferredSlug);
+  } catch (e: unknown) {
+    // If slug collides due to race, retry once with a new suffix.
+    const err = e as PrismaErr;
+    const rawTarget = err?.meta?.target;
+    const target = Array.isArray(rawTarget) ? rawTarget : typeof rawTarget === "string" ? [rawTarget] : [];
+    const isSlugCollision = err?.code === "P2002" && target.some((t) => String(t).includes("slug"));
+    const isEmailCollision = err?.code === "P2002" && target.some((t) => String(t).includes("email"));
+    if (isEmailCollision) {
+      return NextResponse.json({ message: "Email sudah terdaftar." }, { status: 409 });
     }
-
-    const rows: Array<{ roleId: string; permissionId: string }> = [];
-    for (const roleName of DEFAULT_ROLES) {
-      const roleId = roleMap.get(roleName);
-      if (!roleId) continue;
-      for (const key of DEFAULT_ROLE_PERMISSION_MATRIX[roleName] ?? []) {
-        const permissionId = permMap.get(key);
-        if (!permissionId) continue;
-        rows.push({ roleId, permissionId });
-      }
+    if (isSlugCollision) {
+      created = await createAll(`${baseSlug}-${randomSuffix()}`);
+    } else {
+      throw e;
     }
-    if (rows.length) {
-      await tx.rolePermission.createMany({ data: rows, skipDuplicates: true });
-    }
+  }
 
-    const user = await tx.user.create({
-      data: { name: ownerName, email, phone: phone || null, passwordHash, emailVerified: null },
-      select: { id: true, email: true, name: true },
-    });
-
-    await tx.tenantUser.create({
-      data: { tenantId: createdTenant.id, userId: user.id, roleId: roleMap.get("OWNER")! },
-    });
-
-    return { tenant: createdTenant, user };
-  });
-
-  // Send email verification after transaction commits (requires RESEND_API_KEY + EMAIL_FROM).
+  // Send email verification after transaction commits (requires SMTP_* + EMAIL_FROM).
   // Do not silently swallow errors in production; return a flag so UI can guide users to resend.
   let verificationEmailSent = false;
   try {

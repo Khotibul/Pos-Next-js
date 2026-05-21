@@ -50,6 +50,7 @@ Setiap page/action melakukan:
    - `copy .env.example .env`
    - Sesuaikan `DATABASE_URL` dan `AUTH_SECRET`
    - (Opsional OAuth Google) isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET`
+   - (Opsional verifikasi email untuk login credentials) isi `SMTP_HOST/SMTP_USER/SMTP_PASS` + `EMAIL_FROM`
 3. Generate Prisma client:
    - PostgreSQL: `npm run prisma:generate`
    - MySQL: `npm run prisma:generate:mysql`
@@ -70,6 +71,17 @@ Setiap page/action melakukan:
 Catatan:
 - Gunakan `prisma migrate deploy` untuk hosted DB seperti Neon (lebih aman untuk CI/CD dibanding `migrate dev`).
 - Alternatif: `npx prisma db seed` (akan memakai seed command dari `package.json`).
+
+## Email Verification
+
+- **Google OAuth**: user Google akan otomatis dianggap verified (field `User.emailVerified` di-set saat sign-in Google).
+- **Email/password (Credentials)**: login diblokir sampai email diverifikasi via link.
+
+Untuk mengirim email verifikasi, sistem menggunakan **SMTP** (lihat `.env.example`).
+Rekomendasi cepat untuk Gmail:
+- Aktifkan 2FA pada akun Gmail
+- Buat **App Password**
+- Set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`
 
 ## Notes
 
