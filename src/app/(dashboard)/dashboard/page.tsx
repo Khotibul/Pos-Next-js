@@ -22,7 +22,7 @@ export default async function DashboardHome() {
     getSalesSeries({ tenantId: ctx.tenantId, from: range.from, to: range.to }),
     getTopProducts({ tenantId: ctx.tenantId, from: range.from, to: range.to, take: 4 }),
     listSales({ tenantId: ctx.tenantId, page: 1, pageSize: 5 }),
-  ]);
+  ] as const);
 
   const chartData = series.slice(-7).map((d) => {
     const dt = new Date(d.date);
