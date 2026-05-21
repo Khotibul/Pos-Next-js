@@ -30,7 +30,7 @@ export default async function TenantAuditLogsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((l) => (
+              items.map((l: any) => (
                 <TableRow key={l.id}>
                   <TableCell className="whitespace-nowrap text-sm">{new Date(l.createdAt).toLocaleString("id-ID")}</TableCell>
                   <TableCell className="text-sm">{l.user ? l.user.email ?? l.user.name ?? l.user.id : "-"}</TableCell>
