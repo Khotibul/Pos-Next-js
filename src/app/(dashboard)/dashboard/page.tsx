@@ -121,7 +121,7 @@ export default async function DashboardHome() {
                   </TableCell>
                 </TableRow>
               ) : (
-                recent.items.map((s) => (
+                recent.items.map((s: { id: string; invoiceNo: string; createdAt: Date; status: string; total: unknown }) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono text-xs text-primary">{s.invoiceNo}</TableCell>
                     <TableCell>{new Date(s.createdAt).toLocaleString("id-ID")}</TableCell>
