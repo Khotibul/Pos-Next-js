@@ -4,6 +4,19 @@ import { requirePermission } from "@/lib/permissions";
 import { listTenantAuditLogs } from "@/modules/audit-logs/service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+type AuditLogItem = {
+  id: string;
+  createdAt: string | Date;
+  action?: string | null;
+  entity?: string | null;
+  entityId?: string | null;
+  user?: {
+    id: string;
+    email?: string | null;
+    name?: string | null;
+  } | null;
+};
+
 export default async function TenantAuditLogsPage() {
   const ctx = await requirePermission(PERMISSIONS.settings_read);
   const items = await listTenantAuditLogs({ tenantId: ctx.tenantId, take: 250 });
@@ -22,6 +35,7 @@ export default async function TenantAuditLogsPage() {
               <TableHead>Entity ID</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
@@ -30,13 +44,27 @@ export default async function TenantAuditLogsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((l: any) => (
+              items.map((l: AuditLogItem) => (
                 <TableRow key={l.id}>
-                  <TableCell className="whitespace-nowrap text-sm">{new Date(l.createdAt).toLocaleString("id-ID")}</TableCell>
-                  <TableCell className="text-sm">{l.user ? l.user.email ?? l.user.name ?? l.user.id : "-"}</TableCell>
-                  <TableCell className="font-mono text-xs">{l.action}</TableCell>
-                  <TableCell className="font-mono text-xs">{l.entity}</TableCell>
-                  <TableCell className="font-mono text-xs">{l.entityId ?? "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {new Date(l.createdAt).toLocaleString("id-ID")}
+                  </TableCell>
+
+                  <TableCell className="text-sm">
+                    {l.user ? l.user.email ?? l.user.name ?? l.user.id : "-"}
+                  </TableCell>
+
+                  <TableCell className="font-mono text-xs">
+                    {l.action}
+                  </TableCell>
+
+                  <TableCell className="font-mono text-xs">
+                    {l.entity}
+                  </TableCell>
+
+                  <TableCell className="font-mono text-xs">
+                    {l.entityId ?? "-"}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -46,4 +74,3 @@ export default async function TenantAuditLogsPage() {
     </div>
   );
 }
-
