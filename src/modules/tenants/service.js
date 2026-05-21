@@ -1,5 +1,6 @@
 import "server-only";
 
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
@@ -10,6 +11,11 @@ function slugify(input) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
+}
+
+function makeId() {
+  // Prisma IDs are String, so uuid is fine.
+  return crypto.randomUUID().replace(/-/g, "");
 }
 
 export async function createTenantForExistingUser({ userId, tenantName, planSlug }) {
@@ -28,17 +34,15 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
 
   const baseSlug = slugify(derivedTenantName) || `tenant-${userId.slice(0, 8)}`;
 
-  const tenant = await prisma.$transaction(async (tx) => {
-    const slugInUse = await tx.tenant.findUnique({ where: { slug: baseSlug } });
-    const slug = slugInUse ? `${baseSlug}-${Math.random().toString(36).slice(2, 8)}` : baseSlug;
+  const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
+  const plan = await prisma.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
 
-    const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
-    const plan = await tx.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
-    // Requirement: tenant without serial number uses 30 days trial by default.
-    const trialDays = 30;
-    const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
+  // Requirement: tenant without serial number uses 30 days trial by default.
+  const trialDays = 30;
+  const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
 
-    const createdTenant = await tx.tenant.create({
+  async function createTenantWithSlug(slug) {
+    return prisma.tenant.create({
       data: {
         name: derivedTenantName,
         slug,
@@ -48,48 +52,62 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
       },
       select: { id: true },
     });
+  }
 
-    const roleMap = new Map();
-    for (const roleName of DEFAULT_ROLES) {
-      const role = await tx.role.upsert({
-        where: { tenantId_name: { tenantId: createdTenant.id, name: roleName } },
-        update: {},
-        create: { tenantId: createdTenant.id, name: roleName },
-      });
-      roleMap.set(roleName, role.id);
+  // Avoid interactive transactions in serverless environments (Neon/Vercel).
+  // Create tenant first, retry once if slug collides.
+  let createdTenant;
+  try {
+    createdTenant = await createTenantWithSlug(baseSlug);
+  } catch (e) {
+    // Retry only on unique constraint collision.
+    if (e && typeof e === "object" && e.code !== "P2002") throw e;
+    const retrySlug = `${baseSlug}-${Math.random().toString(36).slice(2, 8)}`;
+    createdTenant = await createTenantWithSlug(retrySlug);
+  }
+
+  const roleIdsByName = new Map();
+  const roleRows = [];
+  for (const roleName of DEFAULT_ROLES) {
+    const id = makeId();
+    roleIdsByName.set(roleName, id);
+    roleRows.push({ id, tenantId: createdTenant.id, name: roleName });
+  }
+
+  const permIdsByKey = new Map();
+  const permRows = [];
+  for (const p of DEFAULT_PERMISSIONS) {
+    const id = makeId();
+    permIdsByKey.set(p.key, id);
+    permRows.push({ id, tenantId: createdTenant.id, key: p.key, name: p.name });
+  }
+
+  const rolePermRows = [];
+  for (const roleName of DEFAULT_ROLES) {
+    const roleId = roleIdsByName.get(roleName);
+    if (!roleId) continue;
+    for (const key of DEFAULT_ROLE_PERMISSION_MATRIX[roleName] ?? []) {
+      const permissionId = permIdsByKey.get(key);
+      if (!permissionId) continue;
+      rolePermRows.push({ id: makeId(), roleId, permissionId });
     }
+  }
 
-    const permMap = new Map();
-    for (const p of DEFAULT_PERMISSIONS) {
-      const perm = await tx.permission.upsert({
-        where: { tenantId_key: { tenantId: createdTenant.id, key: p.key } },
-        update: { name: p.name },
-        create: { tenantId: createdTenant.id, key: p.key, name: p.name },
-      });
-      permMap.set(p.key, perm.id);
-    }
+  const ownerRoleId = roleIdsByName.get("OWNER") || null;
 
-    for (const roleName of DEFAULT_ROLES) {
-      const roleId = roleMap.get(roleName);
-      if (!roleId) continue;
-      for (const key of DEFAULT_ROLE_PERMISSION_MATRIX[roleName] ?? []) {
-        const permissionId = permMap.get(key);
-        if (!permissionId) continue;
-        await tx.rolePermission.upsert({
-          where: { roleId_permissionId: { roleId, permissionId } },
-          update: {},
-          create: { roleId, permissionId },
-        });
-      }
-    }
-
-    await tx.tenantUser.create({
-      data: { tenantId: createdTenant.id, userId, roleId: roleMap.get("OWNER") },
+  const ops = [
+    prisma.role.createMany({ data: roleRows, skipDuplicates: true }),
+    prisma.permission.createMany({ data: permRows, skipDuplicates: true }),
+  ];
+  if (rolePermRows.length) ops.push(prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true }));
+  ops.push(
+    prisma.tenantUser.create({
+      data: { tenantId: createdTenant.id, userId, roleId: ownerRoleId },
       select: { id: true },
-    });
+    }),
+  );
 
-    return createdTenant;
-  });
+  await prisma.$transaction(ops);
 
-  return tenant;
+  return createdTenant;
 }

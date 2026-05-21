@@ -36,13 +36,17 @@ export function RegisterTenantForm({ planSlug, initialError }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenantName, ownerName, email, phone, password, planSlug }),
     });
+    const data = await res.json().catch(() => null);
     setIsLoading(false);
     if (!res.ok) {
-      const data = await res.json().catch(() => null);
       setError(data?.message ?? "Registrasi gagal.");
       return;
     }
-    router.push("/login?registered=1");
+
+    const emailSent = data?.verificationEmailSent === false ? "0" : "1";
+    const msg = data?.message ? `&msg=${encodeURIComponent(data.message)}` : "";
+    const emailParam = email ? `&email=${encodeURIComponent(email)}` : "";
+    router.push(`/login?registered=1&emailSent=${emailSent}${emailParam}${msg}`);
   }
 
   async function onRegisterWithGoogle() {

@@ -51,6 +51,17 @@ export async function completeOnboardingAction(_prev, formData) {
     redirect("/dashboard");
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+
+    // Prisma / DB transient errors (common on serverless poolers).
+    if (err && typeof err === "object" && err.code === "P2028") {
+      return { ok: false, message: "Koneksi database sedang sibuk. Silakan coba lagi dalam beberapa detik." };
+    }
+    if (err && typeof err === "object" && err.code === "P1001") {
+      return { ok: false, message: "Database tidak dapat diakses saat ini. Silakan coba lagi." };
+    }
+
+    // Log unexpected errors for debugging (visible in server logs).
+    console.error("[onboarding] create tenant failed", err);
     return { ok: false, message: "Terjadi kesalahan saat membuat tenant." };
   }
 }

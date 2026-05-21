@@ -107,13 +107,26 @@ export async function POST(req: Request) {
   });
 
   // Send email verification after transaction commits (requires RESEND_API_KEY + EMAIL_FROM).
-  await createEmailVerificationToken({
-    userId: created.user.id,
-    email,
-    userName: created.user.name ?? null,
-  }).catch(() => {
-    // Don't block registration if email provider is not configured; verification link can be resent later.
-  });
+  // Do not silently swallow errors in production; return a flag so UI can guide users to resend.
+  let verificationEmailSent = false;
+  try {
+    await createEmailVerificationToken({
+      userId: created.user.id,
+      email,
+      userName: created.user.name ?? null,
+    });
+    verificationEmailSent = true;
+  } catch (e: unknown) {
+    // Keep registration successful, but inform UI so the user can retry via "Resend verification".
+    const msg = e instanceof Error ? e.message : "Gagal mengirim email verifikasi.";
+    return NextResponse.json(
+      { tenantId: created.tenant.id, requiresEmailVerification: true, verificationEmailSent: false, message: msg },
+      { status: 201 },
+    );
+  }
 
-  return NextResponse.json({ tenantId: created.tenant.id, requiresEmailVerification: true }, { status: 201 });
+  return NextResponse.json(
+    { tenantId: created.tenant.id, requiresEmailVerification: true, verificationEmailSent },
+    { status: 201 },
+  );
 }

@@ -17,10 +17,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [queryError, setQueryError] = useState(null);
   const [queryRegistered, setQueryRegistered] = useState(false);
+  const [queryEmailSent, setQueryEmailSent] = useState(null);
+  const [resendLoading, setResendLoading] = useState(false);
 
   // Avoid `useSearchParams` CSR bailout warning in prerender.
   // Parse query params on client only.
@@ -28,7 +31,34 @@ export default function LoginPage() {
     const sp = new URLSearchParams(window.location.search);
     setQueryError(sp.get("error"));
     setQueryRegistered(Boolean(sp.get("registered")));
+    setQueryEmailSent(sp.get("emailSent"));
+    setInfo(sp.get("msg"));
+    const emailFromQuery = sp.get("email");
+    if (emailFromQuery) setEmail(emailFromQuery);
   }, []);
+
+  async function resendVerification(targetEmail) {
+    const e = (targetEmail || "").trim();
+    if (!e) {
+      setError("Masukkan email terlebih dahulu untuk kirim ulang verifikasi.");
+      return;
+    }
+    setResendLoading(true);
+    setError(null);
+    setInfo(null);
+    const res = await fetch("/api/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: e }),
+    });
+    setResendLoading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.message ?? "Gagal mengirim ulang email verifikasi.");
+      return;
+    }
+    setInfo("Email verifikasi telah dikirim. Silakan cek inbox/spam Gmail Anda.");
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -59,6 +89,20 @@ export default function LoginPage() {
       {queryRegistered ? (
         <div className="mt-6 rounded-2xl border bg-muted/20 p-4 text-sm">
           Registrasi berhasil. Silakan cek email Anda untuk verifikasi, lalu login.
+          {queryEmailSent === "0" ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-destructive">Email verifikasi belum terkirim.</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xl"
+                onClick={() => resendVerification(email)}
+                disabled={resendLoading}
+              >
+                {resendLoading ? "Mengirim..." : "Kirim Ulang"}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -66,6 +110,10 @@ export default function LoginPage() {
         <Alert variant="destructive" className="mt-6">
           Login Google hanya bisa untuk akun yang sudah didaftarkan lewat menu Registrasi dengan Google.
         </Alert>
+      ) : null}
+
+      {info ? (
+        <Alert className="mt-6">{info}</Alert>
       ) : null}
 
       <form onSubmit={onSubmit} className="mt-8 grid gap-5">
@@ -119,11 +167,23 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <Button type="submit" disabled={isLoading} className="h-14 gap-2 rounded-2xl text-base shadow-md">
-          {isLoading ? "Memproses..." : "Masuk"}
-          <ArrowRight className="h-4 w-4" />
+      {error && error.toLowerCase().includes("belum diverifikasi") ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 rounded-2xl"
+          onClick={() => resendVerification(email)}
+          disabled={resendLoading}
+        >
+          {resendLoading ? "Mengirim..." : "Kirim Ulang Email Verifikasi"}
+        </Button>
+      ) : null}
+
+      <Button type="submit" disabled={isLoading} className="h-14 gap-2 rounded-2xl text-base shadow-md">
+        {isLoading ? "Memproses..." : "Masuk"}
+        <ArrowRight className="h-4 w-4" />
         </Button>
       </form>
 
