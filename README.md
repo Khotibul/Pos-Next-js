@@ -61,6 +61,15 @@ Setiap page/action melakukan:
 6. Jalankan dev server:
    - `npm run dev`
 
+## Setup (Neon / Production)
+
+1. Set `DATABASE_URL` Neon (wajib SSL, contoh ada di `.env.example`)
+2. Jalankan migrate + seed:
+   - `npm run db:setup:neon`
+
+Catatan:
+- Gunakan `prisma migrate deploy` untuk hosted DB seperti Neon (lebih aman untuk CI/CD dibanding `migrate dev`).
+
 ## Notes
 
 - Prisma schema PostgreSQL ada di `src/prisma/schema.prisma`, MySQL ada di `src/prisma/schema.mysql.prisma`.
