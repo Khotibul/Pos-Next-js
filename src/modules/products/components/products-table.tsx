@@ -21,7 +21,7 @@ type Item = {
   categoryName: string;
   sellingPrice: unknown;
   isActive: boolean;
-  updatedAt: Date;
+  updatedAt: string;
 };
 
 function formatRupiah(value: unknown) {

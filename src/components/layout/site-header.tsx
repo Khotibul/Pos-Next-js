@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/#features", label: "Features" },
+  { href: "/features", label: "Features" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/about", label: "About" },
 ];
 
 export function SiteHeader() {
@@ -27,7 +28,7 @@ export function SiteHeader() {
 
         <nav className="hidden items-center gap-6 md:flex">
           {links.map((l) => {
-            const active = l.href === "/pricing" ? pathname === "/pricing" : l.href === "/" ? pathname === "/" : false;
+            const active = l.href === "/" ? pathname === "/" : pathname === l.href || pathname.startsWith(`${l.href}/`);
             return (
               <Link
                 key={l.href}

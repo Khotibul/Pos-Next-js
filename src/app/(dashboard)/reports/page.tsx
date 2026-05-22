@@ -85,7 +85,7 @@ export default async function ReportsPage({
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={<Banknote className="h-5 w-5" />} title="Total Penjualan" value={rupiah(kpis.totalSales)} deltaPct={kpis.delta.totalSales} />
         <StatCard icon={<ShoppingCart className="h-5 w-5" />} title="Total Transaksi" value={kpis.totalTransactions.toLocaleString("id-ID")} deltaPct={kpis.delta.totalTransactions} />
         <StatCard icon={<Package className="h-5 w-5" />} title="Item Terjual" value={kpis.itemsSold.toLocaleString("id-ID")} deltaPct={kpis.delta.itemsSold} />
@@ -153,7 +153,37 @@ export default async function ReportsPage({
             </Button>
           </form>
 
-          <div className="overflow-x-auto rounded-2xl border bg-background">
+          <div className="md:hidden">
+            <div className="grid gap-3">
+              {history.items.length === 0 ? (
+                <div className="rounded-2xl border bg-background p-4 text-sm text-muted-foreground">
+                  Belum ada transaksi pada rentang ini.
+                </div>
+              ) : (
+                history.items.map((s) => (
+                  <Link
+                    key={s.id}
+                    href={`/pos/history/${s.id}`}
+                    className="flex items-center justify-between gap-4 rounded-3xl border bg-background p-4 shadow-sm transition hover:bg-muted/10"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground">
+                        ID: <span className="font-mono text-primary">{s.invoiceNo}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleString("id-ID")}</div>
+                      <div className="mt-2 inline-flex rounded-full bg-muted px-3 py-1 text-xs">{s.status}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-semibold text-primary">{rupiah(Number(s.total))}</div>
+                      <div className="text-xs text-muted-foreground">Detail</div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto rounded-2xl border bg-background">
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>

@@ -21,7 +21,7 @@ export async function Topbar() {
             tenantStatus: m.tenantStatus,
           }))}
         />
-        <div className="md:hidden text-sm font-semibold tracking-tight">POS Pro</div>
+        <div className="md:hidden text-sm font-semibold tracking-tight text-primary">POSify SaaS</div>
         <div className="hidden md:flex">
           <TenantSwitcher
             currentTenantId={ctx.tenantId}
@@ -44,7 +44,7 @@ export async function Topbar() {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Button variant="ghost" size="sm" className="hidden h-10 w-10 p-0 md:inline-flex" aria-label="Notifications">
+        <Button variant="ghost" size="sm" className="h-10 w-10 p-0" aria-label="Notifications">
           <Bell className="h-4 w-4" />
         </Button>
         <Button variant="ghost" size="sm" className="hidden h-10 w-10 p-0 md:inline-flex" aria-label="Apps">

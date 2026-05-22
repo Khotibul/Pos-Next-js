@@ -1,16 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, Eye, ShieldCheck, Sparkles, Zap } from "lucide-react";
-import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-app">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
-      <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-6 pb-28 pt-10">
         <section className="grid items-center gap-10 lg:grid-cols-2">
           <div className="grid gap-6">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
@@ -200,7 +196,6 @@ export default function LandingPage() {
             <div className="text-xs">© {new Date().getFullYear()} POS Pro. All rights reserved.</div>
           </div>
         </footer>
-      </main>
-    </div>
+    </main>
   );
 }

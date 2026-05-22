@@ -51,7 +51,7 @@ export default async function DashboardHome() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={<Banknote className="h-5 w-5" />} title="Total Penjualan" value={rupiah(kpis.totalSales)} deltaPct={kpis.delta.totalSales} />
         <StatCard icon={<ShoppingCart className="h-5 w-5" />} title="Total Transaksi" value={kpis.totalTransactions.toLocaleString("id-ID")} deltaPct={kpis.delta.totalTransactions} />
         <StatCard icon={<Receipt className="h-5 w-5" />} title="Rata-rata Struk" value={rupiah(kpis.avgReceipt)} deltaPct={kpis.delta.avgReceipt} />
@@ -103,35 +103,65 @@ export default async function DashboardHome() {
             <Link href="/pos/history">Lihat Semua</Link>
           </Button>
         </CardHeader>
-        <CardContent className="overflow-x-auto rounded-2xl border bg-background p-0">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead>ID Transaksi</TableHead>
-                <TableHead>Waktu</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recent.items.length === 0 ? (
+        <CardContent className="rounded-2xl border bg-background p-0">
+          <div className="md:hidden p-4">
+            {recent.items.length === 0 ? (
+              <div className="rounded-2xl border bg-background p-4 text-sm text-muted-foreground">Belum ada transaksi.</div>
+            ) : (
+              <div className="grid gap-3">
+                {recent.items.map((s: { id: string; invoiceNo: string; createdAt: Date; status: string; total: unknown }) => (
+                  <Link
+                    key={s.id}
+                    href={`/pos/history/${s.id}`}
+                    className="flex items-center justify-between gap-4 rounded-3xl border bg-background p-4 shadow-sm transition hover:bg-muted/10"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground">
+                        ID: <span className="font-mono text-primary">{s.invoiceNo}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleString("id-ID")}</div>
+                      <div className="mt-2 inline-flex rounded-full bg-muted px-3 py-1 text-xs">{s.status}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-semibold text-primary">{rupiah(Number(s.total))}</div>
+                      <div className="text-xs text-muted-foreground">Detail</div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                    Belum ada transaksi.
-                  </TableCell>
+                  <TableHead>ID Transaksi</TableHead>
+                  <TableHead>Waktu</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                 </TableRow>
-              ) : (
-                recent.items.map((s: { id: string; invoiceNo: string; createdAt: Date; status: string; total: unknown }) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-mono text-xs text-primary">{s.invoiceNo}</TableCell>
-                    <TableCell>{new Date(s.createdAt).toLocaleString("id-ID")}</TableCell>
-                    <TableCell>{s.status}</TableCell>
-                    <TableCell className="text-right font-medium">{rupiah(Number(s.total))}</TableCell>
+              </TableHeader>
+              <TableBody>
+                {recent.items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                      Belum ada transaksi.
+                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  recent.items.map((s: { id: string; invoiceNo: string; createdAt: Date; status: string; total: unknown }) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="font-mono text-xs text-primary">{s.invoiceNo}</TableCell>
+                      <TableCell>{new Date(s.createdAt).toLocaleString("id-ID")}</TableCell>
+                      <TableCell>{s.status}</TableCell>
+                      <TableCell className="text-right font-medium">{rupiah(Number(s.total))}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -13,14 +13,22 @@ function inv(prefix = "TRX") {
   return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
-export async function listSales(params: { tenantId: string; q?: string | null; page?: number; pageSize?: number }) {
+export async function listSales(params: {
+  tenantId: string;
+  q?: string | null;
+  status?: "PAID" | "VOID" | string | null;
+  page?: number;
+  pageSize?: number;
+}) {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? 20));
   const q = params.q?.trim() || null;
+  const status = params.status && (params.status === "PAID" || params.status === "VOID") ? params.status : null;
 
   const where = {
     tenantId: params.tenantId,
     ...(q ? { invoiceNo: { contains: q } } : {}),
+    ...(status ? { status } : {}),
   };
 
   const [total, items] = await prisma.$transaction([
@@ -40,7 +48,7 @@ export async function listSales(params: { tenantId: string; q?: string | null; p
     }),
   ]);
 
-  return { items, total, page, pageSize, q };
+  return { items, total, page, pageSize, q, status };
 }
 
 export async function getSaleById(params: { tenantId: string; id: string }) {
