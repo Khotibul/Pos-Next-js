@@ -25,6 +25,46 @@ export type TenantContext = {
   memberships: Array<{ tenantId: string; tenantName: string; tenantSlug: string; tenantStatus: string }>;
 };
 
+async function resolveOrCreateActiveBranch(params: { tenantId: string }) {
+  const active = await prisma.branch.findFirst({
+    where: { tenantId: params.tenantId, isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true },
+  });
+  if (active) return active;
+
+  const anyBranch = await prisma.branch.findFirst({
+    where: { tenantId: params.tenantId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, isActive: true },
+  });
+  if (anyBranch) {
+    if (!anyBranch.isActive) {
+      await prisma.branch.update({ where: { id: anyBranch.id }, data: { isActive: true } }).catch(() => {});
+    }
+    return { id: anyBranch.id, name: anyBranch.name };
+  }
+
+  // Self-heal: older tenants may exist without any branch record.
+  try {
+    const created = await prisma.branch.create({
+      data: { tenantId: params.tenantId, code: "MAIN", name: "Main Branch", isActive: true },
+      select: { id: true, name: true },
+    });
+    return created;
+  } catch {
+    // If a race created it concurrently, just re-fetch.
+    const fallback = await prisma.branch.findFirst({
+      where: { tenantId: params.tenantId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true },
+    });
+    if (fallback) return fallback;
+  }
+
+  throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+}
+
 export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
@@ -91,10 +131,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     const activeBranch =
       (activeMembership?.branchId
         ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null }
-        : null) ??
-      (await prisma.branch.findFirst({ where: { tenantId: activeTenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }));
-
-    if (!activeBranch) throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+        : null) ?? (await resolveOrCreateActiveBranch({ tenantId: activeTenantId }));
 
     return {
       userId: user.id,
@@ -141,12 +178,19 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const roleName = activeMembership.role?.name ?? null;
 
   const activeBranch =
-    (activeMembership.branchId
-      ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null }
-      : null) ??
-    (await prisma.branch.findFirst({ where: { tenantId: activeTenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }));
+    (activeMembership.branchId ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null } : null) ??
+    (await resolveOrCreateActiveBranch({ tenantId: activeTenantId }));
 
-  if (!activeBranch) throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+  // Ensure membership has a branchId (legacy/self-heal).
+  if (!activeMembership.branchId && activeBranch?.id) {
+    await prisma.tenantUser
+      .update({
+        where: { tenantId_userId: { tenantId: activeTenantId, userId: user.id } },
+        data: { branchId: activeBranch.id },
+        select: { id: true },
+      })
+      .catch(() => {});
+  }
 
   return {
     userId: user.id,

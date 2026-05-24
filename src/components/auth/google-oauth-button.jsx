@@ -2,6 +2,7 @@
 
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 
 function GoogleMark({ className }) {
   return (
@@ -27,6 +28,22 @@ function GoogleMark({ className }) {
 }
 
 export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride }) {
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch("/api/auth/google-enabled")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (ignore) return;
+        if (j && typeof j.enabled === "boolean") setEnabled(j.enabled);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   async function onClick() {
     if (onClickOverride) return onClickOverride();
     await signIn("google", { callbackUrl: callbackUrl || "/onboarding" });
@@ -38,7 +55,8 @@ export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "out
       variant={variant}
       className="h-12 w-full gap-2 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || !enabled}
+      title={!enabled ? "Google OAuth belum dikonfigurasi (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)." : undefined}
     >
       <GoogleMark className="h-4 w-4" />
       {label || "Masuk dengan Google"}

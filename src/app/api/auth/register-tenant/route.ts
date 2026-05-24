@@ -61,6 +61,7 @@ export async function POST(req: Request) {
   // Pre-generate IDs so dependent writes can be done via `$transaction([])`.
   const tenantId = makeId();
   const userId = makeId();
+  const branchId = makeId();
 
   const roleIdsByName = new Map<string, string>();
   const roleRows: Array<{ id: string; tenantId: string; name: string }> = [];
@@ -116,9 +117,23 @@ export async function POST(req: Request) {
       prisma.permission.createMany({ data: permRows, skipDuplicates: true }),
     ];
     if (rolePermRows.length) ops.push(prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true }));
+
+    // Create a default branch so the tenant can use POS immediately.
+    ops.push(
+      prisma.branch.create({
+        data: {
+          id: branchId,
+          tenantId,
+          code: "MAIN",
+          name: "Main Branch",
+          isActive: true,
+        },
+        select: { id: true },
+      }),
+    );
     ops.push(
       prisma.tenantUser.create({
-        data: { tenantId, userId, roleId: ownerRoleId },
+        data: { tenantId, userId, roleId: ownerRoleId, branchId },
         select: { id: true },
       }),
     );

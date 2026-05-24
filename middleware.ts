@@ -64,6 +64,7 @@ export default auth(async (req) => {
     where: { id: userId },
     select: {
       isSuperAdmin: true,
+      emailVerified: true,
       memberships: {
         where: { tenantId },
         select: { tenant: { select: { status: true, trialEndsAt: true } } },
@@ -72,6 +73,14 @@ export default auth(async (req) => {
   });
 
   if (!user) return NextResponse.next();
+
+  // Enforce email verification before accessing the app (except super admin).
+  if (!user.isSuperAdmin && !user.emailVerified) {
+    const url = new URL("/login", req.nextUrl.origin);
+    url.searchParams.set("error", "EMAIL_NOT_VERIFIED");
+    url.searchParams.set("callbackUrl", req.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
 
   const hasMembership = user.memberships.length > 0;
   if (!user.isSuperAdmin && !hasMembership) {

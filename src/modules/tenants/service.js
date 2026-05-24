@@ -66,6 +66,10 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
     createdTenant = await createTenantWithSlug(retrySlug);
   }
 
+  // Ensure the tenant has at least one active branch so the dashboard/POS can work immediately.
+  // Use a pre-generated ID so the branch + membership can be written atomically via `$transaction([])`.
+  const branchId = makeId();
+
   const roleIdsByName = new Map();
   const roleRows = [];
   for (const roleName of DEFAULT_ROLES) {
@@ -101,8 +105,20 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
   ];
   if (rolePermRows.length) ops.push(prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true }));
   ops.push(
+    prisma.branch.create({
+      data: {
+        id: branchId,
+        tenantId: createdTenant.id,
+        code: "MAIN",
+        name: "Main Branch",
+        isActive: true,
+      },
+      select: { id: true },
+    }),
+  );
+  ops.push(
     prisma.tenantUser.create({
-      data: { tenantId: createdTenant.id, userId, roleId: ownerRoleId },
+      data: { tenantId: createdTenant.id, userId, roleId: ownerRoleId, branchId },
       select: { id: true },
     }),
   );

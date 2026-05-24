@@ -112,6 +112,23 @@ export default function LoginPage() {
         </Alert>
       ) : null}
 
+      {queryError === "EMAIL_NOT_VERIFIED" ? (
+        <Alert variant="destructive" className="mt-6">
+          Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi. Jika belum menerima email, kirim ulang verifikasi.
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-xl"
+              onClick={() => resendVerification(email)}
+              disabled={resendLoading}
+            >
+              {resendLoading ? "Mengirim..." : "Kirim Ulang Verifikasi"}
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
       {info ? (
         <Alert className="mt-6">{info}</Alert>
       ) : null}

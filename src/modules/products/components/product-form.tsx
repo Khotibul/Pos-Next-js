@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { ActionResult } from "@/lib/action";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
 import { Code128Mark } from "@/components/barcode/code128-mark";
+import { QrScannerDialog } from "@/components/pos/qr-scanner-dialog";
+import { ScanLine } from "lucide-react";
 
 type Meta = {
   categories: Array<{ id: string; name: string }>;
@@ -21,6 +23,7 @@ type Initial = {
   sku?: string;
   name?: string;
   barcode?: string | null;
+  qrCode?: string | null;
   categoryId?: string | null;
   brandId?: string | null;
   unitId?: string | null;
@@ -46,6 +49,10 @@ export function ProductForm({
 
   const [skuPreview, setSkuPreview] = useState(String(initial?.sku ?? ""));
   const [barcodePreview, setBarcodePreview] = useState(String(initial?.barcode ?? ""));
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanTarget, setScanTarget] = useState<"barcode" | "qrCode">("barcode");
+  const barcodeInputRef = useRef<HTMLInputElement | null>(null);
+  const qrInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeValue = useMemo(() => {
     const b = barcodePreview.trim();
     if (b) return b;
@@ -53,8 +60,20 @@ export function ProductForm({
     return s;
   }, [barcodePreview, skuPreview]);
 
+  async function applyScanResult(code: string) {
+    const v = String(code || "").trim();
+    if (!v) return;
+    if (scanTarget === "qrCode") {
+      if (qrInputRef.current) qrInputRef.current.value = v;
+    } else {
+      setBarcodePreview(v);
+      if (barcodeInputRef.current) barcodeInputRef.current.value = v;
+    }
+  }
+
   return (
-    <Card className="max-w-2xl">
+    <>
+      <Card className="max-w-2xl">
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -90,13 +109,56 @@ export function ProductForm({
 
         <div className="grid gap-2">
           <Label htmlFor="barcode">Barcode</Label>
-          <Input
-            id="barcode"
-            name="barcode"
-            defaultValue={initial?.barcode ?? ""}
-            onInput={(e) => setBarcodePreview((e.currentTarget as HTMLInputElement).value)}
-          />
+          <div className="flex gap-2">
+            <Input
+              ref={barcodeInputRef}
+              id="barcode"
+              name="barcode"
+              defaultValue={initial?.barcode ?? ""}
+              onInput={(e) => setBarcodePreview((e.currentTarget as HTMLInputElement).value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-12 shrink-0 rounded-xl p-0"
+              onClick={() => {
+                setScanTarget("barcode");
+                setScannerOpen(true);
+              }}
+              aria-label="Scan barcode"
+              title="Scan barcode"
+            >
+              <ScanLine className="h-4 w-4" />
+            </Button>
+          </div>
           {fieldErrors.barcode ? <p className="text-xs text-destructive">{fieldErrors.barcode}</p> : null}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="qrCode">QR Code (Opsional)</Label>
+          <div className="flex gap-2">
+            <Input
+              ref={qrInputRef}
+              id="qrCode"
+              name="qrCode"
+              defaultValue={initial?.qrCode ?? ""}
+              placeholder="Isi jika ingin kode QR khusus"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-12 shrink-0 rounded-xl p-0"
+              onClick={() => {
+                setScanTarget("qrCode");
+                setScannerOpen(true);
+              }}
+              aria-label="Scan QR code"
+              title="Scan QR code"
+            >
+              <ScanLine className="h-4 w-4" />
+            </Button>
+          </div>
+          {fieldErrors.qrCode ? <p className="text-xs text-destructive">{fieldErrors.qrCode}</p> : null}
         </div>
 
         <div className="rounded-2xl border bg-muted/10 p-4">
@@ -185,6 +247,15 @@ export function ProductForm({
         </div>
       </form>
       </CardContent>
-    </Card>
+      </Card>
+
+    <QrScannerDialog
+      open={scannerOpen}
+      onOpenChange={setScannerOpen}
+      onDetected={async (code) => {
+        await applyScanResult(code);
+      }}
+    />
+    </>
   );
 }

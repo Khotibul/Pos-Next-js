@@ -26,10 +26,14 @@ export const {
     signIn: "/login",
   },
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          Google({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          }),
+        ]
+      : []),
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
@@ -69,7 +73,8 @@ export const {
         },
       });
 
-      const regId = cookies().get("oauth_reg_id")?.value ?? null;
+      const cookieStore = await cookies();
+      const regId = cookieStore.get("oauth_reg_id")?.value ?? null;
 
       // Only allow Google sign-in if the account already exists & linked to Google,
       // or the user explicitly started "Register with Google" flow.
@@ -108,7 +113,8 @@ export const {
         .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
         .catch(() => {});
 
-      const regId = cookies().get("oauth_reg_id")?.value ?? null;
+      const cookieStore = await cookies();
+      const regId = cookieStore.get("oauth_reg_id")?.value ?? null;
       if (!regId) return;
 
       // Finalize Google registration by creating tenant + roles + membership.
