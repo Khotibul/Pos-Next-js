@@ -10,6 +10,9 @@ import { BarcodeInput } from "@/components/pos/barcode-input";
 type Status = "idle" | "starting" | "ready" | "processing" | "error";
 
 const FORMATS = ["qr_code", "code_128", "ean_13", "ean_8", "upc_a", "upc_e"] as const;
+// Fallback for browsers that don't support BarcodeDetector (notably iOS Safari).
+// Loaded at runtime only on the client when needed (no npm install required).
+const ZXING_CDN = "https://esm.sh/@zxing/browser@0.1.5?target=es2022";
 
 function isBarcodeDetectorAvailable(): boolean {
   return typeof window !== "undefined" && "BarcodeDetector" in window;
@@ -29,6 +32,7 @@ export function QrScannerDialog({
   const rafRef = useRef<number | null>(null);
   const lastScanRef = useRef<{ v: string; at: number } | null>(null);
   const processingRef = useRef(false);
+  const zxingStopRef = useRef<null | (() => void)>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +41,14 @@ export function QrScannerDialog({
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+    }
+    if (zxingStopRef.current) {
+      try {
+        zxingStopRef.current();
+      } catch {
+        // ignore
+      }
+      zxingStopRef.current = null;
     }
     const stream = streamRef.current;
     streamRef.current = null;
@@ -64,10 +76,77 @@ export function QrScannerDialog({
 
     async function start() {
       try {
-        if (!isBarcodeDetectorAvailable()) {
-          setStatus("error");
-          setError("Scanner kamera tidak didukung browser ini. Gunakan input manual barcode/SKU.");
-          return;
+        // Strategy A: Native BarcodeDetector (Chrome/Edge/Android, some desktop).
+        // Strategy B: ZXing via runtime ESM import (Safari/iOS and others).
+        const canUseBarcodeDetector = isBarcodeDetectorAvailable();
+        if (!canUseBarcodeDetector) {
+          try {
+            const mod = (await import(/* webpackIgnore: true */ ZXING_CDN)) as unknown as {
+              BrowserMultiFormatReader?: new () => {
+                decodeFromConstraints: (
+                  constraints: MediaStreamConstraints,
+                  video: HTMLVideoElement,
+                  callback: (result: { getText: () => string } | undefined, err: unknown) => void
+                ) => Promise<{ stop: () => void }>;
+              };
+            };
+
+            const Reader = mod?.BrowserMultiFormatReader;
+            if (!Reader) throw new Error("ZXing module unavailable");
+
+            const v = videoRef.current;
+            if (!v) throw new Error("Video element not ready");
+            v.setAttribute("playsinline", "true");
+
+            const reader = new Reader();
+            setStatus("ready");
+
+            const controls = await reader.decodeFromConstraints(
+              { video: { facingMode: { ideal: "environment" } }, audio: false },
+              v,
+              async (result) => {
+                if (cancelled) return;
+                if (processingRef.current) return;
+                const raw = (result?.getText?.() ?? "").trim();
+                if (!raw) return;
+
+                const now = Date.now();
+                const last = lastScanRef.current;
+                if (last && last.v === raw && now - last.at <= 1000) return;
+                lastScanRef.current = { v: raw, at: now };
+
+                processingRef.current = true;
+                setStatus("processing");
+                try {
+                  await onDetected(raw);
+                  if (!cancelled) onOpenChange(false);
+                } catch (e: unknown) {
+                  processingRef.current = false;
+                  if (!cancelled) {
+                    setStatus("ready");
+                    setError(e instanceof Error ? e.message : "Gagal memproses hasil scan.");
+                  }
+                }
+              }
+            );
+
+            zxingStopRef.current = () => {
+              try {
+                controls.stop();
+              } catch {
+                // ignore
+              }
+            };
+            return;
+          } catch (e: unknown) {
+            setStatus("error");
+            setError(
+              e instanceof Error
+                ? `Scanner kamera tidak tersedia: ${e.message}. Gunakan input manual barcode/SKU.`
+                : "Scanner kamera tidak didukung browser ini. Gunakan input manual barcode/SKU."
+            );
+            return;
+          }
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,8 +167,13 @@ export function QrScannerDialog({
         v.setAttribute("playsinline", "true");
         await v.play();
 
-        const Detector = (window as unknown as { BarcodeDetector?: new (opts?: { formats?: readonly string[] }) => { detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> } })
-          .BarcodeDetector;
+        const Detector = (
+          window as unknown as {
+            BarcodeDetector?: new (opts?: { formats?: readonly string[] }) => {
+              detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>>;
+            };
+          }
+        ).BarcodeDetector;
         if (!Detector) {
           setStatus("error");
           setError("Scanner kamera tidak didukung browser ini. Gunakan input manual barcode/SKU.");
