@@ -34,6 +34,8 @@ export function PosScreen({ products }: { products: Product[] }) {
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [method, setMethod] = useState<PaymentMethod>("CASH");
+  const [cashPaid, setCashPaid] = useState<number>(0);
+  const [cashPaidTouched, setCashPaidTouched] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [taxRate, setTaxRate] = useState(11);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +137,14 @@ export function PosScreen({ products }: { products: Product[] }) {
   const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0);
   const tax = Math.max(0, (subtotal - discount) * (taxRate / 100));
   const total = Math.max(0, subtotal - discount + tax);
+  const cashChange = Math.max(0, cashPaid - total);
+  const cashShortage = Math.max(0, total - cashPaid);
+
+  useEffect(() => {
+    if (method !== "CASH") return;
+    if (cashPaidTouched) return;
+    setCashPaid(total);
+  }, [method, total, cashPaidTouched]);
 
   function inc(id: string) {
     setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
@@ -168,7 +178,7 @@ export function PosScreen({ products }: { products: Product[] }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+      <div className="order-2 lg:order-1 lg:col-span-2">
         <div className="sticky top-[72px] z-10 mb-4 rounded-2xl border bg-background/90 p-3 backdrop-blur">
           <div className="flex gap-2">
             <div className="flex-1">
@@ -203,7 +213,7 @@ export function PosScreen({ products }: { products: Product[] }) {
         </div>
       </div>
 
-      <Card className="lg:sticky lg:top-[72px] lg:h-[calc(100vh-96px)]">
+      <Card className="order-1 lg:order-2 lg:sticky lg:top-[72px] lg:h-[calc(100vh-96px)]">
         <CardHeader className="py-4">
           <CardTitle className="text-base">Keranjang Belanja</CardTitle>
           {invoice ? <Badge variant="secondary">Order {invoice}</Badge> : null}
@@ -287,7 +297,16 @@ export function PosScreen({ products }: { products: Product[] }) {
                 <button
                   key={m.k}
                   type="button"
-                  onClick={() => setMethod(m.k)}
+                  onClick={() => {
+                    setMethod(m.k);
+                    if (m.k === "CASH") {
+                      setCashPaidTouched(false);
+                      setCashPaid(total);
+                    } else {
+                      setCashPaidTouched(false);
+                      setCashPaid(0);
+                    }
+                  }}
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     method === m.k ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
@@ -298,14 +317,45 @@ export function PosScreen({ products }: { products: Product[] }) {
             </div>
           </div>
 
+          {method === "CASH" ? (
+            <div className="rounded-xl border bg-background p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Tunai dibayarkan</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="h-10 w-44 rounded-xl border bg-background px-3 text-right text-sm"
+                  value={Number.isFinite(cashPaid) ? cashPaid : 0}
+                  min={0}
+                  onChange={(e) => {
+                    setCashPaidTouched(true);
+                    setCashPaid(Number(e.target.value || 0));
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-muted-foreground">Kembalian</span>
+                <span className={cashShortage > 0 ? "font-medium text-destructive" : "font-medium text-primary"}>
+                  {cashShortage > 0 ? `Kurang ${rupiah(cashShortage)}` : rupiah(cashChange)}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-2">
             <Button
               type="button"
               className="h-12"
-              disabled={isPending || lines.length === 0 || (shiftCheckDone && !openShiftId)}
+              disabled={
+                isPending || lines.length === 0 || (shiftCheckDone && !openShiftId) || (method === "CASH" && cashPaid < total)
+              }
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
+                  if (method === "CASH" && cashPaid < total) {
+                    setError("Uang tunai kurang dari total transaksi.");
+                    return;
+                  }
                   const payload = {
                     items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
                     discount,
@@ -323,6 +373,8 @@ export function PosScreen({ products }: { products: Product[] }) {
                   // Show receipt preview popup in-place (no new tab).
                   setPrintPayload({ saleId: res.data.id, auto: Boolean(autoPrint) });
                   setCart({});
+                  setCashPaidTouched(false);
+                  setCashPaid(0);
                   router.refresh();
                 });
               }}
