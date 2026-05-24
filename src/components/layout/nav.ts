@@ -3,7 +3,9 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, section: "main", permission: PERMISSIONS.dashboard_read },
-  { href: "/sales", match: "/pos", label: "Transaksi", icon: ShoppingCart, section: "main", permission: PERMISSIONS.sales_read },
+  { href: "/pos", label: "POS / Kasir", icon: ShoppingCart, section: "main", permission: PERMISSIONS.sales_write },
+  { href: "/sales", match: "/sales", label: "Riwayat Penjualan", icon: ClipboardList, section: "main", permission: PERMISSIONS.sales_read },
+  { href: "/shifts", label: "Shiftbook", icon: ClipboardList, section: "main", permission: PERMISSIONS.transactions_shift_read },
   { href: "/products", label: "Produk", icon: Boxes, section: "main", permission: PERMISSIONS.products_read },
   { href: "/products/categories", label: "Kategori Produk", icon: Tags, section: "more", permission: PERMISSIONS.products_read },
   { href: "/products/units", label: "Satuan Produk", icon: Ruler, section: "more", permission: PERMISSIONS.products_read },
@@ -16,7 +18,6 @@ export const NAV_ITEMS = [
   { href: "/suppliers", label: "Supplier", icon: Truck, section: "more", permission: PERMISSIONS.suppliers_read },
   { href: "/inventory", label: "Inventory", icon: Warehouse, section: "more", permission: PERMISSIONS.inventory_read },
   { href: "/purchases", label: "Pembelian", icon: ClipboardList, section: "more", permission: PERMISSIONS.inventory_read },
-  { href: "/shifts", label: "Shift Kasir", icon: ClipboardList, section: "more", permission: PERMISSIONS.sales_read },
   { href: "/audit-logs", label: "Audit Log", icon: Shield, section: "more", permission: PERMISSIONS.settings_read },
   { href: "/billing", label: "Billing", icon: CreditCard, section: "more", permission: PERMISSIONS.billing_read },
   { href: "/cashier", label: "Dashboard Kasir", icon: LayoutDashboard, section: "more", permission: PERMISSIONS.sales_read },

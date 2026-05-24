@@ -60,7 +60,16 @@ export async function getSaleById(params: { tenantId: string; id: string }) {
   return sale;
 }
 
-export async function createSale(params: { tenantId: string; cashierId?: string | null; input: CreateSaleInput }) {
+export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
+  if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
+  if (params.cashierId) {
+    const ok = await prisma.cashierShift.findFirst({
+      where: { tenantId: params.tenantId, id: params.shiftId, status: "OPEN", cashierId: params.cashierId },
+      select: { id: true },
+    });
+    if (!ok) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
+  }
+
   const productIds = params.input.items.map((i) => i.productId);
   const products = await prisma.product.findMany({
     where: { tenantId: params.tenantId, id: { in: productIds }, isActive: true },
@@ -94,6 +103,7 @@ export async function createSale(params: { tenantId: string; cashierId?: string 
         tenantId: params.tenantId,
         invoiceNo,
         cashierId: params.cashierId ?? null,
+        shiftId: params.shiftId,
         subtotal,
         discount,
         tax,
@@ -120,6 +130,25 @@ export async function createSale(params: { tenantId: string; cashierId?: string 
         },
       },
       select: { id: true, invoiceNo: true, total: true },
+    });
+
+    const totalCash = params.input.payment.method === "CASH" ? total : 0;
+    const totalQris = params.input.payment.method === "QRIS" ? total : 0;
+    const totalTransfer = params.input.payment.method === "TRANSFER" ? total : 0;
+    const totalEwallet = params.input.payment.method === "EWALLET" ? total : 0;
+
+    await tx.cashierShift.update({
+      where: { id: params.shiftId },
+      data: {
+        totalSales: { increment: total },
+        transactionCount: { increment: 1 },
+        cashSystem: { increment: totalCash },
+        totalCash: { increment: totalCash },
+        totalQris: { increment: totalQris },
+        totalTransfer: { increment: totalTransfer },
+        totalEwallet: { increment: totalEwallet },
+      },
+      select: { id: true },
     });
     return sale;
   });

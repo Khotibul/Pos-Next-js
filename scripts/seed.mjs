@@ -12,6 +12,11 @@ const permissions = [
   { key: "sales.read", name: "Read sales/transactions" },
   { key: "sales.write", name: "Create sales/transactions" },
   { key: "sales.delete", name: "Delete sales/transactions" },
+  { key: "transactions.shift.read", name: "Read shiftbook" },
+  { key: "transactions.shift.open", name: "Open shift" },
+  { key: "transactions.shift.close", name: "Close shift" },
+  { key: "transactions.shift.approve", name: "Approve shift" },
+  { key: "transactions.shift.export", name: "Export shift reports" },
   { key: "products.read", name: "Read products" },
   { key: "products.write", name: "Create/update products" },
   { key: "products.delete", name: "Delete products" },
@@ -42,6 +47,11 @@ const rolePermissionMatrix = {
     "sales.read",
     "sales.write",
     "sales.delete",
+    "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
+    "transactions.shift.approve",
+    "transactions.shift.export",
     "products.read",
     "products.write",
     "products.delete",
@@ -70,6 +80,11 @@ const rolePermissionMatrix = {
     "sales.read",
     "sales.write",
     "sales.delete",
+    "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
+    "transactions.shift.approve",
+    "transactions.shift.export",
     "products.read",
     "products.write",
     "products.delete",
@@ -93,10 +108,39 @@ const rolePermissionMatrix = {
     "settings.write",
     "billing.read",
   ],
-  CASHIER: ["dashboard.read", "sales.read", "sales.write", "products.read", "customers.read"],
-  WAREHOUSE: ["dashboard.read", "branches.read", "products.read", "products.write", "inventory.read", "inventory.write"],
-  ACCOUNTANT: ["dashboard.read", "branches.read", "sales.read", "reports.read", "products.read", "customers.read", "suppliers.read", "billing.read"],
-  BRANCH_MANAGER: ["dashboard.read", "sales.read", "sales.write", "branches.read", "products.read", "products.write", "customers.read", "customers.write", "suppliers.read", "suppliers.write", "inventory.read", "inventory.write", "reports.read", "settings.read"],
+  CASHIER: [
+    "dashboard.read",
+    "sales.read",
+    "sales.write",
+    "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
+    "products.read",
+    "customers.read",
+  ],
+  WAREHOUSE: ["dashboard.read", "branches.read", "products.read", "products.write", "inventory.read", "inventory.write", "transactions.shift.read"],
+  ACCOUNTANT: ["dashboard.read", "branches.read", "sales.read", "reports.read", "products.read", "customers.read", "suppliers.read", "billing.read", "transactions.shift.read", "transactions.shift.export"],
+  BRANCH_MANAGER: [
+    "dashboard.read",
+    "sales.read",
+    "sales.write",
+    "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
+    "transactions.shift.approve",
+    "transactions.shift.export",
+    "branches.read",
+    "products.read",
+    "products.write",
+    "customers.read",
+    "customers.write",
+    "suppliers.read",
+    "suppliers.write",
+    "inventory.read",
+    "inventory.write",
+    "reports.read",
+    "settings.read",
+  ],
 };
 
 const DEFAULT_PRINTER_SETTINGS = {
@@ -117,6 +161,42 @@ function inv(prefix = "TRX") {
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `${prefix}-${y}${m}${day}-${rand}`;
+}
+
+async function assertSchemaReady() {
+  // Provide an actionable error if the database hasn't applied the latest migrations yet.
+  const productCols = await prisma.$queryRaw`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'Product'
+      AND column_name = 'qrCode'
+  `;
+
+  const hasQrCode = Array.isArray(productCols) && productCols.some((r) => r?.column_name === "qrCode");
+  if (!hasQrCode) {
+    throw new Error(
+      "Database belum ter-migrate: kolom Product.qrCode tidak ditemukan. Jalankan `npm.cmd run prisma:deploy` (production/Vercel) atau `npm.cmd run prisma:migrate` (lokal), lalu ulangi `npm.cmd run db:seed`."
+    );
+  }
+
+  const shiftCols = await prisma.$queryRaw`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'CashierShift'
+      AND column_name IN ('branchId','cashSystem','createdAt','updatedAt')
+  `;
+
+  const required = new Set(["branchId", "cashSystem", "createdAt", "updatedAt"]);
+  const found = new Set(Array.isArray(shiftCols) ? shiftCols.map((r) => r?.column_name).filter(Boolean) : []);
+  for (const k of required) {
+    if (!found.has(k)) {
+      throw new Error(
+        "Database belum ter-migrate untuk Shiftbook (CashierShift.* belum lengkap). Jalankan `npm.cmd run prisma:deploy` / `npm.cmd run prisma:migrate`, lalu ulangi seed."
+      );
+    }
+  }
 }
 
 async function seedTenant({
@@ -227,6 +307,7 @@ async function seedTenant({
         sku: p.sku,
         name: p.name,
         barcode: p.barcode,
+        qrCode: p.barcode,
         categoryId: p.categoryId,
         brandId: brandGeneric.id,
         unitId: p.unitId,
@@ -341,6 +422,8 @@ async function seedTenant({
 }
 
 async function main() {
+  await assertSchemaReady();
+
   const starterPlan = await prisma.plan.upsert({
     where: { slug: "starter" },
     update: { name: "Starter", priceMonthly: 0, currency: "IDR", trialDays: 0, isPopular: false, isActive: true, description: "Solusi dasar untuk UMKM." },

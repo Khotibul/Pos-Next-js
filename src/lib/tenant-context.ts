@@ -18,6 +18,8 @@ export type TenantContext = {
   tenantSlug: string;
   tenantStatus: "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED";
   tenantTrialEndsAt: Date | null;
+  branchId: string;
+  branchName: string | null;
   permissions: string[];
   roleName: string | null;
   memberships: Array<{ tenantId: string; tenantName: string; tenantSlug: string; tenantStatus: string }>;
@@ -38,6 +40,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       memberships: {
         select: {
           tenantId: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
           tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
           role: {
             select: {
@@ -84,6 +88,14 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     const permissions = (activeMembership?.role?.permissions ?? []).map((rp) => rp.permission.key);
     const roleName = activeMembership?.role?.name ?? null;
 
+    const activeBranch =
+      (activeMembership?.branchId
+        ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null }
+        : null) ??
+      (await prisma.branch.findFirst({ where: { tenantId: activeTenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }));
+
+    if (!activeBranch) throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+
     return {
       userId: user.id,
       userName: user.name,
@@ -95,6 +107,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       tenantSlug: activeTenant.slug,
       tenantStatus: activeTenant.status,
       tenantTrialEndsAt: activeTenant.trialEndsAt,
+      branchId: activeBranch.id,
+      branchName: activeBranch.name ?? null,
       permissions,
       roleName,
       memberships,
@@ -126,6 +140,14 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const permissions = (activeMembership.role?.permissions ?? []).map((rp) => rp.permission.key);
   const roleName = activeMembership.role?.name ?? null;
 
+  const activeBranch =
+    (activeMembership.branchId
+      ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null }
+      : null) ??
+    (await prisma.branch.findFirst({ where: { tenantId: activeTenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }));
+
+  if (!activeBranch) throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+
   return {
     userId: user.id,
     userName: user.name,
@@ -137,6 +159,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     tenantSlug: activeMembership.tenant.slug,
     tenantStatus,
     tenantTrialEndsAt,
+    branchId: activeBranch.id,
+    branchName: activeBranch.name ?? null,
     permissions,
     roleName,
     memberships,

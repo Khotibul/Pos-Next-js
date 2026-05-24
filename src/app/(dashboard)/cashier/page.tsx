@@ -9,7 +9,7 @@ import { getOpenShift } from "@/modules/shifts/service";
 
 export default async function CashierDashboardPage() {
   const ctx = await requirePermission(PERMISSIONS.sales_read);
-  const openShift = await getOpenShift({ tenantId: ctx.tenantId, cashierUserId: ctx.userId });
+  const openShift = await getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId });
 
   return (
     <div className="grid gap-4">
@@ -72,4 +72,3 @@ export default async function CashierDashboardPage() {
     </div>
   );
 }
-

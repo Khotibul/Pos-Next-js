@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { createSaleSchema } from "@/modules/transactions/validators";
 import { createSale, deleteSale } from "@/modules/transactions/service";
+import { getOpenShift } from "@/modules/shifts/service";
 
 export async function createSaleAction(payload: unknown): Promise<ActionResult<{ id: string; invoiceNo: string }>> {
   try {
@@ -19,7 +20,10 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     const parsed = createSaleSchema.safeParse(payload);
     if (!parsed.success) return { ok: false, message: "Validasi gagal." };
 
-    const created = await createSale({ tenantId: ctx.tenantId, cashierId: ctx.userId, input: parsed.data });
+    const openShift = await getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId });
+    if (!openShift) return { ok: false, message: "Shift belum dibuka. Silakan buka shift terlebih dahulu." };
+
+    const created = await createSale({ tenantId: ctx.tenantId, cashierId: ctx.userId, shiftId: openShift.id, input: parsed.data });
 
     await writeAuditLog({
       tenantId: ctx.tenantId,

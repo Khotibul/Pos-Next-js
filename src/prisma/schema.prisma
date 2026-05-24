@@ -34,6 +34,7 @@ enum PurchaseStatus {
 enum ShiftStatus {
   OPEN
   CLOSED
+  APPROVED
 }
 
 model Plan {
@@ -156,7 +157,8 @@ model User {
   sessions    Session[]
   memberships TenantUser[]
   auditLogs   AuditLog[]
-  cashierShifts CashierShift[]
+  cashierShiftsAsCashier CashierShift[] @relation("CashierShiftCashier")
+  cashierShiftsApproved  CashierShift[] @relation("CashierShiftApprovedBy")
   emailVerificationTokens EmailVerificationToken[]
 }
 
@@ -235,6 +237,7 @@ model Branch {
   tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category  BranchCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   members   TenantUser[]
+  shifts    CashierShift[]
 
   @@index([tenantId])
   @@index([categoryId])
@@ -330,6 +333,7 @@ model Product {
   sku         String
   name        String
   barcode     String?
+  qrCode      String?
   categoryId  String?
   brandId     String?
   unitId      String?
@@ -347,9 +351,11 @@ model Product {
   purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([tenantId, sku])
+  @@unique([tenantId, qrCode])
   @@index([tenantId])
   @@index([name])
   @@index([barcode])
+  @@index([qrCode])
 }
 
 model Sale {
@@ -357,6 +363,7 @@ model Sale {
   tenantId  String
   invoiceNo String
   cashierId String?
+  shiftId   String?
   subtotal  Decimal  @default(0)
   tax       Decimal  @default(0)
   discount  Decimal  @default(0)
@@ -366,12 +373,14 @@ model Sale {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift  CashierShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   items  SaleItem[]
   payments Payment[]
 
   @@unique([tenantId, invoiceNo])
   @@index([tenantId])
   @@index([createdAt])
+  @@index([shiftId])
 }
 
 model SaleItem {
@@ -511,19 +520,42 @@ model PurchaseOrderItem {
 model CashierShift {
   id          String      @id @default(cuid())
   tenantId    String
-  cashierUserId String
-  status      ShiftStatus @default(OPEN)
-  openedAt    DateTime    @default(now())
-  closedAt    DateTime?
-  openingCash Decimal     @default(0)
-  closingCash Decimal     @default(0)
-  note        String?
+  branchId    String
+  cashierId   String      @map("cashierUserId")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cashier User  @relation(fields: [cashierUserId], references: [id], onDelete: Restrict)
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  openingCash     Decimal  @default(0)
+  cashSystem      Decimal  @default(0)
+  cashCounted     Decimal?
+  cashDifference  Decimal  @default(0)
+
+  totalSales       Decimal @default(0)
+  totalCash        Decimal @default(0)
+  totalQris        Decimal @default(0)
+  totalTransfer    Decimal @default(0)
+  totalEwallet     Decimal @default(0)
+  transactionCount Int     @default(0)
+
+  status        ShiftStatus @default(OPEN)
+  openNote      String?
+  closeNote     String?
+
+  approvedById  String?
+  approvedAt    DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch     Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  cashier    User    @relation("CashierShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict)
+  approvedBy User?   @relation("CashierShiftApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  sales      Sale[]
 
   @@index([tenantId])
-  @@index([cashierUserId])
+  @@index([branchId])
+  @@index([cashierId])
   @@index([openedAt])
   @@index([status])
 }

@@ -150,3 +150,18 @@ export async function listProductMeta(params: { tenantId: string }) {
   ]);
   return { categories, brands, units };
 }
+
+export async function findProductByCode(params: { tenantId: string; branchId?: string | null; code: string }) {
+  const code = params.code.trim();
+  if (!code) throw Errors.badRequest("Kode produk tidak valid.");
+
+  // Branch-scoped pricing/stock is not implemented yet; keep the param for future use.
+  return prisma.product.findFirst({
+    where: {
+      tenantId: params.tenantId,
+      isActive: true,
+      OR: [{ sku: code }, { barcode: code }, { qrCode: code }],
+    },
+    select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
+  });
+}

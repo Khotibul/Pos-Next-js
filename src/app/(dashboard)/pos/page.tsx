@@ -15,7 +15,7 @@ export default async function PosPage() {
     where: { tenantId: ctx.tenantId, isActive: true },
     orderBy: { updatedAt: "desc" },
     take: 60,
-    select: { id: true, name: true, sku: true, sellingPrice: true },
+    select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
   });
 
   return (
@@ -50,6 +50,8 @@ export default async function PosPage() {
             id: p.id,
             name: p.name,
             sku: p.sku,
+            barcode: p.barcode,
+            qrCode: p.qrCode,
             price: Number(p.sellingPrice),
           }))}
         />

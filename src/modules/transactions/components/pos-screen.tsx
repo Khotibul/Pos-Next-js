@@ -10,12 +10,17 @@ import { Alert } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
+import { QrScannerDialog } from "@/components/pos/qr-scanner-dialog";
+import { OpenShiftDialog } from "@/components/shifts/open-shift-dialog";
+import { ScanLine } from "lucide-react";
 
 type Product = {
   id: string;
   name: string;
   sku: string;
   price: number;
+  barcode?: string | null;
+  qrCode?: string | null;
 };
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
@@ -32,10 +37,16 @@ export function PosScreen({ products }: { products: Product[] }) {
   const [discount, setDiscount] = useState(0);
   const [taxRate, setTaxRate] = useState(11);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
   const [printPayload, setPrintPayload] = useState<{ saleId: string; auto: boolean } | null>(null);
   const [autoPrint, setAutoPrint] = useState<boolean | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [extraProducts, setExtraProducts] = useState<Product[]>([]);
+  const [openShiftId, setOpenShiftId] = useState<string | null>(null);
+  const [shiftCheckDone, setShiftCheckDone] = useState(false);
+  const [forceOpenShift, setForceOpenShift] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -56,14 +67,60 @@ export function PosScreen({ products }: { products: Product[] }) {
     };
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    setShiftCheckDone(false);
+    fetch("/api/shifts/open")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (ignore) return;
+        const id = json?.data?.shiftId ?? null;
+        setOpenShiftId(typeof id === "string" ? id : null);
+        setForceOpenShift(!id);
+      })
+      .catch(() => {
+        if (ignore) return;
+        // If we cannot determine shift state, don't hard-block UI;
+        // the server will still reject createSale if shift isn't open.
+        setForceOpenShift(false);
+      })
+      .finally(() => {
+        if (ignore) return;
+        setShiftCheckDone(true);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 2500);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const allProducts = useMemo(() => {
+    if (extraProducts.length === 0) return products;
+    const map = new Map<string, Product>();
+    for (const p of products) map.set(p.id, p);
+    for (const p of extraProducts) if (!map.has(p.id)) map.set(p.id, p);
+    return Array.from(map.values());
+  }, [products, extraProducts]);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s));
-  }, [products, q]);
+    if (!s) return allProducts;
+    return allProducts.filter((p) => {
+      if (p.name.toLowerCase().includes(s)) return true;
+      if (p.sku.toLowerCase().includes(s)) return true;
+      const barcode = p.barcode?.toLowerCase() ?? "";
+      const qr = p.qrCode?.toLowerCase() ?? "";
+      return (barcode && barcode.includes(s)) || (qr && qr.includes(s));
+    });
+  }, [allProducts, q]);
 
   const lines = useMemo(() => {
-    const map = new Map(products.map((p) => [p.id, p]));
+    const map = new Map(allProducts.map((p) => [p.id, p]));
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
       .map(([productId, qty]) => {
@@ -73,7 +130,7 @@ export function PosScreen({ products }: { products: Product[] }) {
         return { productId, name: p.name, sku: p.sku, price: p.price, qty, lineTotal };
       })
       .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-  }, [cart, products]);
+  }, [cart, allProducts]);
 
   const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0);
   const tax = Math.max(0, (subtotal - discount) * (taxRate / 100));
@@ -86,11 +143,48 @@ export function PosScreen({ products }: { products: Product[] }) {
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }
 
+  async function addByCode(code: string) {
+    const clean = code.trim();
+    if (!clean) return;
+    setError(null);
+    setNotice(null);
+
+    const res = await fetch(`/api/products/find-by-code?code=${encodeURIComponent(clean)}`);
+    if (!res.ok) {
+      const msg = res.status === 404 ? "Produk tidak ditemukan" : "Gagal memproses kode";
+      setNotice(msg);
+      return;
+    }
+
+    const json = (await res.json()) as {
+      ok: true;
+      data: { product: { id: string; name: string; sku: string; barcode: string | null; qrCode: string | null; price: number } };
+    };
+    const p = json.data.product;
+    setExtraProducts((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, { ...p }]));
+    inc(p.id);
+    setNotice(`Ditambahkan: ${p.name}`);
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="lg:col-span-2">
         <div className="sticky top-[72px] z-10 mb-4 rounded-2xl border bg-background/90 p-3 backdrop-blur">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari produk atau barcode..." />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari produk atau barcode..." />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 rounded-xl"
+              onClick={() => setScannerOpen(true)}
+              aria-label="Scan QR/Barcode"
+            >
+              <ScanLine className="h-4 w-4" />
+              <span className="hidden sm:inline">Scan</span>
+            </Button>
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (
@@ -115,6 +209,7 @@ export function PosScreen({ products }: { products: Product[] }) {
           {invoice ? <Badge variant="secondary">Order {invoice}</Badge> : null}
         </CardHeader>
         <CardContent className="grid gap-3">
+          {notice ? <Alert>{notice}</Alert> : null}
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
           <div className="grid gap-2">
@@ -207,7 +302,7 @@ export function PosScreen({ products }: { products: Product[] }) {
             <Button
               type="button"
               className="h-12"
-              disabled={isPending || lines.length === 0}
+              disabled={isPending || lines.length === 0 || (shiftCheckDone && !openShiftId)}
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
@@ -220,6 +315,7 @@ export function PosScreen({ products }: { products: Product[] }) {
                   const res = await createSaleAction(payload);
                   if (!res.ok) {
                     setError(res.message);
+                    if (res.message.toLowerCase().includes("shift")) setForceOpenShift(true);
                     return;
                   }
                   setInvoice(res.data.invoiceNo);
@@ -231,7 +327,7 @@ export function PosScreen({ products }: { products: Product[] }) {
                 });
               }}
             >
-              {isPending ? "Memproses..." : "Bayar Sekarang"}
+              {isPending ? "Memproses..." : shiftCheckDone && !openShiftId ? "Buka Shift dulu" : "Bayar Sekarang"}
             </Button>
             {saleId ? (
               <Button
@@ -251,6 +347,21 @@ export function PosScreen({ products }: { products: Product[] }) {
       </Card>
 
       {printPayload ? <PosReceiptPopup saleId={printPayload.saleId} auto={printPayload.auto} onDone={() => setPrintPayload(null)} /> : null}
+
+      <QrScannerDialog open={scannerOpen} onOpenChange={setScannerOpen} onDetected={addByCode} />
+
+      <OpenShiftDialog
+        open={forceOpenShift}
+        onOpenChange={setForceOpenShift}
+        hideTrigger
+        preventClose
+        onOpened={(id) => {
+          setOpenShiftId(id);
+          setNotice("Shift berhasil dibuka. Silakan mulai transaksi.");
+          setForceOpenShift(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }
