@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2, Upload, Download, Barcode, ScanLine, CalendarClock, PackageSearch } from "lucide-react";
+import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2, Upload, Download, Barcode, ScanLine, CalendarClock, PackageSearch, Percent, Coins } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 
 export const NAV_ITEMS = [
@@ -14,6 +14,9 @@ export const NAV_ITEMS = [
   { href: "/products/scan", label: "Scan Barcode", icon: ScanLine, section: "more", permission: PERMISSIONS.products_barcode_read },
   { href: "/products/expired", label: "Expired Product", icon: CalendarClock, section: "more", permission: PERMISSIONS.products_expired_read },
   { href: "/products/batches", label: "Stock Batch", icon: PackageSearch, section: "more", permission: PERMISSIONS.products_expired_read },
+  { href: "/products/prices", label: "Price Management", icon: Coins, section: "more", permission: PERMISSIONS.products_price_manage },
+  { href: "/products/discounts", label: "Discount Management", icon: Percent, section: "more", permission: PERMISSIONS.products_discount_manage },
+  { href: "/products/analytics", label: "Product Analytics", icon: BarChart3, section: "more", permission: PERMISSIONS.products_analytics_read },
   { href: "/products/categories", label: "Kategori Produk", icon: Tags, section: "more", permission: PERMISSIONS.products_read },
   { href: "/products/units", label: "Satuan Produk", icon: Ruler, section: "more", permission: PERMISSIONS.products_read },
   { href: "/branches", label: "Cabang", icon: Building2, section: "more", permission: PERMISSIONS.branches_read },

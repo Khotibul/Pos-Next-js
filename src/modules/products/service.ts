@@ -223,8 +223,7 @@ export async function findProductByCode(params: { tenantId: string; branchId?: s
   const code = params.code.trim();
   if (!code) throw Errors.badRequest("Kode produk tidak valid.");
 
-  // Branch-scoped pricing/stock is not implemented yet; keep the param for future use.
-  return prisma.product.findFirst({
+  const product = await prisma.product.findFirst({
     where: {
       tenantId: params.tenantId,
       isActive: true,
@@ -232,4 +231,33 @@ export async function findProductByCode(params: { tenantId: string; branchId?: s
     },
     select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
   });
+  if (!product) return null;
+
+  // Branch-scoped retail price override (promo period / happy hour via startsAt/endsAt datetime)
+  const at = new Date();
+  const branchId = params.branchId ?? null;
+  const rules = await prisma.productPrice.findMany({
+    where: {
+      tenantId: params.tenantId,
+      productId: product.id,
+      priceType: "RETAIL",
+      isActive: true,
+      ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : { branchId: null }),
+    },
+    orderBy: [{ branchId: "desc" }, { startsAt: "desc" }, { updatedAt: "desc" }],
+    take: 30,
+    select: { price: true, startsAt: true, endsAt: true },
+  }).catch(() => []);
+
+  let override: number | null = null;
+  for (const r of rules) {
+    const withinStart = !r.startsAt || r.startsAt <= at;
+    const withinEnd = !r.endsAt || r.endsAt >= at;
+    if (withinStart && withinEnd) {
+      override = Number(r.price);
+      break;
+    }
+  }
+
+  return { ...product, sellingPrice: override == null ? product.sellingPrice : override };
 }

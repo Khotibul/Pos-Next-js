@@ -95,6 +95,7 @@ model Tenant {
   productPrices ProductPrice[]
   productPriceHistory ProductPriceHistory[]
   productCostHistory ProductCostHistory[]
+  productDiscounts ProductDiscount[]
   productSerials ProductSerial[]
   productSuppliers ProductSupplier[]
   productBundles ProductBundle[]
@@ -269,6 +270,7 @@ model Branch {
   productPrices ProductPrice[]
   productPriceHistory ProductPriceHistory[]
   productBatches ProductBatch[]
+  productDiscounts ProductDiscount[]
 
   @@index([tenantId])
   @@index([categoryId])
@@ -325,6 +327,7 @@ model ProductCategory {
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
+  productDiscounts ProductDiscount[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -339,6 +342,7 @@ model ProductBrand {
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
+  productDiscounts ProductDiscount[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -403,6 +407,7 @@ model Product {
   batches  ProductBatch[]
   warehouseStocks ProductWarehouseStock[]
   prices   ProductPrice[]
+  discounts ProductDiscount[]
   priceHistory ProductPriceHistory[]
   costHistory ProductCostHistory[]
   bundles ProductBundle[]
@@ -437,6 +442,55 @@ enum ProductType {
   SERVICE
   DIGITAL
   ASSEMBLY
+}
+
+enum DiscountType {
+  AMOUNT
+  PERCENT
+  BOGO
+  BUNDLE
+}
+
+model ProductDiscount {
+  id           String @id @default(cuid())
+  tenantId     String
+  branchId     String?
+  productId    String?
+  categoryId   String?
+  brandId      String?
+  supplierId   String?
+  bundleId     String?
+
+  type         DiscountType @default(PERCENT)
+  value        Decimal @default(0) // AMOUNT/PERCENT
+  buyQty       Int?
+  getQty       Int?
+
+  startsAt     DateTime?
+  endsAt       DateTime?
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product      Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand        ProductBrand? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  supplier     Supplier? @relation("ProductDiscountSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  bundle       ProductBundle? @relation(fields: [bundleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([productId])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([supplierId])
+  @@index([bundleId])
+  @@index([type])
+  @@index([isActive])
+  @@index([startsAt])
+  @@index([endsAt])
 }
 
 model ProductImage {
@@ -765,6 +819,7 @@ model ProductBundle {
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   items   ProductBundleItem[]
+  discounts ProductDiscount[]
 
   @@index([tenantId])
   @@index([productId])
@@ -1069,6 +1124,7 @@ model Supplier {
   purchaseOrders PurchaseOrder[]
   products Product[] @relation("SupplierProducts")
   productLinks ProductSupplier[]
+  productDiscounts ProductDiscount[] @relation("ProductDiscountSupplier")
 
   @@index([tenantId])
   @@index([name])

@@ -68,6 +68,21 @@ export default async function ProductsPage({
                 <Link href="/products/barcodes">Barcode</Link>
               </Button>
             ) : null}
+            {can(PERMISSIONS.products_analytics_read) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/analytics">Analytics</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_price_manage) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/prices">Harga</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_discount_manage) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/discounts">Promo</Link>
+              </Button>
+            ) : null}
             {can(PERMISSIONS.products_expired_read) ? (
               <Button asChild variant="outline" className="rounded-xl">
                 <Link href="/products/expired">Expired</Link>
