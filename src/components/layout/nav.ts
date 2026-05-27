@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2 } from "lucide-react";
+import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2, Upload, Download, Barcode, ScanLine, CalendarClock, PackageSearch } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 
 export const NAV_ITEMS = [
@@ -7,6 +7,13 @@ export const NAV_ITEMS = [
   { href: "/sales", match: "/sales", label: "Riwayat Penjualan", icon: ClipboardList, section: "main", permission: PERMISSIONS.sales_read },
   { href: "/shifts", label: "Shiftbook", icon: ClipboardList, section: "main", permission: PERMISSIONS.transactions_shift_read },
   { href: "/products", label: "Produk", icon: Boxes, section: "main", permission: PERMISSIONS.products_read },
+  { href: "/products/create", label: "Tambah Produk", icon: Boxes, section: "more", permission: PERMISSIONS.products_write },
+  { href: "/products/import", label: "Import Produk", icon: Upload, section: "more", permission: PERMISSIONS.products_import },
+  { href: "/products/export", label: "Export Produk", icon: Download, section: "more", permission: PERMISSIONS.products_export },
+  { href: "/products/barcodes", label: "Barcode Label", icon: Barcode, section: "more", permission: PERMISSIONS.products_barcode_read },
+  { href: "/products/scan", label: "Scan Barcode", icon: ScanLine, section: "more", permission: PERMISSIONS.products_barcode_read },
+  { href: "/products/expired", label: "Expired Product", icon: CalendarClock, section: "more", permission: PERMISSIONS.products_expired_read },
+  { href: "/products/batches", label: "Stock Batch", icon: PackageSearch, section: "more", permission: PERMISSIONS.products_expired_read },
   { href: "/products/categories", label: "Kategori Produk", icon: Tags, section: "more", permission: PERMISSIONS.products_read },
   { href: "/products/units", label: "Satuan Produk", icon: Ruler, section: "more", permission: PERMISSIONS.products_read },
   { href: "/branches", label: "Cabang", icon: Building2, section: "more", permission: PERMISSIONS.branches_read },

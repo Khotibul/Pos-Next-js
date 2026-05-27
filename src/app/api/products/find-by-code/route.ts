@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { getTenantContext } from "@/lib/tenant-context";
 import { findProductByCode } from "@/modules/products/service";
 
 export const runtime = "nodejs";
@@ -11,7 +11,13 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const ctx = await requirePermission(PERMISSIONS.sales_write);
+  const ctx = await getTenantContext();
+  const allowed =
+    ctx.isSuperAdmin ||
+    ctx.permissions.includes(PERMISSIONS.sales_write) ||
+    ctx.permissions.includes(PERMISSIONS.products_read) ||
+    ctx.permissions.includes(PERMISSIONS.products_barcode_read);
+  if (!allowed) return NextResponse.json({ ok: false, message: "Anda tidak punya izin." }, { status: 403 });
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ code: url.searchParams.get("code") ?? "" });
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Kode tidak valid." }, { status: 400 });
@@ -33,4 +39,3 @@ export async function GET(req: Request) {
     },
   });
 }
-

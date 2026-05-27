@@ -16,6 +16,7 @@ export default async function ProductsPage({
   searchParams: Promise<{ q?: string; page?: string; categoryId?: string; status?: string }>;
 }) {
   const ctx = await requirePermission(PERMISSIONS.products_read);
+  const can = (perm: string) => ctx.isSuperAdmin || ctx.permissions.includes(perm);
   const sp = await searchParams;
   const q = sp.q ?? null;
   const categoryId = sp.categoryId ?? null;
@@ -52,6 +53,31 @@ export default async function ProductsPage({
             <Button asChild variant="outline" className="rounded-xl">
               <Link href="/products/units">Satuan</Link>
             </Button>
+            {can(PERMISSIONS.products_import) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/import">Import</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_export) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/export">Export</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_barcode_read) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/barcodes">Barcode</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_expired_read) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/expired">Expired</Link>
+              </Button>
+            ) : null}
+            {can(PERMISSIONS.products_expired_read) ? (
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/products/batches">Stock Batch</Link>
+              </Button>
+            ) : null}
             <Button asChild className="gap-2 rounded-xl">
               <Link href="/products/create">
                 <Plus className="h-4 w-4" />

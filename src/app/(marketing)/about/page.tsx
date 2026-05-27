@@ -117,7 +117,7 @@ export default function AboutPage() {
                 </span>
                 <div className="min-w-0">
                   <div className="text-xs text-muted-foreground">Lokasi</div>
-                  <div className="font-medium">Jakarta Selatan, Indonesia</div>
+                  <div className="font-medium">Jember, Jawa Timur, Indonesia</div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export default function AboutPage() {
                 </span>
                 <div className="min-w-0">
                   <div className="text-xs text-muted-foreground">Email</div>
-                  <div className="font-medium">hello@posify.com</div>
+                  <div className="font-medium">khotibul185@gmail.com</div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -135,7 +135,7 @@ export default function AboutPage() {
                 </span>
                 <div className="min-w-0">
                   <div className="text-xs text-muted-foreground">Telepon</div>
-                  <div className="font-medium">+62</div>
+                  <div className="font-medium">+62-895395705506</div>
                 </div>
               </div>
             </CardContent>

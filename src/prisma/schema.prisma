@@ -268,6 +268,7 @@ model Branch {
   warehouses Warehouse[]
   productPrices ProductPrice[]
   productPriceHistory ProductPriceHistory[]
+  productBatches ProductBatch[]
 
   @@index([tenantId])
   @@index([categoryId])
@@ -552,6 +553,7 @@ model Warehouse {
   transfersIn  ProductTransfer[] @relation("ProductTransferTo")
   adjustments  ProductAdjustment[]
   opnames      ProductOpname[]
+  batches     ProductBatch[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -563,16 +565,28 @@ model ProductBatch {
   id        String @id @default(cuid())
   tenantId  String
   productId String
+  branchId  String?
+  warehouseId String?
   variantId String?
-  batchNo   String
+  batchNo   String?
+  batchNumber String?
   receivedAt DateTime @default(now())
   expiredAt DateTime?
+  expiredDate DateTime?
+  quantity  Decimal @default(0)
+  costPrice Decimal @default(0)
+  source    String?
+  photoUrl  String?
+  ocrText   String?
+  confidence Decimal?
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branch  Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
   stocks  ProductWarehouseStock[]
   transferItems ProductTransferItem[]
@@ -581,8 +595,12 @@ model ProductBatch {
 
   @@index([tenantId])
   @@index([productId])
+  @@index([branchId])
+  @@index([warehouseId])
   @@index([variantId])
   @@index([expiredAt])
+  @@index([expiredDate])
+  @@index([batchNumber])
 }
 
 model ProductWarehouseStock {
