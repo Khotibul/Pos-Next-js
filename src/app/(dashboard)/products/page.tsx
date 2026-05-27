@@ -53,7 +53,7 @@ export default async function ProductsPage({
               <Link href="/products/units">Satuan</Link>
             </Button>
             <Button asChild className="gap-2 rounded-xl">
-              <Link href="/products/new">
+              <Link href="/products/create">
                 <Plus className="h-4 w-4" />
                 Tambah Produk
               </Link>
@@ -148,7 +148,7 @@ export default async function ProductsPage({
         </div>
 
         <Link
-          href="/products/new"
+          href="/products/create"
           className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-5 z-40 grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg md:hidden"
           aria-label="Tambah Produk"
         >

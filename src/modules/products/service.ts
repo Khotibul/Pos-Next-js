@@ -3,6 +3,26 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import type { CreateProductInput, UpdateProductInput } from "@/modules/products/validators";
+import crypto from "crypto";
+
+function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
+function genSku() {
+  const rand = crypto.randomUUID().slice(0, 8).toUpperCase();
+  return `SKU-${rand}`;
+}
+
+function computeMarginPct(cost: number, selling: number) {
+  if (!Number.isFinite(cost) || !Number.isFinite(selling) || selling <= 0) return 0;
+  const pct = ((selling - cost) / selling) * 100;
+  return Math.max(0, Number.isFinite(pct) ? pct : 0);
+}
 
 export async function listProducts(params: {
   tenantId: string;
@@ -76,23 +96,52 @@ export async function getProductById(params: { tenantId: string; id: string }) {
 }
 
 export async function createProduct(params: { tenantId: string; input: CreateProductInput }) {
-  const created = await prisma.product.create({
-    data: {
-      tenantId: params.tenantId,
-      sku: params.input.sku,
-      name: params.input.name,
-      barcode: params.input.barcode || null,
-      qrCode: params.input.qrCode || null,
-      categoryId: params.input.categoryId || null,
-      brandId: params.input.brandId || null,
-      unitId: params.input.unitId || null,
-      costPrice: params.input.costPrice,
-      sellingPrice: params.input.sellingPrice,
-      isActive: params.input.isActive ?? true,
-    },
-    select: { id: true },
-  });
-  return created;
+  const desiredSku = (params.input.sku ?? "").trim();
+  const desiredSlug = (params.input.slug ?? "").trim();
+  const marginPct = typeof params.input.marginPct === "number" ? params.input.marginPct : computeMarginPct(params.input.costPrice, params.input.sellingPrice);
+
+  // Generate SKU if not provided, retry on collision.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const sku = desiredSku || genSku();
+    try {
+      const created = await prisma.product.create({
+        data: {
+          tenantId: params.tenantId,
+          sku,
+          name: params.input.name,
+          slug: desiredSlug ? slugify(desiredSlug) : null,
+          description: params.input.description?.trim() || null,
+          barcode: params.input.barcode || null,
+          qrCode: params.input.qrCode || null,
+          categoryId: params.input.categoryId || null,
+          brandId: params.input.brandId || null,
+          supplierId: params.input.supplierId || null,
+          unitId: params.input.unitId || null,
+          costPrice: params.input.costPrice,
+          sellingPrice: params.input.sellingPrice,
+          marginPct,
+          taxRate: params.input.taxRate ?? 0,
+          weight: params.input.weight ?? 0,
+          volume: params.input.volume ?? 0,
+          minStock: params.input.minStock ?? 0,
+          reorderPoint: params.input.reorderPoint ?? 0,
+          isActive: params.input.isActive ?? true,
+          isFeatured: params.input.isFeatured ?? false,
+          isConsignment: params.input.isConsignment ?? false,
+          type: params.input.type ?? "SINGLE",
+        },
+        select: { id: true },
+      });
+      return created;
+    } catch (e: unknown) {
+      // SKU unique collision
+      const err = e as { code?: string };
+      if (err?.code === "P2002" && !desiredSku) continue;
+      throw e;
+    }
+  }
+
+  throw Errors.badRequest("Gagal membuat SKU otomatis. Silakan coba lagi.");
 }
 
 export async function updateProduct(params: { tenantId: string; id: string; input: UpdateProductInput }) {
@@ -105,16 +154,28 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
   const updated = await prisma.product.update({
     where: { id: params.id },
     data: {
-      sku: params.input.sku,
+      sku: params.input.sku?.trim() || undefined,
       name: params.input.name,
+      slug: params.input.slug === "" ? null : params.input.slug ? slugify(params.input.slug) : undefined,
+      description: params.input.description === "" ? null : params.input.description,
       barcode: params.input.barcode === "" ? null : params.input.barcode,
       qrCode: params.input.qrCode === "" ? null : params.input.qrCode,
       categoryId: params.input.categoryId === "" ? null : params.input.categoryId,
       brandId: params.input.brandId === "" ? null : params.input.brandId,
+      supplierId: params.input.supplierId === "" ? null : params.input.supplierId,
       unitId: params.input.unitId === "" ? null : params.input.unitId,
       costPrice: params.input.costPrice,
       sellingPrice: params.input.sellingPrice,
+      marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
+      taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
+      weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
+      volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
+      minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
+      reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
       isActive: params.input.isActive,
+      isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
+      isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
+      type: params.input.type ?? undefined,
     },
     select: { id: true },
   });
@@ -133,7 +194,7 @@ export async function deleteProduct(params: { tenantId: string; id: string }) {
 }
 
 export async function listProductMeta(params: { tenantId: string }) {
-  const [categories, brands, units] = await prisma.$transaction([
+  const [categories, brands, units, suppliers] = await prisma.$transaction([
     prisma.productCategory.findMany({
       where: { tenantId: params.tenantId },
       orderBy: { name: "asc" },
@@ -149,8 +210,13 @@ export async function listProductMeta(params: { tenantId: string }) {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.supplier.findMany({
+      where: { tenantId: params.tenantId, isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
-  return { categories, brands, units };
+  return { categories, brands, units, suppliers };
 }
 
 export async function findProductByCode(params: { tenantId: string; branchId?: string | null; code: string }) {

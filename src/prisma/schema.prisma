@@ -85,6 +85,28 @@ model Tenant {
   cashierShifts  CashierShift[]
   branches   Branch[]
   branchCategories BranchCategory[]
+  productImages ProductImage[]
+  productVariants ProductVariant[]
+  productUnitOptions ProductUnitOption[]
+  productUnitConversions ProductUnitConversion[]
+  warehouses Warehouse[]
+  productBatches ProductBatch[]
+  productWarehouseStocks ProductWarehouseStock[]
+  productPrices ProductPrice[]
+  productPriceHistory ProductPriceHistory[]
+  productCostHistory ProductCostHistory[]
+  productSerials ProductSerial[]
+  productSuppliers ProductSupplier[]
+  productBundles ProductBundle[]
+  productBundleItems ProductBundleItem[]
+  productAssemblies ProductAssembly[]
+  productAssemblyItems ProductAssemblyItem[]
+  productTransfers ProductTransfer[]
+  productTransferItems ProductTransferItem[]
+  productAdjustments ProductAdjustment[]
+  productAdjustmentItems ProductAdjustmentItem[]
+  productOpnames ProductOpname[]
+  productOpnameItems ProductOpnameItem[]
 
   @@unique([domain])
   @@unique([subdomain])
@@ -160,6 +182,11 @@ model User {
   cashierShiftsAsCashier CashierShift[] @relation("CashierShiftCashier")
   cashierShiftsApproved  CashierShift[] @relation("CashierShiftApprovedBy")
   emailVerificationTokens EmailVerificationToken[]
+  productPriceChanges ProductPriceHistory[] @relation("ProductPriceHistoryChangedBy")
+  productCostChanges  ProductCostHistory[] @relation("ProductCostHistoryCreatedBy")
+  productTransfers    ProductTransfer[] @relation("ProductTransferCreatedBy")
+  productAdjustments  ProductAdjustment[] @relation("ProductAdjustmentCreatedBy")
+  productOpnames      ProductOpname[] @relation("ProductOpnameCreatedBy")
 }
 
 model EmailVerificationToken {
@@ -238,6 +265,9 @@ model Branch {
   category  BranchCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   members   TenantUser[]
   shifts    CashierShift[]
+  warehouses Warehouse[]
+  productPrices ProductPrice[]
+  productPriceHistory ProductPriceHistory[]
 
   @@index([tenantId])
   @@index([categoryId])
@@ -322,6 +352,11 @@ model ProductUnit {
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
+  unitOptions ProductUnitOption[]
+  conversionsFrom ProductUnitConversion[] @relation("ProductUnitConversionFrom")
+  conversionsTo   ProductUnitConversion[] @relation("ProductUnitConversionTo")
+  prices   ProductPrice[]
+  priceHistory ProductPriceHistory[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -332,30 +367,576 @@ model Product {
   tenantId    String
   sku         String
   name        String
+  slug        String?
+  description String?
   barcode     String?
   qrCode      String?
   categoryId  String?
   brandId     String?
+  supplierId  String?
   unitId      String?
-  costPrice   Decimal  @default(0)
-  sellingPrice Decimal @default(0)
+  costPrice    Decimal  @default(0)
+  sellingPrice Decimal  @default(0)
+  marginPct    Decimal  @default(0)
+  taxRate      Decimal  @default(0)
+  weight       Decimal  @default(0)
+  volume       Decimal  @default(0)
+  minStock     Decimal  @default(0)
+  reorderPoint Decimal  @default(0)
   isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  isConsignment Boolean @default(false)
+  type        ProductType @default(SINGLE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category ProductCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   brand    ProductBrand?     @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  supplier Supplier?         @relation("SupplierProducts", fields: [supplierId], references: [id], onDelete: SetNull)
   unit     ProductUnit?      @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  images   ProductImage[]
+  variants ProductVariant[]
+  unitOptions ProductUnitOption[]
+  conversions ProductUnitConversion[]
+  batches  ProductBatch[]
+  warehouseStocks ProductWarehouseStock[]
+  prices   ProductPrice[]
+  priceHistory ProductPriceHistory[]
+  costHistory ProductCostHistory[]
+  bundles ProductBundle[]
+  assemblies ProductAssembly[]
+  bundleItems ProductBundleItem[]
+  assemblyItems ProductAssemblyItem[]
+  serials ProductSerial[]
+  suppliers ProductSupplier[]
+  transferItems ProductTransferItem[]
+  adjustmentItems ProductAdjustmentItem[]
+  opnameItems ProductOpnameItem[]
   saleItems SaleItem[]
   purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([tenantId, sku])
   @@unique([tenantId, qrCode])
+  @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([name])
   @@index([barcode])
   @@index([qrCode])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([supplierId])
+  @@index([type])
+}
+
+enum ProductType {
+  SINGLE
+  VARIANT
+  BUNDLE
+  SERVICE
+  DIGITAL
+  ASSEMBLY
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([productId])
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  sku       String
+  barcode   String?
+  qrCode    String?
+  name      String
+  attributes Json?
+  costPrice Decimal @default(0)
+  sellingPrice Decimal @default(0)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batches ProductBatch[]
+  warehouseStocks ProductWarehouseStock[]
+  prices  ProductPrice[]
+  priceHistory ProductPriceHistory[]
+  costHistory ProductCostHistory[]
+  serials ProductSerial[]
+  bundleItems ProductBundleItem[]
+  assemblyItems ProductAssemblyItem[]
+  transferItems ProductTransferItem[]
+  adjustmentItems ProductAdjustmentItem[]
+  opnameItems ProductOpnameItem[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, qrCode])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([barcode])
+  @@index([qrCode])
+}
+
+model ProductUnitOption {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String
+  unitId    String
+  isBase    Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unit    ProductUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, productId, unitId])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([unitId])
+}
+
+model ProductUnitConversion {
+  id          String @id @default(cuid())
+  tenantId    String
+  productId   String
+  fromUnitId  String
+  toUnitId    String
+  multiplier  Decimal @default(1) // fromUnit * multiplier = toUnit
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product  Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fromUnit ProductUnit @relation("ProductUnitConversionFrom", fields: [fromUnitId], references: [id], onDelete: Cascade)
+  toUnit   ProductUnit @relation("ProductUnitConversionTo", fields: [toUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, productId, fromUnitId, toUnitId])
+  @@index([tenantId])
+  @@index([productId])
+}
+
+enum WarehouseType {
+  CENTRAL
+  BRANCH
+  TRANSIT
+}
+
+model Warehouse {
+  id        String @id @default(cuid())
+  tenantId  String
+  branchId  String?
+  name      String
+  type      WarehouseType @default(BRANCH)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  stocks ProductWarehouseStock[]
+  transfersOut ProductTransfer[] @relation("ProductTransferFrom")
+  transfersIn  ProductTransfer[] @relation("ProductTransferTo")
+  adjustments  ProductAdjustment[]
+  opnames      ProductOpname[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([type])
+}
+
+model ProductBatch {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String
+  variantId String?
+  batchNo   String
+  receivedAt DateTime @default(now())
+  expiredAt DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  stocks  ProductWarehouseStock[]
+  transferItems ProductTransferItem[]
+  adjustmentItems ProductAdjustmentItem[]
+  opnameItems ProductOpnameItem[]
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([expiredAt])
+}
+
+model ProductWarehouseStock {
+  id         String @id @default(cuid())
+  tenantId   String
+  warehouseId String
+  productId  String
+  variantId  String?
+  batchId    String?
+  qty        Decimal @default(0)
+  updatedAt  DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  batch     ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, warehouseId, productId, variantId, batchId])
+  @@index([tenantId])
+  @@index([warehouseId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([batchId])
+}
+
+model ProductPrice {
+  id        String @id @default(cuid())
+  tenantId  String
+  branchId  String?
+  productId String
+  variantId String?
+  unitId    String?
+  priceType String @default("RETAIL") // RETAIL|WHOLESALE|MEMBER|RESELLER
+  price     Decimal @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch  Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  unit    ProductUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([priceType])
+  @@index([isActive])
+}
+
+model ProductPriceHistory {
+  id        String @id @default(cuid())
+  tenantId  String
+  branchId  String?
+  productId String
+  variantId String?
+  unitId    String?
+  priceType String
+  price     Decimal
+  changedAt DateTime @default(now())
+  changedById String?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch  Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  unit    ProductUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  changedBy User? @relation("ProductPriceHistoryChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([branchId])
+  @@index([changedAt])
+}
+
+model ProductCostHistory {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String
+  variantId String?
+  cost      Decimal
+  source    String @default("MANUAL") // PURCHASE|MANUAL|IMPORT
+  referenceId String?
+  createdAt DateTime @default(now())
+  createdById String?
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ProductCostHistoryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([createdAt])
+}
+
+enum ProductSerialStatus {
+  AVAILABLE
+  SOLD
+  RETURNED
+}
+
+model ProductSerial {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String
+  variantId String?
+  serialNo  String
+  status    ProductSerialStatus @default(AVAILABLE)
+  warrantyUntil DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, serialNo])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([status])
+}
+
+model ProductSupplier {
+  id         String @id @default(cuid())
+  tenantId   String
+  productId  String
+  supplierId String
+  isPrimary  Boolean @default(false)
+  supplierSku String?
+  lastCost   Decimal @default(0)
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, productId, supplierId])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([supplierId])
+}
+
+model ProductBundle {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String // the bundle product
+  name      String
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  items   ProductBundleItem[]
+
+  @@index([tenantId])
+  @@index([productId])
+}
+
+model ProductBundleItem {
+  id        String @id @default(cuid())
+  tenantId  String
+  bundleId  String
+  productId String
+  variantId String?
+  qty       Decimal @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bundle ProductBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([bundleId])
+}
+
+model ProductAssembly {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String // the assembly output product
+  name      String
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  items   ProductAssemblyItem[]
+
+  @@index([tenantId])
+  @@index([productId])
+}
+
+model ProductAssemblyItem {
+  id        String @id @default(cuid())
+  tenantId  String
+  assemblyId String
+  productId String
+  variantId String?
+  qty       Decimal @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assembly ProductAssembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([assemblyId])
+}
+
+enum InventoryDocStatus {
+  DRAFT
+  POSTED
+  CANCELED
+}
+
+enum StockMoveType {
+  ADJUSTMENT
+  TRANSFER
+  OPNAME
+}
+
+model ProductTransfer {
+  id          String @id @default(cuid())
+  tenantId    String
+  fromWarehouseId String
+  toWarehouseId   String
+  status      InventoryDocStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromWarehouse Warehouse @relation("ProductTransferFrom", fields: [fromWarehouseId], references: [id], onDelete: Cascade)
+  toWarehouse   Warehouse @relation("ProductTransferTo", fields: [toWarehouseId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ProductTransferCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items  ProductTransferItem[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model ProductTransferItem {
+  id         String @id @default(cuid())
+  tenantId   String
+  transferId String
+  productId  String
+  variantId  String?
+  batchId    String?
+  qty        Decimal @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transfer ProductTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  batch   ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([transferId])
+}
+
+model ProductAdjustment {
+  id          String @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  status      InventoryDocStatus @default(DRAFT)
+  reason      String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ProductAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items ProductAdjustmentItem[]
+
+  @@index([tenantId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model ProductAdjustmentItem {
+  id            String @id @default(cuid())
+  tenantId      String
+  adjustmentId  String
+  productId     String
+  variantId     String?
+  batchId       String?
+  qtyDelta      Decimal @default(0)
+  notes         String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  adjustment ProductAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  batch   ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([adjustmentId])
+}
+
+model ProductOpname {
+  id          String @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  status      InventoryDocStatus @default(DRAFT)
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ProductOpnameCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items ProductOpnameItem[]
+
+  @@index([tenantId])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model ProductOpnameItem {
+  id        String @id @default(cuid())
+  tenantId  String
+  opnameId  String
+  productId String
+  variantId String?
+  batchId   String?
+  systemQty Decimal @default(0)
+  countedQty Decimal @default(0)
+  difference Decimal @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opname ProductOpname @relation(fields: [opnameId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  batch   ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([opnameId])
 }
 
 model Sale {
@@ -468,6 +1049,8 @@ model Supplier {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   purchaseOrders PurchaseOrder[]
+  products Product[] @relation("SupplierProducts")
+  productLinks ProductSupplier[]
 
   @@index([tenantId])
   @@index([name])
