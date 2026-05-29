@@ -1,14 +1,14 @@
 {
   "name": "pos-saas-management-system",
+  "description": "POS SaaS Management System (Web + Desktop Electron)",
+  "author": "PointPro POS",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "prisma": {
-    "schema": "src/prisma/schema.prisma",
-    "seed": "node scripts/seed.mjs"
-  },
+  "main": "dist-electron/electron/main.js",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/clean-next.cjs && next dev",
+    "dev:desktop": "concurrently -k -n NEXT,ELECTRON -c blue,green \"next dev\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RENDERER_URL=http://localhost:3000 npm run electron:build-and-run\"",
     "build": "npm run prisma:generate && next build",
     "start": "next start",
     "lint": "next lint",
@@ -21,7 +21,14 @@
     "prisma:studio:mysql": "prisma studio --schema src/prisma/schema.mysql.prisma",
     "db:seed": "node scripts/seed.mjs",
     "db:seed:mysql": "node scripts/seed.mjs",
-    "db:setup:neon": "npm run prisma:deploy && npm run db:seed"
+    "db:setup:neon": "npm run prisma:deploy && npm run db:seed",
+    "electron:build": "tsc -p electron/tsconfig.json && node scripts/electron-postbuild.mjs",
+    "electron:build-and-run": "npm run electron:build && node scripts/run-electron.cjs",
+    "desktop:run": "node scripts/run-electron.cjs",
+    "desktop:rebuild-native": "node scripts/rebuild-electron-native.cjs",
+    "build:desktop:renderer": "set DESKTOP_BUILD=1&& node scripts/clean-next.cjs && npx next build && node scripts/build-desktop-renderer.mjs",
+    "desktop:dist": "node scripts/desktop-dist.cjs",
+    "desktop:build": "cross-env ELECTRON_RENDERER_URL=https://pos-next-js-kohl.vercel.app npm run build && npm run electron:build && electron-builder"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
@@ -37,6 +44,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@types/qrcode": "^1.5.6",
     "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.3.0",
@@ -58,17 +66,45 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "22.19.17",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
+    "electron-updater": "^6.6.2",
     "eslint": "^8.57.0",
     "eslint-config-next": "^15.3.2",
     "postcss": "^8.5.3",
     "prisma": "^6.8.2",
     "tailwindcss": "^3.4.17",
     "typescript": "5.9.3",
-    "typescript-eslint": "^8.33.0"
+    "typescript-eslint": "^8.33.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.pointpro.posdesktop",
+    "productName": "POS Desktop Enterprise",
+    "extraMetadata": {
+      "desktopRendererUrl": "https://pos-next-js-kohl.vercel.app"
+    },
+    "directories": {
+      "output": "dist-desktop-build"
+    },
+    "files": [
+      "dist-electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
   }
 }

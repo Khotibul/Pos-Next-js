@@ -112,6 +112,18 @@ export default function LoginPage() {
         </Alert>
       ) : null}
 
+      {queryError === "OAuthAccountNotLinked" ? (
+        <Alert variant="destructive" className="mt-6">
+          Akun dengan email ini sudah terdaftar dengan metode login lain. Silakan login memakai email & password, atau daftar/login Google menggunakan email yang sama dari menu Registrasi Google agar akun terhubung.
+        </Alert>
+      ) : null}
+
+      {queryError === "GOOGLE_ACCOUNT_IN_USE" ? (
+        <Alert variant="destructive" className="mt-6">
+          Akun Google ini sudah terhubung ke user lain. Silakan gunakan akun Google yang benar atau hubungi admin untuk bantuan.
+        </Alert>
+      ) : null}
+
       {queryError === "EMAIL_NOT_VERIFIED" ? (
         <Alert variant="destructive" className="mt-6">
           Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi. Jika belum menerima email, kirim ulang verifikasi.

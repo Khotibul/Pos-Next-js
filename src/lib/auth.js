@@ -62,19 +62,24 @@ export const {
   callbacks: {
     signIn: async ({ account, profile }) => {
       if (account?.provider !== "google") return true;
-      const email = profile?.email?.toLowerCase?.() ?? profile?.email ?? null;
+      const emailRaw = profile?.email ?? null;
+      const email = typeof emailRaw === "string" ? emailRaw.trim().toLowerCase() : null;
       if (!email) return false;
 
-      const existing = await prisma.user.findUnique({
-        where: { email },
+      // IMPORTANT: Query email case-insensitively.
+      // This prevents OAuthAccountNotLinked when existing credentials users have mixed-case emails.
+      const existing = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
         select: {
           id: true,
+          email: true,
           accounts: { select: { provider: true } },
         },
       });
 
       const cookieStore = await cookies();
       const regId = cookieStore.get("oauth_reg_id")?.value ?? null;
+      const oauthLink = cookieStore.get("oauth_link")?.value ?? null;
 
       // Only allow Google sign-in if the account already exists & linked to Google,
       // or the user explicitly started "Register with Google" flow.
@@ -90,8 +95,43 @@ export const {
       }
 
       const linkedGoogle = existing.accounts.some((a) => a.provider === "google");
-      // Do not allow logging in with Google if the account was created with another method.
-      if (!linkedGoogle) return "/login?error=GOOGLE_NOT_REGISTERED";
+      if (!linkedGoogle) {
+        // Allow explicit account linking flow (desktop/web) to prevent OAuthAccountNotLinked.
+        // This cookie is set when user clicks "Masuk dengan Google" on the login page.
+        if (oauthLink === "1" && account?.providerAccountId) {
+          const provider = account.provider;
+          const providerAccountId = account.providerAccountId;
+
+          const existingAccount = await prisma.account
+            .findUnique({ where: { provider_providerAccountId: { provider, providerAccountId } }, select: { userId: true } })
+            .catch(() => null);
+
+          // If the Google account is already linked to a different user, block for safety.
+          if (existingAccount && existingAccount.userId !== existing.id) return "/login?error=GOOGLE_ACCOUNT_IN_USE";
+
+          if (!existingAccount) {
+            await prisma.account.create({
+              data: {
+                userId: existing.id,
+                type: account.type,
+                provider,
+                providerAccountId,
+                refresh_token: account.refresh_token ?? null,
+                access_token: account.access_token ?? null,
+                expires_at: typeof account.expires_at === "number" ? account.expires_at : null,
+                token_type: account.token_type ?? null,
+                scope: account.scope ?? null,
+                id_token: account.id_token ?? null,
+                session_state: account.session_state ?? null,
+              },
+            });
+          }
+          return true;
+        }
+
+        // Default: Do not allow logging in with Google if the account was created with another method.
+        return "/login?error=GOOGLE_NOT_REGISTERED";
+      }
 
       return true;
     },

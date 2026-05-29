@@ -27,7 +27,7 @@ function GoogleMark({ className }) {
   );
 }
 
-export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride }) {
+export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride, purpose = "login" }) {
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
@@ -46,6 +46,15 @@ export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "out
 
   async function onClick() {
     if (onClickOverride) return onClickOverride();
+    // For login flow, set a short-lived cookie used to safely auto-link Google
+    // to an existing verified credentials account (prevents OAuthAccountNotLinked).
+    if (purpose === "login") {
+      try {
+        await fetch("/api/auth/oauth-link", { method: "POST" });
+      } catch {
+        // ignore
+      }
+    }
     await signIn("google", { callbackUrl: callbackUrl || "/onboarding" });
   }
 

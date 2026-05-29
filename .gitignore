@@ -4,11 +4,18 @@ node_modules/
 
 # next.js
 .next/
+.next-desktop/
 out/
 
 # env
 .env
 .env.*.local
+
+# desktop/electron build outputs
+dist-electron/
+dist-desktop/
+dist-desktop-build/
+.desktop-userdata/
 
 # logs
 npm-debug.log*

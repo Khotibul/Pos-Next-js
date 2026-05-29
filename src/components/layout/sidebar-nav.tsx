@@ -25,6 +25,11 @@ export function SidebarNav({
     if ("superAdminOnly" in item && item.superAdminOnly && !isSuperAdmin) return false;
     if (isSuperAdmin) return true;
     if (!permissions) return true;
+    // Always allow opening Desktop License page inside Electron even if the user lacks Settings permission,
+    // so they can activate trial/serial and unblock the app.
+    if (typeof window !== "undefined" && (window as unknown as { posDesktop?: unknown }).posDesktop) {
+      if (item.href === "/settings/license") return true;
+    }
     return permissions.includes(item.permission);
   };
 

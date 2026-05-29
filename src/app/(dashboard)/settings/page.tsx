@@ -4,7 +4,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Building2, Mail, Printer, Shield, Users } from "lucide-react";
+import { Building2, KeyRound, Mail, Printer, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default async function SettingsPage() {
@@ -63,6 +63,25 @@ export default async function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">Email/WA gateway & reminder.</CardContent>
+        </Card>
+
+        <Card className="rounded-2xl">
+          <CardHeader className="py-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <KeyRound className="h-4 w-4" />
+              </span>
+              License (Desktop)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm text-muted-foreground">
+            <div>Aktivasi lisensi offline, info device, dan database tools untuk POS Desktop.</div>
+            <div>
+              <Button asChild variant="outline" size="sm" className="rounded-xl">
+                <Link href="/settings/license">Buka Halaman</Link>
+              </Button>
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="rounded-2xl sm:col-span-2 lg:col-span-3">

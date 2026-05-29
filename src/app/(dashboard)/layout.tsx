@@ -4,6 +4,11 @@ import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { Topbar } from "@/components/layout/topbar";
 import { DashboardBottomNav, type DashboardNavItem } from "@/components/layout/dashboard-bottom-nav";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { DesktopLicenseGate } from "@/components/layout/desktop-license-gate";
+
+// Dashboard routes depend on cookies/session/permissions and must not be statically prerendered.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getTenantContext();
@@ -21,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-screen bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
+      <DesktopLicenseGate />
       <div className="flex">
         <SidebarShell permissions={ctx.permissions} isSuperAdmin={ctx.isSuperAdmin} />
         <div className="flex min-h-screen flex-1 flex-col">
