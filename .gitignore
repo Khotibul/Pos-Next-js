@@ -17,6 +17,18 @@ dist-desktop/
 dist-desktop-build/
 .desktop-userdata/
 
+# android/capacitor build outputs
+android/.gradle/
+android/**/build/
+android/local.properties
+android/capacitor.settings.gradle
+android/app/release/
+android/app/debug/
+*.jks
+*.keystore
+android/keystore.properties
+android/app/*.keystore
+
 # logs
 npm-debug.log*
 yarn-debug.log*

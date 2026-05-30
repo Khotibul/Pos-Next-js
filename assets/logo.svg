@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0b3df0"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="240" fill="url(#bg)"/>
+  <g fill="#fff">
+    <rect x="248" y="296" width="528" height="432" rx="80" fill="rgba(255,255,255,0.10)"/>
+    <path d="M356 404h312a48 48 0 0 1 48 48v120a48 48 0 0 1-48 48H356a48 48 0 0 1-48-48V452a48 48 0 0 1 48-48zm24 72v72h264v-72H380z" opacity="0.92"/>
+    <path d="M392 688h240a24 24 0 1 1 0 48H392a24 24 0 1 1 0-48z" opacity="0.75"/>
+    <text x="512" y="250" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial" font-size="80" font-weight="800">POS Pro</text>
+  </g>
+</svg>
+

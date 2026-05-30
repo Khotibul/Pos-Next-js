@@ -28,7 +28,16 @@
     "desktop:rebuild-native": "node scripts/rebuild-electron-native.cjs",
     "build:desktop:renderer": "set DESKTOP_BUILD=1&& node scripts/clean-next.cjs && npx next build && node scripts/build-desktop-renderer.mjs",
     "desktop:dist": "node scripts/desktop-dist.cjs",
-    "desktop:build": "cross-env ELECTRON_RENDERER_URL=https://pos-next-js-kohl.vercel.app npm run build && npm run electron:build && electron-builder"
+    "desktop:build": "cross-env ELECTRON_RENDERER_URL=https://pos-next-js-kohl.vercel.app npm run build && npm run electron:build && electron-builder",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:gradle:stop": "node scripts/run-android-gradle.cjs --stop",
+    "android:keystore:generate": "node scripts/generate-android-keystore.cjs",
+    "android:build:debug": "node scripts/run-android-gradle.cjs assembleDebug",
+    "android:build:release": "node scripts/run-android-gradle.cjs assembleRelease",
+    "android:copy-apk:debug": "node scripts/copy-android-apk.cjs",
+    "android:copy-apk:release": "node scripts/copy-android-apk-release.cjs",
+    "android:assets": "npx.cmd @capacitor/assets generate --android --iconBackgroundColor \"#0b3df0\" --iconBackgroundColorDark \"#0b1220\" --splashBackgroundColor \"#0b1220\" --splashBackgroundColorDark \"#0b1220\""
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
@@ -65,12 +74,17 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "22.19.17",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
+    "astral-regex": "^2.0.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
