@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionResult } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
+import { invalidateDashboardCache } from "@/lib/cache";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
@@ -33,6 +34,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       entityId: created.id,
       metadata: { invoiceNo: created.invoiceNo, total: created.total },
     });
+    await invalidateDashboardCache(ctx.tenantId);
 
     revalidatePath("/pos");
     revalidatePath("/pos/history");
@@ -54,6 +56,7 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
     await prisma.auditLog.create({
       data: { tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Sale", entityId: id },
     });
+    await invalidateDashboardCache(ctx.tenantId);
 
     revalidatePath("/pos");
     revalidatePath("/pos/history");

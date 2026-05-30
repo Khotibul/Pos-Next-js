@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { consumeOauthRegistration } from "@/modules/auth/oauth-registration/service";
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 
@@ -39,9 +40,15 @@ export const {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (raw) => {
+      authorize: async (raw, request) => {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
+        const ip =
+          request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ||
+          request?.headers?.get?.("x-real-ip") ||
+          "unknown";
+        const loginLimit = await checkRateLimit("login", `${ip}:${parsed.data.email.toLowerCase()}`);
+        if (!loginLimit.success) throw new Error("RATE_LIMITED");
 
         const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
         if (!user?.passwordHash) return null;

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
 import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
 
@@ -33,6 +34,11 @@ function randomSuffix() {
 }
 
 export async function POST(req: Request) {
+  const limit = await checkRateLimit("register", getClientIp(req));
+  if (!limit.success) {
+    return NextResponse.json({ message: "Terlalu banyak percobaan registrasi. Coba lagi nanti." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

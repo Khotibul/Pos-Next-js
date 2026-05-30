@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { pingRedis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
 type HealthResponse = {
   ok: boolean;
   database: "connected" | "disconnected";
+  redis: "connected" | "disabled" | "error";
   version: string;
   timestamp: string;
   uptime: number;
@@ -16,11 +18,12 @@ export async function GET() {
   const timestamp = new Date().toISOString();
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    const [, redis] = await Promise.all([prisma.$queryRaw`SELECT 1`, pingRedis()]);
     return NextResponse.json(
       {
         ok: true,
         database: "connected",
+        redis,
         version,
         timestamp,
         uptime: Math.round(process.uptime()),
@@ -32,6 +35,7 @@ export async function GET() {
       {
         ok: false,
         database: "disconnected",
+        redis: await pingRedis(),
         version,
         timestamp,
         uptime: Math.round(process.uptime()),

@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Errors } from "@/lib/errors";
+import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
+import { getCache, setCache } from "@/lib/redis";
 
 export type TenantContext = {
   userId: string;
@@ -63,6 +65,14 @@ async function resolveOrCreateActiveBranch(params: { tenantId: string }) {
   }
 
   throw Errors.forbidden("Cabang tidak ditemukan. Tambahkan cabang dulu.");
+}
+
+async function resolvePermissionCache(params: { tenantId: string; userId: string; fallback: string[] }) {
+  const key = cacheKeys.permissions(params.tenantId, params.userId);
+  const cached = await getCache<string[]>(key);
+  if (cached) return cached;
+  await setCache(key, params.fallback, CACHE_TTL.permissions);
+  return params.fallback;
 }
 
 export const getTenantContext = cache(async (): Promise<TenantContext> => {
@@ -125,7 +135,11 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     if (!activeTenant) throw Errors.forbidden("Tenant tidak valid.");
 
     const activeMembership = user.memberships.find((m) => m.tenantId === activeTenantId) ?? null;
-    const permissions = (activeMembership?.role?.permissions ?? []).map((rp) => rp.permission.key);
+    const permissions = await resolvePermissionCache({
+      tenantId: activeTenantId,
+      userId: user.id,
+      fallback: (activeMembership?.role?.permissions ?? []).map((rp) => rp.permission.key),
+    });
     const roleName = activeMembership?.role?.name ?? null;
 
     const activeBranch =
@@ -174,7 +188,11 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const tenantStatus = activeMembership.tenant.status;
   const tenantTrialEndsAt = activeMembership.tenant.trialEndsAt ?? null;
 
-  const permissions = (activeMembership.role?.permissions ?? []).map((rp) => rp.permission.key);
+  const permissions = await resolvePermissionCache({
+    tenantId: activeTenantId,
+    userId: user.id,
+    fallback: (activeMembership.role?.permissions ?? []).map((rp) => rp.permission.key),
+  });
   const roleName = activeMembership.role?.name ?? null;
 
   const activeBranch =

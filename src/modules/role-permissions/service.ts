@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
+import { invalidatePermissionCache } from "@/lib/cache";
 import type { UpdateRolePermissionsInput } from "@/modules/role-permissions/validators";
 
 export async function listRoles({ tenantId }: { tenantId: string }) {
@@ -51,6 +52,6 @@ export async function updateRolePermissions({ tenantId, input }: { tenantId: str
     }
   });
 
+  await invalidatePermissionCache(tenantId);
   return { id: input.roleId };
 }
-

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { normalizeSerial } from "@/lib/licenses";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   serial: z.string().min(6),
@@ -18,6 +19,10 @@ export async function POST(req: Request) {
 
     const serial = normalizeSerial(parsed.data.serial);
     const deviceId = String(parsed.data.deviceId).trim();
+    const limit = await checkRateLimit("licenseActivation", deviceId);
+    if (!limit.success) {
+      return NextResponse.json({ ok: false, message: "Terlalu banyak percobaan aktivasi lisensi." }, { status: 429 });
+    }
 
     const lic = await prisma.licenseKey.findUnique({
       where: { serial },
@@ -72,4 +77,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
+import { invalidateProductCache } from "@/lib/cache";
 import type { ImportRow } from "@/modules/products/import-validator";
 
 async function getOrCreateMeta(params: { tenantId: string; category: string; brand: string; unit: string; supplier: string }) {
@@ -203,5 +204,6 @@ export async function importProducts(params: {
     }
   }
 
+  await invalidateProductCache(params.tenantId);
   return { created, updated, errors } satisfies ImportResult;
 }

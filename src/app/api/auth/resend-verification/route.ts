@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
 
 const schema = z.object({
@@ -13,6 +14,10 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ message: "Email tidak valid." }, { status: 400 });
 
   const email = parsed.data.email.toLowerCase();
+  const limit = await checkRateLimit("resendVerification", `${getClientIp(req)}:${email}`);
+  if (!limit.success) {
+    return NextResponse.json({ message: "Terlalu banyak permintaan verifikasi. Coba lagi nanti." }, { status: 429 });
+  }
 
   const user = await prisma.user.findUnique({
     where: { email },

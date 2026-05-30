@@ -1,5 +1,7 @@
 import "server-only";
 
+import { rememberCache } from "@/lib/cache";
+import { CACHE_TTL, cacheKeys, hashCachePart } from "@/lib/cache-keys";
 import { prisma } from "@/lib/prisma";
 
 export type ReportPreset = "today" | "7d" | "month" | "custom";
@@ -64,73 +66,91 @@ function pctChange(current: number, previous: number) {
 }
 
 export async function getSalesKpis(params: { tenantId: string; from: Date; to: Date }) {
-  const prev = previousRange(params.from, params.to);
+  return rememberCache({
+    key: `${cacheKeys.dashboard(params.tenantId, null, params.from.toISOString().slice(0, 10))}:kpis:${hashCachePart({
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    })}`,
+    ttl: CACHE_TTL.dashboard,
+    fetcher: async () => {
+      const prev = previousRange(params.from, params.to);
 
-  const [currSales, prevSales, currItems, prevItems] = await prisma.$transaction([
-    prisma.sale.aggregate({
-      where: { tenantId: params.tenantId, createdAt: { gte: params.from, lte: params.to } },
-      _sum: { total: true },
-      _count: { id: true },
-      _avg: { total: true },
-    }),
-    prisma.sale.aggregate({
-      where: { tenantId: params.tenantId, createdAt: { gte: prev.from, lte: prev.to } },
-      _sum: { total: true },
-      _count: { id: true },
-      _avg: { total: true },
-    }),
-    prisma.saleItem.aggregate({
-      where: { tenantId: params.tenantId, sale: { createdAt: { gte: params.from, lte: params.to } } },
-      _sum: { qty: true },
-    }),
-    prisma.saleItem.aggregate({
-      where: { tenantId: params.tenantId, sale: { createdAt: { gte: prev.from, lte: prev.to } } },
-      _sum: { qty: true },
-    }),
-  ]);
+      const [currSales, prevSales, currItems, prevItems] = await prisma.$transaction([
+        prisma.sale.aggregate({
+          where: { tenantId: params.tenantId, createdAt: { gte: params.from, lte: params.to } },
+          _sum: { total: true },
+          _count: { id: true },
+          _avg: { total: true },
+        }),
+        prisma.sale.aggregate({
+          where: { tenantId: params.tenantId, createdAt: { gte: prev.from, lte: prev.to } },
+          _sum: { total: true },
+          _count: { id: true },
+          _avg: { total: true },
+        }),
+        prisma.saleItem.aggregate({
+          where: { tenantId: params.tenantId, sale: { createdAt: { gte: params.from, lte: params.to } } },
+          _sum: { qty: true },
+        }),
+        prisma.saleItem.aggregate({
+          where: { tenantId: params.tenantId, sale: { createdAt: { gte: prev.from, lte: prev.to } } },
+          _sum: { qty: true },
+        }),
+      ]);
 
-  const totalSales = numberOrZero(currSales._sum.total);
-  const totalTransactions = currSales._count.id ?? 0;
-  const avgReceipt = numberOrZero(currSales._avg.total);
-  const itemsSold = currItems._sum.qty ?? 0;
+      const totalSales = numberOrZero(currSales._sum.total);
+      const totalTransactions = currSales._count.id ?? 0;
+      const avgReceipt = numberOrZero(currSales._avg.total);
+      const itemsSold = currItems._sum.qty ?? 0;
 
-  const prevTotalSales = numberOrZero(prevSales._sum.total);
-  const prevTotalTransactions = prevSales._count.id ?? 0;
-  const prevAvgReceipt = numberOrZero(prevSales._avg.total);
-  const prevItemsSold = prevItems._sum.qty ?? 0;
+      const prevTotalSales = numberOrZero(prevSales._sum.total);
+      const prevTotalTransactions = prevSales._count.id ?? 0;
+      const prevAvgReceipt = numberOrZero(prevSales._avg.total);
+      const prevItemsSold = prevItems._sum.qty ?? 0;
 
-  return {
-    totalSales,
-    totalTransactions,
-    avgReceipt,
-    itemsSold,
-    delta: {
-      totalSales: pctChange(totalSales, prevTotalSales),
-      totalTransactions: pctChange(totalTransactions, prevTotalTransactions),
-      avgReceipt: pctChange(avgReceipt, prevAvgReceipt),
-      itemsSold: pctChange(itemsSold, prevItemsSold),
+      return {
+        totalSales,
+        totalTransactions,
+        avgReceipt,
+        itemsSold,
+        delta: {
+          totalSales: pctChange(totalSales, prevTotalSales),
+          totalTransactions: pctChange(totalTransactions, prevTotalTransactions),
+          avgReceipt: pctChange(avgReceipt, prevAvgReceipt),
+          itemsSold: pctChange(itemsSold, prevItemsSold),
+        },
+      };
     },
-  };
+  });
 }
 
 export async function getSalesSeries(params: { tenantId: string; from: Date; to: Date }) {
-  // Production note: for large datasets, prefer DB-level aggregation.
-  const sales = await prisma.sale.findMany({
-    where: { tenantId: params.tenantId, createdAt: { gte: params.from, lte: params.to } },
-    select: { createdAt: true, total: true },
-    orderBy: { createdAt: "asc" },
-    take: 5000,
+  return rememberCache({
+    key: `${cacheKeys.dashboard(params.tenantId, null, params.from.toISOString().slice(0, 10))}:series:${hashCachePart({
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    })}`,
+    ttl: CACHE_TTL.dashboard,
+    fetcher: async () => {
+      // Production note: for large datasets, prefer DB-level aggregation.
+      const sales = await prisma.sale.findMany({
+        where: { tenantId: params.tenantId, createdAt: { gte: params.from, lte: params.to } },
+        select: { createdAt: true, total: true },
+        orderBy: { createdAt: "asc" },
+        take: 5000,
+      });
+
+      const byDay = new Map<string, number>();
+      for (const s of sales) {
+        const d = new Date(s.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        byDay.set(key, (byDay.get(key) ?? 0) + numberOrZero(s.total));
+      }
+
+      const labels = Array.from(byDay.keys()).sort();
+      return labels.map((k) => ({ date: k, value: byDay.get(k) ?? 0 }));
+    },
   });
-
-  const byDay = new Map<string, number>();
-  for (const s of sales) {
-    const d = new Date(s.createdAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    byDay.set(key, (byDay.get(key) ?? 0) + numberOrZero(s.total));
-  }
-
-  const labels = Array.from(byDay.keys()).sort();
-  return labels.map((k) => ({ date: k, value: byDay.get(k) ?? 0 }));
 }
 
 export async function listSalesForReport(params: {
@@ -166,18 +186,28 @@ export async function listSalesForReport(params: {
 
 export async function getTopProducts(params: { tenantId: string; from: Date; to: Date; take?: number }) {
   const take = Math.min(10, Math.max(1, params.take ?? 5));
-  const rows = await prisma.saleItem.groupBy({
-    by: ["productId", "name"],
-    where: { tenantId: params.tenantId, sale: { createdAt: { gte: params.from, lte: params.to } } },
-    _sum: { qty: true, lineTotal: true },
-    orderBy: { _sum: { lineTotal: "desc" } },
-    take,
-  });
+  return rememberCache({
+    key: `${cacheKeys.dashboard(params.tenantId, null, params.from.toISOString().slice(0, 10))}:top-products:${hashCachePart({
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+      take,
+    })}`,
+    ttl: CACHE_TTL.dashboard,
+    fetcher: async () => {
+      const rows = await prisma.saleItem.groupBy({
+        by: ["productId", "name"],
+        where: { tenantId: params.tenantId, sale: { createdAt: { gte: params.from, lte: params.to } } },
+        _sum: { qty: true, lineTotal: true },
+        orderBy: { _sum: { lineTotal: "desc" } },
+        take,
+      });
 
-  return rows.map((r) => ({
-    productId: r.productId,
-    name: r.name,
-    qty: r._sum.qty ?? 0,
-    revenue: numberOrZero(r._sum.lineTotal),
-  }));
+      return rows.map((r) => ({
+        productId: r.productId,
+        name: r.name,
+        qty: r._sum.qty ?? 0,
+        revenue: numberOrZero(r._sum.lineTotal),
+      }));
+    },
+  });
 }

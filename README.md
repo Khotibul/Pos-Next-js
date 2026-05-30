@@ -72,6 +72,16 @@ Catatan:
 - Gunakan `prisma migrate deploy` untuk hosted DB seperti Neon (lebih aman untuk CI/CD dibanding `migrate dev`).
 - Alternatif: `npx prisma db seed` (akan memakai seed command dari `package.json`).
 
+## Redis / Upstash (Optional Production Cache)
+
+Redis bersifat opsional; jika env kosong aplikasi tetap berjalan tanpa crash. Untuk Vercel production, gunakan Upstash Redis:
+
+- Set `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN`
+- Set TTL opsional: `REDIS_CACHE_TTL_DASHBOARD`, `REDIS_CACHE_TTL_PRODUCTS`, `REDIS_CACHE_TTL_SETTINGS`
+- Set `WORKER_SECRET` untuk endpoint worker `POST /api/workers/process-queue`
+
+Redis dipakai untuk dashboard cache, product/barcode lookup cache, tenant settings cache, rate limiter, dan queue email/sync.
+
 ## Email Verification
 
 - **Google OAuth**: user Google akan otomatis dianggap verified (field `User.emailVerified` di-set saat sign-in Google).

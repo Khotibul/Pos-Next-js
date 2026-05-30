@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import { sendEmail } from "@/lib/email/smtp";
 import { verifyEmailTemplate } from "@/lib/email/templates/verify-email";
+import { enqueueJob } from "@/lib/queue";
 
 function appBaseUrl() {
   return process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -32,12 +33,11 @@ export async function createEmailVerificationToken(params: { userId: string; ema
     userName: params.userName ?? null,
   });
 
-  await sendEmail({
-    to: params.email,
-    subject: "Verifikasi Email - POS Pro",
-    html,
-    text,
-  });
+  const subject = "Verifikasi Email - POS Pro";
+  const queued = await enqueueJob({ type: "EMAIL_VERIFICATION", to: params.email, subject, html, text });
+  if (!queued.queued) {
+    await sendEmail({ to: params.email, subject, html, text });
+  }
 
   return { token, expiresAt };
 }
