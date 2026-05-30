@@ -33,6 +33,10 @@ const api = {
     activateKey: async (input: { serial: string }) => ipcRenderer.invoke("license:activateKey", input),
     clear: async () => ipcRenderer.invoke("license:clear"),
   },
+  sync: {
+    getStatus: async (): Promise<{ ok: boolean; data?: { pending: number; failed: number; sent: number }; message?: string }> =>
+      ipcRenderer.invoke("sync:getStatus"),
+  },
 };
 
 contextBridge.exposeInMainWorld("posDesktop", api);

@@ -48,7 +48,7 @@ export function startOfflineSyncWorker(opts: OfflineSyncWorkerOptions) {
           await sendItem(item);
           await markQueueSent(opts.db, item.id);
         } catch (e) {
-          await markQueueFailed(opts.db, item.id, e instanceof Error ? e.message : "Sync error");
+          await markQueueFailed(opts.db, item.id, e instanceof Error ? e.message : "Sync error", item.retryCount);
           break; // stop batch on first failure to avoid burning CPU
         }
       }

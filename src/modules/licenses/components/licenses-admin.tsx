@@ -32,7 +32,7 @@ export function LicensesAdmin({
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(generateLicenseKeysAction, null);
   const message = state && !state.ok ? state.message : null;
-  const createdSerials = state && state.ok ? state.data?.serials ?? [] : [];
+  const createdSerials = useMemo(() => (state && state.ok ? state.data?.serials ?? [] : []), [state]);
 
   const [revoking, startRevoke] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
@@ -200,4 +200,3 @@ export function LicensesAdmin({
     </div>
   );
 }
-

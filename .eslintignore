@@ -1,3 +1,7 @@
 src/legacy/**
 legacy/**
-
+android/app/build/**
+android/build/**
+dist-electron/**
+.next/**
+next-env.d.ts

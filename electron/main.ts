@@ -29,6 +29,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { openDesktopDb, getCurrentLicense, activateLicenseOffline, decryptStoredLicense, isLicenseValidNow } from "../src/lib/license/service.js";
 import { startOfflineSyncWorker } from "../src/lib/db/offline-sync-worker.js";
+import { getSyncQueueStatus } from "../src/lib/db/offline-sync.js";
 
 // In some locked-down environments (including CI/sandboxes), writing to the default
 // `%APPDATA%/<appName>` path may be blocked. For dev runs, allow a local userData folder.
@@ -234,7 +235,7 @@ async function createMainWindow() {
 
   // Security: never allow the app to open arbitrary new windows.
   // External links can be handled via a whitelisted renderer flow later.
-  mainWindow.webContents.setWindowOpenHandler((_details: { url: string }) => ({ action: "deny" }));
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 
   const rendererUrl = getRendererUrl();
   if (!rendererUrl) {
@@ -334,6 +335,16 @@ ipcMain.handle("license:getCurrent", async () => {
   }
 
   return { ok: true, data: { license: row, payload, valid } };
+});
+
+ipcMain.handle("sync:getStatus", async () => {
+  if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
+  try {
+    const status = await getSyncQueueStatus(desktopDb);
+    return { ok: true, data: status };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Gagal membaca status sync." };
+  }
 });
 
 ipcMain.handle(

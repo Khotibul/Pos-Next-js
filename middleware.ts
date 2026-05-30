@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+type MiddlewareAuth = {
+  user?: {
+    id?: unknown;
+  } | null;
+} | null;
+
 function isProtectedPath(pathname: string) {
   const protectedPrefixes = [
     "/dashboard",
@@ -53,7 +59,8 @@ export default auth(async (req) => {
 
   if (!isProtected) return NextResponse.next();
 
-  const userId = (req.auth?.user as any)?.id ?? (req.auth as any)?.user?.id ?? null;
+  const session = req.auth as MiddlewareAuth;
+  const userId = typeof session?.user?.id === "string" ? session.user.id : null;
   if (!userId) return NextResponse.next();
 
   const tenantId = req.cookies.get("active_tenant_id")?.value ?? null;

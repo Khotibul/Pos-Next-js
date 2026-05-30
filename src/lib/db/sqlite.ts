@@ -129,11 +129,15 @@ export class SqliteDb implements DesktopDb {
         action TEXT NOT NULL,
         payload TEXT,
         status TEXT NOT NULL,
+        retryCount INTEGER NOT NULL DEFAULT 0,
+        nextRunAt TEXT,
         errorText TEXT,
+        lastSyncedAt TEXT,
         createdAt TEXT,
         updatedAt TEXT
       );
       CREATE INDEX IF NOT EXISTS ix_SyncQueue_status_createdAt ON SyncQueue(status, createdAt);
+      CREATE INDEX IF NOT EXISTS ix_SyncQueue_nextRunAt ON SyncQueue(nextRunAt);
 
       CREATE TABLE IF NOT EXISTS Branch (
         id TEXT PRIMARY KEY,
@@ -269,5 +273,19 @@ export class SqliteDb implements DesktopDb {
         updatedAt TEXT
       );
     `);
+
+    const syncCols = db
+      .prepare("PRAGMA table_info('SyncQueue')")
+      .all()
+      .map((r) => String((r as { name?: unknown }).name));
+    if (!syncCols.includes("retryCount")) {
+      db.exec("ALTER TABLE SyncQueue ADD COLUMN retryCount INTEGER NOT NULL DEFAULT 0;");
+    }
+    if (!syncCols.includes("nextRunAt")) {
+      db.exec("ALTER TABLE SyncQueue ADD COLUMN nextRunAt TEXT;");
+    }
+    if (!syncCols.includes("lastSyncedAt")) {
+      db.exec("ALTER TABLE SyncQueue ADD COLUMN lastSyncedAt TEXT;");
+    }
   }
 }

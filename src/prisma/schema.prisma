@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Needed by Product prices
@@ -1088,6 +1089,59 @@ model AuditLog {
   @@index([userId])
   @@index([entity])
   @@index([action])
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  source    String
+  message   String
+  stack     String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model AuthLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  email     String?
+  provider  String?
+  event     String
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([email])
+  @@index([event])
+  @@index([createdAt])
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  deviceId  String?
+  entity    String?
+  entityId  String?
+  status    String
+  message   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([deviceId])
+  @@index([entity])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Customer {

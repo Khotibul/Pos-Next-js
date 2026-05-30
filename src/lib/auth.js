@@ -80,6 +80,7 @@ export const {
       const cookieStore = await cookies();
       const regId = cookieStore.get("oauth_reg_id")?.value ?? null;
       const oauthLink = cookieStore.get("oauth_link")?.value ?? null;
+      const isTrustedGoogleEmail = profile?.email_verified === true || profile?.email_verified === "true";
 
       // Only allow Google sign-in if the account already exists & linked to Google,
       // or the user explicitly started "Register with Google" flow.
@@ -96,9 +97,9 @@ export const {
 
       const linkedGoogle = existing.accounts.some((a) => a.provider === "google");
       if (!linkedGoogle) {
-        // Allow explicit account linking flow (desktop/web) to prevent OAuthAccountNotLinked.
-        // This cookie is set when user clicks "Masuk dengan Google" on the login page.
-        if (oauthLink === "1" && account?.providerAccountId) {
+        // Allow explicit account linking flow, or trusted Google email auto-link.
+        // Google `email_verified=true` is safe enough to avoid OAuthAccountNotLinked for existing credential users.
+        if ((oauthLink === "1" || isTrustedGoogleEmail) && account?.providerAccountId) {
           const provider = account.provider;
           const providerAccountId = account.providerAccountId;
 
