@@ -5,14 +5,18 @@ import { Topbar } from "@/components/layout/topbar";
 import { DashboardBottomNav, type DashboardNavItem } from "@/components/layout/dashboard-bottom-nav";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { DesktopLicenseGate } from "@/components/layout/desktop-license-gate";
+import { requireEmailVerified } from "@/lib/guards/require-email-verified";
+import { requireTenantAccess } from "@/lib/guards/require-tenant-access";
 
 // Dashboard routes depend on cookies/session/permissions and must not be statically prerendered.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  await requireEmailVerified();
   const ctx = await getTenantContext();
   if (!ctx) redirect("/login");
+  await requireTenantAccess({ tenantId: ctx.tenantId, userId: ctx.userId });
 
   const can = (perm: string) => ctx.isSuperAdmin || ctx.permissions.includes(perm);
   const bottomItems: DashboardNavItem[] = [

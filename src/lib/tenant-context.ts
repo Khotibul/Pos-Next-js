@@ -27,6 +27,24 @@ export type TenantContext = {
   memberships: Array<{ tenantId: string; tenantName: string; tenantSlug: string; tenantStatus: string }>;
 };
 
+type CachedTenantContext = Omit<TenantContext, "tenantTrialEndsAt"> & {
+  tenantTrialEndsAt: string | null;
+};
+
+function cacheContext(ctx: TenantContext): CachedTenantContext {
+  return {
+    ...ctx,
+    tenantTrialEndsAt: ctx.tenantTrialEndsAt?.toISOString() ?? null,
+  };
+}
+
+function hydrateContext(ctx: CachedTenantContext): TenantContext {
+  return {
+    ...ctx,
+    tenantTrialEndsAt: ctx.tenantTrialEndsAt ? new Date(ctx.tenantTrialEndsAt) : null,
+  };
+}
+
 async function resolveOrCreateActiveBranch(params: { tenantId: string }) {
   const active = await prisma.branch.findFirst({
     where: { tenantId: params.tenantId, isActive: true },
@@ -78,9 +96,17 @@ async function resolvePermissionCache(params: { tenantId: string; userId: string
 export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+  const userId = session.user.id;
+
+  const cookieStore = await cookies();
+  const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
+  if (cookieTenantId) {
+    const cached = await getCache<CachedTenantContext>(cacheKeys.tenantContext(cookieTenantId, userId));
+    if (cached) return hydrateContext(cached);
+  }
 
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: {
       id: true,
       name: true,
@@ -107,9 +133,6 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   });
 
   if (!user) throw Errors.unauthorized("User not found.");
-
-  const cookieStore = await cookies();
-  const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
 
   // Super Admin can access all tenants.
   if (user.isSuperAdmin) {
@@ -147,7 +170,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
         ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null }
         : null) ?? (await resolveOrCreateActiveBranch({ tenantId: activeTenantId }));
 
-    return {
+    const ctx = {
       userId: user.id,
       userName: user.name,
       userEmail: user.email,
@@ -164,6 +187,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       roleName,
       memberships,
     };
+    await setCache(cacheKeys.tenantContext(activeTenant.id, user.id), cacheContext(ctx), 60);
+    return ctx;
   }
 
   const memberships = user.memberships.map((m) => ({
@@ -210,7 +235,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       .catch(() => {});
   }
 
-  return {
+  const ctx = {
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
@@ -227,4 +252,6 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     roleName,
     memberships,
   };
+  await setCache(cacheKeys.tenantContext(activeTenantId, user.id), cacheContext(ctx), 60);
+  return ctx;
 });

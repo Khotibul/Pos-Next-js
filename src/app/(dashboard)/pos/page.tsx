@@ -5,11 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
+import { requireCanTransact } from "@/lib/guards/require-can-transact";
 import { prisma } from "@/lib/prisma";
 import { PosScreen } from "@/modules/transactions/components/pos-screen";
 
 export default async function PosPage() {
   const ctx = await requirePermission(PERMISSIONS.sales_write);
+  await requireCanTransact({ tenantId: ctx.tenantId, userId: ctx.userId });
 
   const products = await prisma.product.findMany({
     where: { tenantId: ctx.tenantId, isActive: true },

@@ -1,7 +1,7 @@
-import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { verifyEmailByToken } from "@/modules/auth/email-verification/service";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { VerifyEmailPanel } from "@/components/auth/verify-email-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -9,37 +9,34 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const token = sp.token?.trim() ?? "";
 
-  let ok = false;
-  let message = "Token tidak valid.";
+  let tokenOk: boolean | null = null;
+  let tokenMessage: string | null = null;
 
   if (token) {
     try {
       await verifyEmailByToken({ token });
-      ok = true;
-      message = "Email berhasil diverifikasi. Silakan login untuk melanjutkan.";
+      tokenOk = true;
+      tokenMessage = "Email berhasil diverifikasi. Silakan lanjut ke dashboard.";
     } catch (e: unknown) {
-      message = e instanceof Error ? e.message : "Verifikasi gagal.";
+      tokenOk = false;
+      tokenMessage = e instanceof Error ? e.message : "Verifikasi gagal.";
     }
   }
 
+  const session = await auth();
+  const user = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, emailVerified: true },
+      })
+    : null;
+
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center px-6 py-12">
-      <Card className="w-full rounded-3xl">
-        <CardHeader>
-          <CardTitle>{ok ? "Verifikasi Berhasil" : "Verifikasi Gagal"}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="text-sm text-muted-foreground">{message}</div>
-          <div className="flex gap-2">
-            <Button asChild className="rounded-xl">
-              <Link href="/login">Ke Login</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-xl">
-              <Link href="/register">Daftar</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <VerifyEmailPanel
+      email={user?.email ?? null}
+      verified={Boolean(user?.emailVerified) || tokenOk === true}
+      tokenMessage={tokenMessage}
+      tokenOk={tokenOk}
+    />
   );
 }

@@ -21,7 +21,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
     >
       <div className="flex h-16 items-center justify-between px-4">
         <div className={cn("grid leading-tight", collapsed && "sr-only")}>
-          <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+          <Link href="/dashboard" prefetch className="text-lg font-semibold tracking-tight">
             POS Pro
           </Link>
           <div className="text-xs text-white/60">SaaS Solutions</div>
@@ -45,7 +45,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
         <div className={cn("mb-3", collapsed && "hidden")}>
           {isSuperAdmin || permissions.includes(PERMISSIONS.sales_write) ? (
             <Button asChild className="w-full justify-start gap-2">
-              <Link href="/pos">
+              <Link href="/pos" prefetch>
                 <Plus className="h-4 w-4" />
                 New Transaction
               </Link>

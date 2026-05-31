@@ -60,7 +60,7 @@ export function MobileNav({
           {isSuperAdmin || permissions.includes(PERMISSIONS.sales_write) ? (
             <div className="mt-3">
               <Button asChild className="w-full justify-start gap-2 rounded-xl" onClick={() => setOpen(false)}>
-                <Link href="/pos">
+                <Link href="/pos" prefetch>
                   <Plus className="h-4 w-4" />
                   New Transaction
                 </Link>

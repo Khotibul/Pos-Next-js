@@ -20,7 +20,10 @@ export async function invalidateTenantCache(tenantId: string) {
     deleteCacheByPattern(`tenant:settings:${tenantId}*`),
     deleteCacheByPattern(`dashboard:tenant:${tenantId}:*`),
     deleteCacheByPattern(`product:*:${tenantId}:*`),
-    deleteCacheByPattern(`auth:permissions:${tenantId}:*`),
+    deleteCacheByPattern(`permissions:${tenantId}:*`),
+    deleteCacheByPattern(`tenant:access:${tenantId}:*`),
+    deleteCacheByPattern(`tenant:membership:${tenantId}:*`),
+    deleteCache(`tenant:status:${tenantId}`),
   ]);
 }
 
@@ -38,8 +41,18 @@ export async function invalidateDashboardCache(tenantId: string) {
 
 export async function invalidatePermissionCache(tenantId: string, userId?: string | null) {
   if (userId) {
-    await deleteCache(`auth:permissions:${tenantId}:${userId}`);
+    await Promise.all([
+      deleteCache(`permissions:${tenantId}:${userId}`),
+      deleteCache(`auth:context:${tenantId}:${userId}`),
+      deleteCache(`tenant:access:${tenantId}:${userId}`),
+      deleteCache(`tenant:membership:${tenantId}:${userId}`),
+    ]);
     return;
   }
-  await deleteCacheByPattern(`auth:permissions:${tenantId}:*`);
+  await Promise.all([
+    deleteCacheByPattern(`permissions:${tenantId}:*`),
+    deleteCacheByPattern(`auth:context:${tenantId}:*`),
+    deleteCacheByPattern(`tenant:access:${tenantId}:*`),
+    deleteCacheByPattern(`tenant:membership:${tenantId}:*`),
+  ]);
 }

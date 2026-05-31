@@ -64,7 +64,7 @@ export function SidebarNav({
               const match = ("match" in item && typeof item.match === "string" ? item.match : item.href) as string;
               const active = pathname === match || pathname === item.href || pathname.startsWith(`${match}/`);
               const link = (
-                <Link href={item.href} onClick={onNavigate} className={linkClass(active)}>
+                <Link href={item.href} prefetch onClick={onNavigate} className={linkClass(active)}>
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
                 </Link>

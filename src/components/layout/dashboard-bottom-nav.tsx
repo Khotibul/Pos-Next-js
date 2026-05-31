@@ -42,6 +42,7 @@ export function DashboardBottomNav({ items }: { items: DashboardNavItem[] }) {
             <Link
               key={it.href}
               href={it.href}
+              prefetch
               className={cn(
                 "flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"

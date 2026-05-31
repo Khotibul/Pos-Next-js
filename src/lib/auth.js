@@ -9,6 +9,7 @@ import { cookies } from "next/headers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { consumeOauthRegistration } from "@/modules/auth/oauth-registration/service";
 import { createTenantForExistingUser } from "@/modules/tenants/service";
+import { setCachedEmailVerified } from "@/lib/cache/user-cache";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -52,7 +53,10 @@ export const {
 
         const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
         if (!user?.passwordHash) return null;
-        if (!user.emailVerified) throw new Error("EMAIL_NOT_VERIFIED");
+        if (!user.emailVerified) {
+          await setCachedEmailVerified(user.id, false);
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
 
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         if (!ok) return null;
@@ -160,6 +164,7 @@ export const {
       await prisma.user
         .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
         .catch(() => {});
+      await setCachedEmailVerified(user.id, true);
 
       const cookieStore = await cookies();
       const regId = cookieStore.get("oauth_reg_id")?.value ?? null;

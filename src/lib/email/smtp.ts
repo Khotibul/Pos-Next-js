@@ -15,7 +15,7 @@ function getSmtpConfig() {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const secureRaw = process.env.SMTP_SECURE;
-  const from = process.env.EMAIL_FROM;
+  const from = process.env.EMAIL_FROM || user;
 
   const port = portRaw ? Number(portRaw) : 587;
   const secure = secureRaw ? secureRaw === "true" : port === 465;
@@ -26,7 +26,7 @@ function getSmtpConfig() {
 export async function sendEmail(input: SendEmailInput) {
   const { host, port, user, pass, secure, from } = getSmtpConfig();
 
-  if (!from) throw Errors.badRequest("EMAIL_FROM belum di-set.");
+  if (!from) throw Errors.badRequest("EMAIL_FROM atau SMTP_USER belum di-set.");
 
   // Allow dev to run without SMTP configured.
   if (!host || !user || !pass) {
@@ -35,9 +35,9 @@ export async function sendEmail(input: SendEmailInput) {
       console.warn({ to: input.to, subject: input.subject });
       return;
     }
-    if (!host) throw Errors.badRequest("SMTP_HOST belum di-set.");
+    if (!host) throw Errors.badRequest("SMTP_HOST belum di-set. Contoh Gmail: smtp.gmail.com.");
     if (!user) throw Errors.badRequest("SMTP_USER belum di-set.");
-    if (!pass) throw Errors.badRequest("SMTP_PASS belum di-set.");
+    if (!pass) throw Errors.badRequest("SMTP_PASS belum di-set. Untuk Gmail gunakan App Password, bukan password akun.");
   }
 
   // nodemailer is CJS; use dynamic import for ESM compatibility.
@@ -63,4 +63,3 @@ export async function sendEmail(input: SendEmailInput) {
     throw Errors.badRequest(`Gagal mengirim email verifikasi. ${msg}`.trim());
   }
 }
-

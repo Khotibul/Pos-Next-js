@@ -6,9 +6,14 @@ import { Errors } from "@/lib/errors";
 import { sendEmail } from "@/lib/email/smtp";
 import { verifyEmailTemplate } from "@/lib/email/templates/verify-email";
 import { enqueueJob } from "@/lib/queue";
+import { invalidateEmailVerifiedCache, setCachedEmailVerified } from "@/lib/cache/user-cache";
 
 function appBaseUrl() {
   return process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+}
+
+function shouldQueueVerificationEmail() {
+  return process.env.EMAIL_VERIFICATION_DELIVERY?.trim().toLowerCase() === "queue";
 }
 
 export async function createEmailVerificationToken(params: { userId: string; email: string; userName?: string | null }) {
@@ -34,10 +39,13 @@ export async function createEmailVerificationToken(params: { userId: string; ema
   });
 
   const subject = "Verifikasi Email - POS Pro";
-  const queued = await enqueueJob({ type: "EMAIL_VERIFICATION", to: params.email, subject, html, text });
-  if (!queued.queued) {
-    await sendEmail({ to: params.email, subject, html, text });
+
+  if (shouldQueueVerificationEmail()) {
+    const queued = await enqueueJob({ type: "EMAIL_VERIFICATION", to: params.email, subject, html, text });
+    if (queued.queued) return { token, expiresAt };
   }
+
+  await sendEmail({ to: params.email, subject, html, text });
 
   return { token, expiresAt };
 }
@@ -64,5 +72,11 @@ export async function verifyEmailByToken(params: { token: string }) {
     await tx.emailVerificationToken.delete({ where: { id: row.id } });
   });
 
+  await setCachedEmailVerified(row.userId, true);
+
   return { ok: true as const };
+}
+
+export async function resetEmailVerificationCache(userId: string) {
+  await invalidateEmailVerifiedCache(userId);
 }
