@@ -103,9 +103,13 @@ export async function calculateShiftSummary(params: { tenantId: string; shiftId:
   };
 }
 
-export async function closeShift(params: { tenantId: string; cashierId: string; input: CloseShiftInput }) {
+export async function closeShift(params: { tenantId: string; cashierId: string; input: CloseShiftInput; allowAnyCashier?: boolean }) {
   const shift = await prisma.cashierShift.findFirst({
-    where: { id: params.input.shiftId, tenantId: params.tenantId, cashierId: params.cashierId },
+    where: {
+      id: params.input.shiftId,
+      tenantId: params.tenantId,
+      ...(params.allowAnyCashier ? {} : { cashierId: params.cashierId }),
+    },
     select: { id: true, status: true },
   });
   if (!shift) throw Errors.notFound("Shift tidak ditemukan.");

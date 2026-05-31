@@ -11,6 +11,19 @@ import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
+const AUTH_ERROR_MESSAGES = {
+  OAuthAccountNotLinked:
+    "Akun dengan email ini sudah terdaftar dengan metode login lain. Silakan login memakai email & password, atau gunakan Registrasi Google untuk menghubungkan akun.",
+  EMAIL_NOT_VERIFIED: "Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi.",
+  GOOGLE_NOT_REGISTERED: "Login Google hanya bisa untuk akun yang sudah didaftarkan lewat menu Registrasi dengan Google.",
+  GOOGLE_ACCOUNT_IN_USE: "Akun Google ini sudah terhubung ke user lain. Silakan gunakan akun Google yang benar atau hubungi admin.",
+  GOOGLE_TOKEN_INVALID: "Token Google tidak valid. Silakan coba login ulang.",
+  GOOGLE_EMAIL_NOT_VERIFIED: "Email Google belum terverifikasi oleh Google.",
+  CALLBACK_URL_ERROR: "Callback URL Google tidak valid. Pastikan AUTH_URL/NEXTAUTH_URL sesuai domain aplikasi.",
+  Configuration: "Konfigurasi Google OAuth belum lengkap. Periksa GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AUTH_URL, dan callback URL.",
+  AccessDenied: "Akses Google ditolak atau akun belum memenuhi syarat login.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -108,25 +121,21 @@ export default function LoginPage() {
 
       {queryError === "GOOGLE_NOT_REGISTERED" ? (
         <Alert variant="destructive" className="mt-6">
-          Login Google hanya bisa untuk akun yang sudah didaftarkan lewat menu Registrasi dengan Google.
-        </Alert>
-      ) : null}
-
-      {queryError === "OAuthAccountNotLinked" ? (
-        <Alert variant="destructive" className="mt-6">
-          Akun dengan email ini sudah terdaftar dengan metode login lain. Silakan login memakai email & password, atau daftar/login Google menggunakan email yang sama dari menu Registrasi Google agar akun terhubung.
-        </Alert>
-      ) : null}
-
-      {queryError === "GOOGLE_ACCOUNT_IN_USE" ? (
-        <Alert variant="destructive" className="mt-6">
-          Akun Google ini sudah terhubung ke user lain. Silakan gunakan akun Google yang benar atau hubungi admin untuk bantuan.
+          {AUTH_ERROR_MESSAGES.GOOGLE_NOT_REGISTERED}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button asChild type="button" variant="outline" className="h-9 rounded-xl">
+              <Link href="/register">Daftar dengan Google</Link>
+            </Button>
+            <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setQueryError(null)}>
+              Gunakan email/password
+            </Button>
+          </div>
         </Alert>
       ) : null}
 
       {queryError === "EMAIL_NOT_VERIFIED" ? (
         <Alert variant="destructive" className="mt-6">
-          Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi. Jika belum menerima email, kirim ulang verifikasi.
+          {AUTH_ERROR_MESSAGES.EMAIL_NOT_VERIFIED} Jika belum menerima email, kirim ulang verifikasi.
           <div className="mt-3">
             <Button
               type="button"
@@ -136,6 +145,18 @@ export default function LoginPage() {
               disabled={resendLoading}
             >
               {resendLoading ? "Mengirim..." : "Kirim Ulang Verifikasi"}
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
+      {queryError && !["GOOGLE_NOT_REGISTERED", "EMAIL_NOT_VERIFIED"].includes(queryError) ? (
+        <Alert variant="destructive" className="mt-6">
+          {AUTH_ERROR_MESSAGES[queryError] ?? "Login Google gagal. Silakan coba ulang atau gunakan email/password."}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <GoogleOAuthButton callbackUrl="/onboarding" label="Coba login ulang" disabled={isLoading} />
+            <Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setQueryError(null)}>
+              Gunakan email/password
             </Button>
           </div>
         </Alert>

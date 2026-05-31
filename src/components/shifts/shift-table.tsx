@@ -98,9 +98,14 @@ export function ShiftTable({
                   <TableCell className="text-right text-sm">{s.cashCounted == null ? "-" : rupiah(s.cashCounted)}</TableCell>
                   <TableCell className={`text-right text-sm ${s.cashDifference === 0 ? "" : "text-destructive font-medium"}`}>{rupiah(s.cashDifference)}</TableCell>
                   <TableCell className="text-right">
-                    <Button asChild variant="outline" size="sm" className="rounded-xl">
-                      <Link href={`/shifts/${s.id}`}>Detail</Link>
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      {canClose && s.status === "OPEN" ? (
+                        <CloseShiftDialog shiftId={s.id} triggerLabel="Tutup" />
+                      ) : null}
+                      <Button asChild variant="outline" size="sm" className="rounded-xl">
+                        <Link href={`/shifts/${s.id}`}>Detail</Link>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -111,4 +116,3 @@ export function ShiftTable({
     </div>
   );
 }
-

@@ -78,6 +78,26 @@ Redis bersifat opsional; jika env kosong aplikasi tetap berjalan tanpa crash. Un
 
 - Set `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN`
 - Set TTL opsional: `REDIS_CACHE_TTL_DASHBOARD`, `REDIS_CACHE_TTL_PRODUCTS`, `REDIS_CACHE_TTL_SETTINGS`
+
+## Google OAuth Setup (Web, Android, Desktop)
+
+**Website (Auth.js):**
+- Buat OAuth Client ID tipe **Web application** di Google Cloud Console.
+- Authorized redirect URI: `https://domain-anda.com/api/auth/callback/google`.
+- Set `AUTH_URL`/`NEXTAUTH_URL` ke domain production yang sama.
+- Set `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` di Vercel/env server.
+
+**Android Capacitor:**
+- Buat OAuth Client ID tipe **Android** dengan package name APK (`com.pospro.mobile`) dan SHA-1/SHA-256 debug/release.
+- Native app mengambil `idToken`, lalu kirim ke `POST /api/mobile/auth/google`.
+- Server memverifikasi `idToken` dengan `google-auth-library`; client secret tidak pernah dikirim ke Android.
+- Set `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` dan `NEXT_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`.
+
+**Electron Desktop:**
+- Google OAuth embedded WebView bisa diblok Google. Aplikasi desktop menampilkan fallback dan menyarankan login email/password.
+- Jika ingin OAuth desktop penuh, gunakan flow browser eksternal + deep link/custom protocol pada iterasi berikutnya.
+
+Catatan: warning Self-XSS/CSP dari `accounts.google.com` atau `gstatic.com` di console Google bukan error aplikasi selama callback login berhasil.
 - Set `WORKER_SECRET` untuk endpoint worker `POST /api/workers/process-queue`
 
 Redis dipakai untuk dashboard cache, product/barcode lookup cache, tenant settings cache, rate limiter, dan queue email/sync.

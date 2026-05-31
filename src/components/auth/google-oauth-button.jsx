@@ -29,9 +29,14 @@ function GoogleMark({ className }) {
 
 export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride, purpose = "login" }) {
   const [enabled, setEnabled] = useState(true);
+  const [isElectron, setIsElectron] = useState(false);
+  const [isCapacitor, setIsCapacitor] = useState(false);
+  const [message, setMessage] = useState(null);
 
   useEffect(() => {
     let ignore = false;
+    setIsElectron(Boolean(window.posDesktop) || /Electron/i.test(window.navigator.userAgent));
+    setIsCapacitor(Boolean(window.Capacitor?.isNativePlatform?.()) || Boolean(window.Capacitor?.Plugins?.GoogleAuth));
     fetch("/api/auth/google-enabled")
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
@@ -45,6 +50,38 @@ export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "out
   }, []);
 
   async function onClick() {
+    if (isElectron) return;
+    if (isCapacitor) {
+      const googleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+      if (!googleAuth?.signIn) {
+        setMessage("Google native login belum tersedia di APK. Gunakan email/password atau pasang plugin GoogleAuth.");
+        return;
+      }
+      try {
+        setMessage(null);
+        if (googleAuth.initialize) {
+          await googleAuth.initialize({
+            clientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+            serverClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+          });
+        }
+        const result = await googleAuth.signIn();
+        const idToken = result?.authentication?.idToken || result?.idToken;
+        if (!idToken) throw new Error("GOOGLE_TOKEN_INVALID");
+        const res = await fetch("/api/mobile/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) throw new Error(json?.message || "Login Google Android gagal.");
+        window.localStorage.setItem("pos_mobile_token", json.token);
+        window.location.href = json.needsOnboarding ? "/onboarding" : callbackUrl || "/dashboard";
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Login Google Android gagal.");
+      }
+      return;
+    }
     if (onClickOverride) return onClickOverride();
     // For login flow, set a short-lived cookie used to safely auto-link Google
     // to an existing verified credentials account (prevents OAuthAccountNotLinked).
@@ -59,16 +96,25 @@ export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "out
   }
 
   return (
-    <Button
-      type="button"
-      variant={variant}
-      className="h-12 w-full gap-2 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50"
-      onClick={onClick}
-      disabled={disabled || !enabled}
-      title={!enabled ? "Google OAuth belum dikonfigurasi (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)." : undefined}
-    >
-      <GoogleMark className="h-4 w-4" />
-      {label || "Masuk dengan Google"}
-    </Button>
+    <div className="grid gap-2">
+      <Button
+        type="button"
+        variant={variant}
+        className="h-12 w-full gap-2 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-slate-50"
+        onClick={onClick}
+        disabled={disabled || !enabled || isElectron}
+        title={
+          isElectron
+            ? "Login Google tidak tersedia di aplikasi desktop. Gunakan email/password."
+            : !enabled
+              ? "Google OAuth belum dikonfigurasi (GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)."
+              : undefined
+        }
+      >
+        <GoogleMark className="h-4 w-4" />
+        {isElectron ? "Google tidak tersedia di Desktop" : label || "Masuk dengan Google"}
+      </Button>
+      {message ? <p className="text-xs text-destructive">{message}</p> : null}
+    </div>
   );
 }

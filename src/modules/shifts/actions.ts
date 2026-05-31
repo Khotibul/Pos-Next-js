@@ -45,7 +45,13 @@ export async function closeShiftAction(_prev: unknown, formData: FormData): Prom
     const parsed = closeShiftSchema.safeParse(formDataToObject(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
-    const res = await closeShift({ tenantId: ctx.tenantId, cashierId: ctx.userId, input: parsed.data });
+    const canCloseAnyCashier = ctx.isSuperAdmin || ["OWNER", "ADMIN", "BRANCH_MANAGER"].includes(ctx.roleName ?? "");
+    const res = await closeShift({
+      tenantId: ctx.tenantId,
+      cashierId: ctx.userId,
+      input: parsed.data,
+      allowAnyCashier: canCloseAnyCashier,
+    });
     await writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,

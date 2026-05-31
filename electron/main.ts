@@ -21,7 +21,7 @@ if (typeof (electronRuntime as unknown) === "string") {
   );
   process.exit(1);
 }
-const { app, BrowserWindow, ipcMain } = electronRuntime;
+const { app, BrowserWindow, ipcMain, shell } = electronRuntime;
 type BrowserWindowT = import("electron").BrowserWindow;
 import path from "node:path";
 import fs from "node:fs";
@@ -233,9 +233,19 @@ async function createMainWindow() {
     },
   });
 
-  // Security: never allow the app to open arbitrary new windows.
-  // External links can be handled via a whitelisted renderer flow later.
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // Security: never open arbitrary new windows inside Electron.
+  // Google OAuth pages are allowed only in the external system browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
+    const allowedExternal = [
+      "https://accounts.google.com",
+      "https://www.gstatic.com",
+      "https://apis.google.com",
+    ].some((prefix) => url.startsWith(prefix));
+    if (allowedExternal) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
 
   const rendererUrl = getRendererUrl();
   if (!rendererUrl) {
