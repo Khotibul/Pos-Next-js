@@ -10,6 +10,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { consumeOauthRegistration } from "@/modules/auth/oauth-registration/service";
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 import { setCachedEmailVerified } from "@/lib/cache/user-cache";
+import { getCachedAuthUser, setCachedAuthUser } from "@/lib/auth-cache";
+import { createDevTimer } from "@/lib/perf";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -45,28 +47,55 @@ export const {
       authorize: async (raw, request) => {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
+        const email = parsed.data.email.trim().toLowerCase();
         const ip =
           request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ||
           request?.headers?.get?.("x-real-ip") ||
           "unknown";
-        const loginLimit = await checkRateLimit("login", `${ip}:${parsed.data.email.toLowerCase()}`);
+        const loginLimit = await checkRateLimit("login", `login:email:${email}:${ip}`);
         if (!loginLimit.success) throw new Error("RATE_LIMITED");
 
-        const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+        const endQuery = createDevTimer("auth.credentials.queryUser");
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            image: true,
+            passwordHash: true,
+            emailVerified: true,
+            isSuperAdmin: true,
+          },
+        });
+        endQuery();
         if (!user?.passwordHash) return null;
         if (!user.emailVerified) {
           await setCachedEmailVerified(user.id, false);
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
+        const endBcrypt = createDevTimer("auth.credentials.bcrypt");
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
+        endBcrypt();
         if (!ok) return null;
+
+        await setCachedEmailVerified(user.id, true);
+        await setCachedAuthUser({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          isSuperAdmin: user.isSuperAdmin,
+          emailVerified: user.emailVerified.toISOString(),
+        });
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.image,
+          isSuperAdmin: user.isSuperAdmin,
         };
       },
     }),
@@ -149,11 +178,34 @@ export const {
       return true;
     },
     jwt: async ({ token, user }) => {
-      if (user?.id) token.sub = user.id;
+      if (user?.id) {
+        token.sub = user.id;
+        token.email = user.email ?? token.email;
+        token.name = user.name ?? token.name;
+        token.picture = user.image ?? token.picture;
+        token.isSuperAdmin = Boolean(user.isSuperAdmin);
+      }
+      if (token.sub && typeof token.isSuperAdmin !== "boolean") {
+        const cached = await getCachedAuthUser(token.sub);
+        if (cached) {
+          token.email = cached.email ?? token.email;
+          token.name = cached.name ?? token.name;
+          token.picture = cached.image ?? token.picture;
+          token.isSuperAdmin = cached.isSuperAdmin;
+        }
+      }
       return token;
     },
     session: async ({ session, token }) => {
-      if (session.user && token.sub) session.user.id = token.sub;
+      const end = createDevTimer("auth.session.callback");
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        session.user.email = typeof token.email === "string" ? token.email : session.user.email;
+        session.user.name = typeof token.name === "string" ? token.name : session.user.name;
+        session.user.image = typeof token.picture === "string" ? token.picture : session.user.image;
+        session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
+      }
+      end();
       return session;
     },
   },
@@ -166,6 +218,15 @@ export const {
         .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
         .catch(() => {});
       await setCachedEmailVerified(user.id, true);
+      const cachedGoogleUser = await getCachedAuthUser(user.id);
+      await setCachedAuthUser({
+        id: user.id,
+        email: user.email ?? cachedGoogleUser?.email ?? null,
+        name: user.name ?? cachedGoogleUser?.name ?? null,
+        image: user.image ?? cachedGoogleUser?.image ?? null,
+        isSuperAdmin: cachedGoogleUser?.isSuperAdmin ?? false,
+        emailVerified: new Date().toISOString(),
+      });
 
       const cookieStore = await cookies();
       const regId = cookieStore.get("oauth_reg_id")?.value ?? null;

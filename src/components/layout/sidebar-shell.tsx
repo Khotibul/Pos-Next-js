@@ -15,36 +15,39 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
   return (
     <aside
       className={cn(
-        "hidden border-r bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] md:flex md:flex-col",
+        "sticky top-0 hidden h-screen border-r border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.28),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.96))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-slate-950/10 transition-[width] duration-300 md:flex md:flex-col",
         collapsed ? "w-[72px]" : "w-64"
       )}
     >
-      <div className="flex h-16 items-center justify-between px-4">
+      <div className="flex h-16 items-center justify-between px-3">
         <div className={cn("grid leading-tight", collapsed && "sr-only")}>
-          <Link href="/dashboard" prefetch className="text-lg font-semibold tracking-tight">
-            POS Pro
+          <Link href="/dashboard" prefetch className="flex items-center gap-2 text-lg font-bold tracking-[-0.035em]">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary text-sm text-primary-foreground shadow-lg shadow-primary/25">
+              PP
+            </span>
+            <span>POS Pro</span>
           </Link>
-          <div className="text-xs text-white/60">SaaS Solutions</div>
+          <div className="pl-11 text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">SaaS Solutions</div>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className={cn("h-9 w-9 p-0 text-white/80 hover:text-white", collapsed && "rotate-180")}
+          className={cn("h-9 w-9 rounded-2xl p-0 text-white/70 hover:bg-white/10 hover:text-white", collapsed && "rotate-180")}
           onClick={() => setCollapsed((v) => !v)}
           aria-label="Toggle sidebar"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
       </div>
-      <Separator />
-      <div className={cn(collapsed && "px-1")}>
+      <Separator className="bg-white/10" />
+      <div className={cn("min-h-0 flex-1 overflow-y-auto py-2", collapsed && "px-1")}>
         <SidebarNav variant="sidebar" collapsed={collapsed} permissions={permissions} isSuperAdmin={isSuperAdmin} />
       </div>
-      <div className="mt-auto px-3 pb-3">
+      <div className="border-t border-white/10 px-3 py-3">
         <div className={cn("mb-3", collapsed && "hidden")}>
           {isSuperAdmin || permissions.includes(PERMISSIONS.sales_write) ? (
-            <Button asChild className="w-full justify-start gap-2">
+            <Button asChild className="h-12 w-full justify-start gap-2 rounded-2xl bg-primary shadow-lg shadow-primary/25">
               <Link href="/pos" prefetch>
                 <Plus className="h-4 w-4" />
                 New Transaction
@@ -53,11 +56,11 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
           ) : null}
         </div>
         <div className="grid gap-1">
-          <Button variant="ghost" className={cn("justify-start gap-2 text-white/80 hover:text-white", collapsed && "justify-center px-2")}>
+          <Button variant="ghost" className={cn("h-11 justify-start gap-2 rounded-2xl text-white/70 hover:bg-white/10 hover:text-white", collapsed && "justify-center px-2")}>
             <HelpCircle className="h-4 w-4" />
             <span className={cn(collapsed && "sr-only")}>Help Center</span>
           </Button>
-          <Button asChild variant="ghost" className={cn("justify-start gap-2 text-white/80 hover:text-white", collapsed && "justify-center px-2")}>
+          <Button asChild variant="ghost" className={cn("h-11 justify-start gap-2 rounded-2xl text-white/70 hover:bg-white/10 hover:text-white", collapsed && "justify-center px-2")}>
             <Link href="/api/auth/signout">
               <LogOut className="h-4 w-4" />
               <span className={cn(collapsed && "sr-only")}>Logout</span>

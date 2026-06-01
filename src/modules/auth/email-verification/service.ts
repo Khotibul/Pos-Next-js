@@ -6,7 +6,7 @@ import { Errors } from "@/lib/errors";
 import { sendEmail } from "@/lib/email/smtp";
 import { verifyEmailTemplate } from "@/lib/email/templates/verify-email";
 import { enqueueJob } from "@/lib/queue";
-import { invalidateEmailVerifiedCache, setCachedEmailVerified } from "@/lib/cache/user-cache";
+import { invalidateEmailVerifiedCache } from "@/lib/cache/user-cache";
 
 function appBaseUrl() {
   return process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -72,7 +72,7 @@ export async function verifyEmailByToken(params: { token: string }) {
     await tx.emailVerificationToken.delete({ where: { id: row.id } });
   });
 
-  await setCachedEmailVerified(row.userId, true);
+  await invalidateEmailVerifiedCache(row.userId);
 
   return { ok: true as const };
 }

@@ -31,9 +31,9 @@ export function TenantSwitcher({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2">
       <select
-        className="h-9 rounded-md border bg-background px-2 text-sm"
+        className="h-10 min-w-0 flex-1 rounded-2xl border bg-background/90 px-3 text-sm font-semibold tracking-[-0.01em] outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring dark:bg-background/80"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={isLoading}
@@ -44,10 +44,9 @@ export function TenantSwitcher({
           </option>
         ))}
       </select>
-      <Button type="button" variant="ghost" size="sm" onClick={() => router.refresh()} disabled={isLoading}>
+      <Button type="button" variant="ghost" size="sm" className="h-10 rounded-2xl px-3 text-xs font-semibold" onClick={() => router.refresh()} disabled={isLoading}>
         Refresh
       </Button>
     </div>
   );
 }
-

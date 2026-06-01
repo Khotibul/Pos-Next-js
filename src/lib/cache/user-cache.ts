@@ -2,6 +2,7 @@ import "server-only";
 
 import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
 import { deleteCache, getCache, setCache } from "@/lib/redis";
+import { invalidateAuthUser } from "@/lib/auth-cache";
 
 export async function getCachedEmailVerified(userId: string) {
   return getCache<boolean>(cacheKeys.emailVerified(userId));
@@ -12,5 +13,5 @@ export async function setCachedEmailVerified(userId: string, verified: boolean) 
 }
 
 export async function invalidateEmailVerifiedCache(userId: string) {
-  await deleteCache(cacheKeys.emailVerified(userId));
+  await Promise.all([deleteCache(cacheKeys.emailVerified(userId)), invalidateAuthUser(userId)]);
 }

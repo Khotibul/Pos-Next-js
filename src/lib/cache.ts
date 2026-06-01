@@ -21,6 +21,8 @@ export async function invalidateTenantCache(tenantId: string) {
     deleteCacheByPattern(`dashboard:tenant:${tenantId}:*`),
     deleteCacheByPattern(`product:*:${tenantId}:*`),
     deleteCacheByPattern(`permissions:${tenantId}:*`),
+    deleteCacheByPattern(`auth:tenant-context:*:${tenantId}`),
+    deleteCacheByPattern(`layout:sidebar:*:${tenantId}`),
     deleteCacheByPattern(`tenant:access:${tenantId}:*`),
     deleteCacheByPattern(`tenant:membership:${tenantId}:*`),
     deleteCache(`tenant:status:${tenantId}`),
@@ -43,7 +45,8 @@ export async function invalidatePermissionCache(tenantId: string, userId?: strin
   if (userId) {
     await Promise.all([
       deleteCache(`permissions:${tenantId}:${userId}`),
-      deleteCache(`auth:context:${tenantId}:${userId}`),
+      deleteCache(`auth:tenant-context:${userId}:${tenantId}`),
+      deleteCache(`layout:sidebar:${userId}:${tenantId}`),
       deleteCache(`tenant:access:${tenantId}:${userId}`),
       deleteCache(`tenant:membership:${tenantId}:${userId}`),
     ]);
@@ -51,7 +54,8 @@ export async function invalidatePermissionCache(tenantId: string, userId?: strin
   }
   await Promise.all([
     deleteCacheByPattern(`permissions:${tenantId}:*`),
-    deleteCacheByPattern(`auth:context:${tenantId}:*`),
+    deleteCacheByPattern(`auth:tenant-context:*:${tenantId}`),
+    deleteCacheByPattern(`layout:sidebar:*:${tenantId}`),
     deleteCacheByPattern(`tenant:access:${tenantId}:*`),
     deleteCacheByPattern(`tenant:membership:${tenantId}:*`),
   ]);

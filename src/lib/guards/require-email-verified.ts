@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCachedEmailVerified, setCachedEmailVerified } from "@/lib/cache/user-cache";
+import { createDevTimer } from "@/lib/perf";
 
 export async function requireEmailVerified(userId?: string) {
   const resolvedUserId = userId ?? (await auth())?.user?.id;
@@ -13,10 +14,12 @@ export async function requireEmailVerified(userId?: string) {
   if (cached === true) return true;
   if (cached === false) redirect("/verify-email");
 
+  const end = createDevTimer("auth.emailVerified.cache.miss");
   const user = await prisma.user.findUnique({
     where: { id: resolvedUserId },
     select: { email: true, emailVerified: true },
   });
+  end();
 
   if (!user) redirect("/login");
 

@@ -16,6 +16,12 @@ export const importRowSchema = z.object({
   name: z.string().trim().min(2).max(200),
   sku: z.string().trim().min(1).max(50),
   barcode: z.string().trim().max(100).optional().or(z.literal("")).transform((v) => (v && v.trim() ? v.trim() : null)),
+  qrCode: z.string().trim().max(100).optional().or(z.literal("")).transform((v) => (v && v.trim() ? v.trim() : null)),
+  productType: z
+    .enum(["SINGLE", "VARIANT", "BUNDLE", "SERVICE", "DIGITAL", "ASSEMBLY"])
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : "SINGLE")),
   category: z.string().trim().min(1).max(120),
   brand: z.string().trim().min(1).max(120),
   supplier: z.string().trim().min(1).max(160),
@@ -24,6 +30,9 @@ export const importRowSchema = z.object({
   sellingPrice: z.coerce.number().min(0),
   stock: z.coerce.number().min(0),
   minimumStock: z.coerce.number().min(0),
+  reorderPoint: z.coerce.number().min(0).optional(),
+  weight: z.coerce.number().min(0).optional(),
+  volume: z.coerce.number().min(0).optional(),
   expiredDate: z
     .union([z.date(), z.string()])
     .optional()
@@ -43,6 +52,7 @@ export const importRowSchema = z.object({
   imageUrl: z.string().url().optional().or(z.literal("")).transform((v) => (v && v.trim() ? v.trim() : null)),
   isActive: boolish,
   isFeatured: boolish,
+  isConsignment: boolish,
 });
 
 export type ImportRow = z.infer<typeof importRowSchema>;
@@ -56,4 +66,3 @@ export function validateImportRows(rows: Array<Record<string, unknown>>) {
   }
   return parsed;
 }
-

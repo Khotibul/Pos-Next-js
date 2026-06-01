@@ -23,18 +23,18 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="h-10 w-10 rounded-full p-0">
-          <Avatar className="h-9 w-9">
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-10 rounded-2xl p-0 hover:bg-muted">
+          <Avatar className="h-9 w-9 ring-2 ring-background shadow-md">
             {image ? <AvatarImage src={image} alt={name ?? email ?? "User"} /> : null}
-            <AvatarFallback>{initials(name ?? email ?? null)}</AvatarFallback>
+            <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">{initials(name ?? email ?? null)}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-64 rounded-2xl">
         <DropdownMenuLabel>
           <div className="grid">
-            <span className="truncate text-xs font-medium">{name ?? "User"}</span>
-            <span className="truncate text-xs">{email ?? ""}</span>
+            <span className="truncate text-sm font-semibold tracking-[-0.02em]">{name ?? "User"}</span>
+            <span className="truncate text-xs text-muted-foreground">{email ?? ""}</span>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

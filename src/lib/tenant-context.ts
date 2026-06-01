@@ -8,6 +8,8 @@ import { auth } from "@/lib/auth";
 import { Errors } from "@/lib/errors";
 import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
 import { getCache, setCache } from "@/lib/redis";
+import { getCachedTenantContext, setCachedTenantContext, type CachedLayoutContext } from "@/lib/tenant-context-cache";
+import { createDevTimer } from "@/lib/perf";
 
 export type TenantContext = {
   userId: string;
@@ -24,21 +26,19 @@ export type TenantContext = {
   branchName: string | null;
   permissions: string[];
   roleName: string | null;
+  roleId: string | null;
+  subscriptionStatus: string | null;
   memberships: Array<{ tenantId: string; tenantName: string; tenantSlug: string; tenantStatus: string }>;
 };
 
-type CachedTenantContext = Omit<TenantContext, "tenantTrialEndsAt"> & {
-  tenantTrialEndsAt: string | null;
-};
-
-function cacheContext(ctx: TenantContext): CachedTenantContext {
+function cacheContext(ctx: TenantContext): CachedLayoutContext {
   return {
     ...ctx,
     tenantTrialEndsAt: ctx.tenantTrialEndsAt?.toISOString() ?? null,
   };
 }
 
-function hydrateContext(ctx: CachedTenantContext): TenantContext {
+function hydrateContext(ctx: CachedLayoutContext): TenantContext {
   return {
     ...ctx,
     tenantTrialEndsAt: ctx.tenantTrialEndsAt ? new Date(ctx.tenantTrialEndsAt) : null,
@@ -89,7 +89,9 @@ async function resolvePermissionCache(params: { tenantId: string; userId: string
   const key = cacheKeys.permissions(params.tenantId, params.userId);
   const cached = await getCache<string[]>(key);
   if (cached) return cached;
+  const end = createDevTimer("auth.permission.cache.miss");
   await setCache(key, params.fallback, CACHE_TTL.permissions);
+  end();
   return params.fallback;
 }
 
@@ -101,10 +103,13 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const cookieStore = await cookies();
   const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
   if (cookieTenantId) {
-    const cached = await getCache<CachedTenantContext>(cacheKeys.tenantContext(cookieTenantId, userId));
+    const end = createDevTimer("auth.tenantContext.cache");
+    const cached = await getCachedTenantContext(userId, cookieTenantId);
+    end();
     if (cached) return hydrateContext(cached);
   }
 
+  const endDb = createDevTimer("auth.tenantContext.db");
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -121,6 +126,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
           tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
           role: {
             select: {
+              id: true,
               name: true,
               permissions: {
                 select: { permission: { select: { key: true } } },
@@ -131,6 +137,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       },
     },
   });
+  endDb();
 
   if (!user) throw Errors.unauthorized("User not found.");
 
@@ -185,9 +192,11 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       branchName: activeBranch.name ?? null,
       permissions,
       roleName,
+      roleId: activeMembership?.role?.id ?? null,
+      subscriptionStatus: activeTenant.status,
       memberships,
     };
-    await setCache(cacheKeys.tenantContext(activeTenant.id, user.id), cacheContext(ctx), 60);
+    await setCachedTenantContext(user.id, activeTenant.id, cacheContext(ctx));
     return ctx;
   }
 
@@ -219,6 +228,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     fallback: (activeMembership.role?.permissions ?? []).map((rp) => rp.permission.key),
   });
   const roleName = activeMembership.role?.name ?? null;
+  const roleId = activeMembership.role?.id ?? null;
 
   const activeBranch =
     (activeMembership.branchId ? { id: activeMembership.branchId, name: activeMembership.branch?.name ?? null } : null) ??
@@ -250,8 +260,10 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     branchName: activeBranch.name ?? null,
     permissions,
     roleName,
+    roleId,
+    subscriptionStatus: tenantStatus,
     memberships,
   };
-  await setCache(cacheKeys.tenantContext(activeTenantId, user.id), cacheContext(ctx), 60);
+  await setCachedTenantContext(user.id, activeTenantId, cacheContext(ctx));
   return ctx;
 });

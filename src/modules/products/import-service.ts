@@ -139,7 +139,7 @@ export async function importProducts(params: {
           slug: null as string | null,
           description: r.description,
           barcode: r.barcode,
-          qrCode: r.barcode, // default
+          qrCode: r.qrCode ?? r.barcode,
           categoryId: meta.categoryId,
           brandId: meta.brandId,
           supplierId: meta.supplierId,
@@ -147,11 +147,15 @@ export async function importProducts(params: {
           costPrice: r.purchasePrice,
           sellingPrice: r.sellingPrice,
           minStock: r.minimumStock,
-          reorderPoint: r.minimumStock,
+          reorderPoint: r.reorderPoint ?? r.minimumStock,
           taxRate: r.tax ?? 0,
           marginPct: r.margin ?? 0,
+          weight: r.weight ?? 0,
+          volume: r.volume ?? 0,
           isActive: r.isActive ?? true,
           isFeatured: r.isFeatured ?? false,
+          isConsignment: r.isConsignment ?? false,
+          type: r.productType,
         };
 
         let productId: string;

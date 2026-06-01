@@ -46,18 +46,24 @@ export function SidebarNav({
 
   const linkClass = (active: boolean) =>
     cn(
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-      active ? "bg-primary text-primary-foreground" : variant === "sidebar" ? "text-white/80 hover:bg-white/10 hover:text-white" : "text-foreground/80 hover:bg-muted/60 hover:text-foreground",
+      "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] font-semibold tracking-[-0.01em] transition-all duration-200",
+      active
+        ? variant === "sidebar"
+          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+          : "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+        : variant === "sidebar"
+          ? "text-white/70 hover:bg-white/10 hover:text-white"
+          : "text-foreground/75 hover:bg-muted/70 hover:text-foreground",
       collapsed && "justify-center px-2"
     );
 
   const content = (
-    <nav className={cn("grid gap-1 px-2 py-3", variant === "sheet" && "px-3")}>
+    <nav className={cn("grid gap-1.5 px-2 py-3", variant === "sheet" && "px-3")}>
       {sections.map((section) =>
         section.items.length > 0 ? (
           <div key={section.key} className="grid gap-1">
             {section.label && !collapsed ? (
-              <div className={cn("px-3 pt-2 text-[10px] font-semibold tracking-wider", labelClass)}>{section.label}</div>
+              <div className={cn("px-3 pt-3 text-[10px] font-bold tracking-[0.24em]", labelClass)}>{section.label}</div>
             ) : null}
             {section.items.map((item) => {
               const Icon = item.icon;
@@ -65,7 +71,9 @@ export function SidebarNav({
               const active = pathname === match || pathname === item.href || pathname.startsWith(`${match}/`);
               const link = (
                 <Link href={item.href} prefetch onClick={onNavigate} className={linkClass(active)}>
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-colors", active ? "bg-white/15" : variant === "sidebar" ? "bg-white/5 group-hover:bg-white/10" : "bg-muted group-hover:bg-background")}>
+                    <Icon className="h-4 w-4" />
+                  </span>
                   <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
                 </Link>
               );
