@@ -32,7 +32,7 @@ export default async function CustomersPage({
     <div className="grid gap-4">
       <PageHeader title="Manajemen Pelanggan" description="Kelola data pelanggan, segmentasi, dan histori transaksi." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard icon={<Users className="h-5 w-5" />} title="Total Pelanggan" value={overview.total.toLocaleString("id-ID")} />
         <StatCard
           icon={<Users className="h-5 w-5" />}
@@ -40,7 +40,7 @@ export default async function CustomersPage({
           value={overview.active.toLocaleString("id-ID")}
           deltaTone="positive"
         />
-        <StatCard icon={<Users className="h-5 w-5" />} title="Nonaktif" value={overview.inactive.toLocaleString("id-ID")} />
+        <StatCard icon={<Users className="h-5 w-5" />} title="Nonaktif" value={overview.inactive.toLocaleString("id-ID")} tone="slate" />
       </div>
 
       <CustomersTable

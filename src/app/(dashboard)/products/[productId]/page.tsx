@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Banknote, Boxes, Percent, Tag } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/layout/stat-card";
 import { getProductEnterpriseDetail } from "@/modules/products/enterprise/service";
 import { ProductVariantsTable } from "@/modules/products/components/product-variants-table";
 
@@ -39,23 +41,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: "Harga Jual", value: rupiah(sell), badge: null },
-          { label: "Harga Modal", value: rupiah(cost), badge: null },
-          { label: "Margin", value: `${Number.isFinite(marginPct) ? marginPct.toFixed(1) : "0"}%`, badge: null },
-          { label: "Total Stok", value: totalStock.toLocaleString("id-ID"), badge: totalStock <= 0 ? <Badge variant="secondary">Out</Badge> : null },
-        ].map((k) => (
-          <Card key={k.label} className="rounded-3xl">
-            <CardContent className="grid gap-2 py-5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm text-muted-foreground">{k.label}</div>
-                {k.badge}
-              </div>
-              <div className="text-2xl font-semibold tracking-tight">{k.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={<Tag className="h-5 w-5" />} title="Harga Jual" value={rupiah(sell)} description="Harga utama produk" />
+        <StatCard icon={<Banknote className="h-5 w-5" />} title="Harga Modal" value={rupiah(cost)} tone="slate" description="Cost terakhir" />
+        <StatCard icon={<Percent className="h-5 w-5" />} title="Margin" value={`${Number.isFinite(marginPct) ? marginPct.toFixed(1) : "0"}%`} tone="success" description="Estimasi laba kotor" />
+        <StatCard
+          icon={<Boxes className="h-5 w-5" />}
+          title="Total Stok"
+          value={totalStock.toLocaleString("id-ID")}
+          tone={totalStock <= 0 ? "danger" : "primary"}
+          description={totalStock <= 0 ? <Badge variant="secondary">Out of stock</Badge> : "Akumulasi stok"}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

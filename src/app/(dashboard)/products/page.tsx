@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Search, SlidersHorizontal } from "lucide-react";
+import { Boxes, CheckCircle2, Plus, ScanBarcode, Search, SlidersHorizontal, XCircle } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getProductOverview, listProductMeta, listProducts } from "@/modules/products/service";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/layout/stat-card";
 
 export default async function ProductsPage({
   searchParams,
@@ -103,23 +104,17 @@ export default async function ProductsPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: "Total Produk", value: overview.total, badge: null },
-          { label: "Active", value: overview.active, badge: <Badge variant="secondary">Aktif</Badge> },
-          { label: "Inactive", value: overview.inactive, badge: <Badge variant="secondary">Nonaktif</Badge> },
-          { label: "Dengan Barcode", value: overview.withBarcode, badge: null },
-        ].map((k) => (
-          <Card key={k.label} className="rounded-3xl">
-            <CardContent className="grid gap-2 py-5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm text-muted-foreground">{k.label}</div>
-                {k.badge}
-              </div>
-              <div className="text-3xl font-semibold tracking-tight">{k.value.toLocaleString("id-ID")}</div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={<Boxes className="h-5 w-5" />} title="Total Produk" value={overview.total.toLocaleString("id-ID")} description="Semua item master produk" />
+        <StatCard
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          title="Active"
+          value={overview.active.toLocaleString("id-ID")}
+          tone="success"
+          description={<Badge variant="secondary">Aktif dijual</Badge>}
+        />
+        <StatCard icon={<XCircle className="h-5 w-5" />} title="Inactive" value={overview.inactive.toLocaleString("id-ID")} tone="slate" description="Produk dinonaktifkan" />
+        <StatCard icon={<ScanBarcode className="h-5 w-5" />} title="Dengan Barcode" value={overview.withBarcode.toLocaleString("id-ID")} description="Siap scan kasir" />
       </div>
 
       <div className="md:hidden">

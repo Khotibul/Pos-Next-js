@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Tags } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { StatCard } from "@/components/layout/stat-card";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getProductCategoryOverview, listProductCategories } from "@/modules/product-categories/service";
@@ -33,13 +33,8 @@ export default async function ProductCategoriesPage({ searchParams }: { searchPa
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="grid gap-2 py-5">
-            <div className="text-sm text-muted-foreground">Total Kategori</div>
-            <div className="text-3xl font-semibold tracking-tight">{overview.total.toLocaleString("id-ID")}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={<Tags className="h-5 w-5" />} title="Total Kategori" value={overview.total.toLocaleString("id-ID")} description="Group produk aktif" />
       </div>
 
       <ProductCategoriesTable
@@ -49,4 +44,3 @@ export default async function ProductCategoriesPage({ searchParams }: { searchPa
     </div>
   );
 }
-

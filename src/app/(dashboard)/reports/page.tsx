@@ -85,7 +85,7 @@ export default async function ReportsPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Banknote className="h-5 w-5" />} title="Total Penjualan" value={rupiah(kpis.totalSales)} deltaPct={kpis.delta.totalSales} />
         <StatCard icon={<ShoppingCart className="h-5 w-5" />} title="Total Transaksi" value={kpis.totalTransactions.toLocaleString("id-ID")} deltaPct={kpis.delta.totalTransactions} />
         <StatCard icon={<Package className="h-5 w-5" />} title="Item Terjual" value={kpis.itemsSold.toLocaleString("id-ID")} deltaPct={kpis.delta.itemsSold} />

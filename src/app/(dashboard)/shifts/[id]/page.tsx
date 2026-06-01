@@ -137,7 +137,7 @@ export default async function ShiftDetailPage({ params }: { params: Promise<{ id
         </Card>
 
         <div className="grid gap-4 lg:col-span-5">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <ShiftSummaryCard title="Total sales" value={rupiah(summary.totalSales)} tone="primary" />
             <ShiftSummaryCard title="Total cash" value={rupiah(summary.totalCash)} />
             <ShiftSummaryCard title="Total QRIS" value={rupiah(summary.totalQris)} />

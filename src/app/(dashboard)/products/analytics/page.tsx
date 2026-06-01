@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Boxes, CalendarX, PackageX, TrendingDown, TrendingUp } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MiniBarChart } from "@/components/charts/mini-bar-chart";
 import { getProductAnalytics } from "@/modules/products/analytics-service";
+import { StatCard } from "@/components/layout/stat-card";
 
 function fmtMoney(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -36,20 +37,11 @@ export default async function ProductAnalyticsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: "Total Produk", value: data.overview.totalProducts.toLocaleString("id-ID") },
-          { label: "Out of Stock", value: data.overview.outOfStock.toLocaleString("id-ID") },
-          { label: "Low Stock", value: data.overview.lowStock.toLocaleString("id-ID") },
-          { label: "Expired Batch", value: data.overview.expiredBatches.toLocaleString("id-ID") },
-        ].map((k) => (
-          <Card key={k.label} className="rounded-3xl">
-            <CardContent className="grid gap-2 py-5">
-              <div className="text-sm text-muted-foreground">{k.label}</div>
-              <div className="text-3xl font-semibold tracking-tight">{k.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={<Boxes className="h-5 w-5" />} title="Total Produk" value={data.overview.totalProducts.toLocaleString("id-ID")} description="Produk dalam katalog" />
+        <StatCard icon={<PackageX className="h-5 w-5" />} title="Out of Stock" value={data.overview.outOfStock.toLocaleString("id-ID")} tone="danger" description="Perlu restock cepat" />
+        <StatCard icon={<AlertTriangle className="h-5 w-5" />} title="Low Stock" value={data.overview.lowStock.toLocaleString("id-ID")} tone="warning" description="Mendekati minimum" />
+        <StatCard icon={<CalendarX className="h-5 w-5" />} title="Expired Batch" value={data.overview.expiredBatches.toLocaleString("id-ID")} tone="danger" description="Batch sudah kedaluwarsa" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

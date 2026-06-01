@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Building2, CheckCircle2, CircleOff } from "lucide-react";
+import { StatCard } from "@/components/layout/stat-card";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { listBranches, getBranchOverview, listBranchMeta } from "@/modules/branches/service";
@@ -25,25 +26,10 @@ export default async function BranchesPage({
     <div className="grid gap-4">
       <PageHeader title="Cabang" description="Kelola multi-cabang per tenant (outlet/toko/gudang)." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="grid gap-2 py-5">
-            <div className="text-sm text-muted-foreground">Total Cabang</div>
-            <div className="text-3xl font-semibold tracking-tight">{overview.total.toLocaleString("id-ID")}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="grid gap-2 py-5">
-            <div className="text-sm text-muted-foreground">Active</div>
-            <div className="text-3xl font-semibold tracking-tight">{overview.active.toLocaleString("id-ID")}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="grid gap-2 py-5">
-            <div className="text-sm text-muted-foreground">Inactive</div>
-            <div className="text-3xl font-semibold tracking-tight">{overview.inactive.toLocaleString("id-ID")}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard icon={<Building2 className="h-5 w-5" />} title="Total Cabang" value={overview.total.toLocaleString("id-ID")} description="Outlet, toko, dan gudang" />
+        <StatCard icon={<CheckCircle2 className="h-5 w-5" />} title="Active" value={overview.active.toLocaleString("id-ID")} tone="success" description="Siap transaksi" />
+        <StatCard icon={<CircleOff className="h-5 w-5" />} title="Inactive" value={overview.inactive.toLocaleString("id-ID")} tone="slate" description="Cabang nonaktif" />
       </div>
 
       <BranchesTable
@@ -64,4 +50,3 @@ export default async function BranchesPage({
     </div>
   );
 }
-

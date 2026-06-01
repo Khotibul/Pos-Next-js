@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Ruler } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { StatCard } from "@/components/layout/stat-card";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getProductUnitOverview, listProductUnits } from "@/modules/product-units/service";
@@ -33,17 +33,11 @@ export default async function ProductUnitsPage({ searchParams }: { searchParams:
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="grid gap-2 py-5">
-            <div className="text-sm text-muted-foreground">Total Satuan</div>
-            <div className="text-3xl font-semibold tracking-tight">{overview.total.toLocaleString("id-ID")}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={<Ruler className="h-5 w-5" />} title="Total Satuan" value={overview.total.toLocaleString("id-ID")} description="PCS, box, kg, dan lainnya" />
       </div>
 
       <ProductUnitsTable q={result.q} items={result.items.map((u) => ({ id: u.id, name: u.name, updatedAt: u.updatedAt.toISOString() }))} />
     </div>
   );
 }
-
