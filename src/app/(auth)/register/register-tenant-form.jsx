@@ -78,8 +78,11 @@ export function RegisterTenantForm({ planSlug, initialError }) {
 
   return (
     <div className="w-full">
-      <h1 className="text-4xl font-semibold tracking-tight">Mulai Bisnis Anda</h1>
-      <p className="mt-3 max-w-md text-sm text-muted-foreground">
+      <div className="inline-flex rounded-full border bg-background/80 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-primary shadow-sm">
+        Start Free Trial
+      </div>
+      <h1 className="mt-4 text-4xl font-black tracking-[-0.06em]">Mulai Bisnis Anda</h1>
+      <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
         Lengkapi formulir di bawah untuk mendaftarkan akun PointPro POS Anda dalam hitungan menit.
       </p>
 
@@ -93,7 +96,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
               required
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="John Doe"
             />
           </div>
@@ -108,7 +111,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
               value={tenantName}
               onChange={(e) => setTenantName(e.target.value)}
               required
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="Nama Toko atau Perusahaan"
             />
           </div>
@@ -124,7 +127,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="contoh@bisnis.com"
             />
           </div>
@@ -139,7 +142,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
               inputMode="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="0812 3456 7890"
             />
           </div>
@@ -156,7 +159,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="Min. 8 Karakter"
             />
           </div>
@@ -179,7 +182,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
 
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <Button type="submit" disabled={isLoading} className="h-14 rounded-2xl text-base shadow-md">
+        <Button type="submit" disabled={isLoading} className="h-14 rounded-2xl text-base font-bold shadow-xl shadow-primary/20">
           {isLoading ? "Memproses..." : "Daftar Sekarang"}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Button>

@@ -96,8 +96,11 @@ export default function LoginPage() {
 
   return (
     <div className="w-full">
-      <h1 className="text-3xl font-semibold tracking-tight">Selamat Datang Kembali</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Silakan masuk ke akun Anda untuk melanjutkan operasional.</p>
+      <div className="inline-flex rounded-full border bg-background/80 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-primary shadow-sm">
+        Secure Login
+      </div>
+      <h1 className="mt-4 text-3xl font-black tracking-[-0.055em] sm:text-4xl">Selamat Datang Kembali</h1>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">Silakan masuk ke akun Anda untuk melanjutkan operasional.</p>
 
       {queryRegistered ? (
         <div className="mt-6 rounded-2xl border bg-muted/20 p-4 text-sm">
@@ -177,7 +180,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="h-12 bg-muted/40 pl-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 shadow-sm"
               placeholder="nama@perusahaan.com"
             />
           </div>
@@ -193,7 +196,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="h-12 bg-muted/40 pl-10 pr-10"
+              className="h-[52px] rounded-2xl bg-muted/35 pl-10 pr-10 shadow-sm"
               placeholder="********"
             />
             <button
@@ -231,7 +234,7 @@ export default function LoginPage() {
         </Button>
       ) : null}
 
-      <Button type="submit" disabled={isLoading} className="h-14 gap-2 rounded-2xl text-base shadow-md">
+      <Button type="submit" disabled={isLoading} className="h-14 gap-2 rounded-2xl text-base font-bold shadow-xl shadow-primary/20">
         {isLoading ? "Memproses..." : "Masuk"}
         <ArrowRight className="h-4 w-4" />
         </Button>

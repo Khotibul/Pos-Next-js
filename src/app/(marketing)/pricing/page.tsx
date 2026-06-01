@@ -54,13 +54,15 @@ function PlanCard({
   const priceLabel = currency === "IDR" ? `Rp ${rupiah(p)}` : `${currency} ${p}`;
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {isPopular ? (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow">
           PALING POPULER
         </div>
       ) : null}
-      <Card className={`rounded-3xl ${isPopular ? "border-primary/50 shadow-[0_30px_70px_rgba(2,6,23,0.10)]" : ""}`}>
+      <Card
+        className={`h-full rounded-3xl bg-background/80 shadow-sm backdrop-blur transition hover:-translate-y-1 hover:shadow-xl ${isPopular ? "border-primary/50 shadow-[0_30px_70px_rgba(2,6,23,0.10)]" : ""}`}
+      >
         <CardContent className="grid gap-6 p-7">
           <div className="grid gap-1">
             <div className="text-base font-semibold">{name}</div>
@@ -118,10 +120,10 @@ export default async function PricingPage() {
   const sorted = [...plans].sort((a, b) => (order.get(a.slug) ?? 99) - (order.get(b.slug) ?? 99));
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-28 pt-10 sm:pt-12">
+    <main className="mx-auto max-w-6xl px-4 pb-28 pt-8 sm:px-6 sm:pt-12">
       <section className="text-center">
-        <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Pilih Paket yang Sesuai dengan Skala Bisnis Anda</h1>
-        <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground">
+        <h1 className="text-balance text-3xl font-black tracking-[-0.05em] sm:text-5xl">Pilih Paket yang Sesuai dengan Skala Bisnis Anda</h1>
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
           Kelola transaksi, inventaris, dan laporan bisnis Anda dengan lebih efisien menggunakan solusi POS yang tepat.
         </p>
       </section>
@@ -148,7 +150,7 @@ export default async function PricingPage() {
         )}
       </section>
 
-      <section className="mt-16 grid items-center gap-6 rounded-[36px] bg-muted/20 p-8 lg:grid-cols-2">
+      <section className="mt-16 grid items-center gap-6 rounded-[36px] border bg-background/70 p-6 shadow-sm backdrop-blur lg:grid-cols-2 lg:p-8">
         <div className="grid gap-3">
           <h2 className="text-2xl font-semibold tracking-tight">Keamanan Data adalah Prioritas Kami</h2>
           <p className="text-sm text-muted-foreground">
@@ -172,7 +174,7 @@ export default async function PricingPage() {
       </section>
 
       <section className="mt-16">
-        <h2 className="text-center text-2xl font-semibold tracking-tight">Pertanyaan yang Sering Diajukan</h2>
+        <h2 className="text-center text-2xl font-black tracking-[-0.04em]">Pertanyaan yang Sering Diajukan</h2>
         <div className="mx-auto mt-8 grid max-w-3xl gap-3">
           {[
             {
@@ -223,4 +225,3 @@ export default async function PricingPage() {
     </main>
   );
 }
-

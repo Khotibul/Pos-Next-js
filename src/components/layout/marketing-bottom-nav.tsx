@@ -2,21 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Sparkles, Tags, Info } from "lucide-react";
+import { Download, Home, Info, Sparkles, Tags } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/features", label: "Features", icon: Sparkles },
-  { href: "/pricing", label: "Pricing", icon: Tags },
-  { href: "/about", label: "About", icon: Info },
+  { href: "/", label: "Beranda", icon: Home },
+  { href: "/features", label: "Fitur", icon: Sparkles },
+  { href: "/pricing", label: "Harga", icon: Tags },
+  { href: "/download", label: "App", icon: Download },
+  { href: "/about", label: "Tentang", icon: Info },
 ] as const;
 
 export function MarketingBottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/85 backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-6xl grid-cols-4 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/88 shadow-[0_-18px_50px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:hidden">
+      <div className="mx-auto grid max-w-6xl grid-cols-5 px-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
         {items.map((it) => {
           const active = it.href === "/" ? pathname === "/" : pathname === it.href || pathname.startsWith(`${it.href}/`);
           const Icon = it.icon;
@@ -25,14 +26,19 @@ export function MarketingBottomNav() {
               key={it.href}
               href={it.href}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium",
+                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 text-[11px] font-bold tracking-[-0.01em]",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className={cn("grid h-9 w-9 place-items-center rounded-2xl", active && "bg-primary/10")}>
-                <Icon className="h-5 w-5" />
+              <span
+                className={cn(
+                  "grid h-9 w-9 place-items-center rounded-2xl transition",
+                  active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-transparent"
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" />
               </span>
-              {it.label}
+              <span className="truncate">{it.label}</span>
             </Link>
           );
         })}
@@ -40,4 +46,3 @@ export function MarketingBottomNav() {
     </nav>
   );
 }
-
