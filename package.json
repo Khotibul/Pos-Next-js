@@ -29,7 +29,8 @@
     "desktop:rebuild-native": "node scripts/rebuild-electron-native.cjs",
     "build:desktop:renderer": "set DESKTOP_BUILD=1&& node scripts/clean-next.cjs && npx next build && node scripts/build-desktop-renderer.mjs",
     "desktop:dist": "node scripts/desktop-dist.cjs",
-    "desktop:build": "cross-env ELECTRON_RENDERER_URL=https://pos-next-js-kohl.vercel.app npm run build && npm run electron:build && node scripts/clean-desktop-build.cjs && electron-builder",
+    "desktop:build": "cross-env ELECTRON_RENDERER_URL=https://pos-next-js-kohl.vercel.app DESKTOP_LICENSE_ENDPOINT=https://pos-next-js-kohl.vercel.app/api/desktop/license/activate node scripts/desktop-dist.cjs",
+    "desktop:build:full": "npm run build && npm run desktop:build",
     "android:sync": "cap sync android",
     "android:open": "cap open android",
     "android:gradle:stop": "node scripts/run-android-gradle.cjs --stop",
@@ -109,7 +110,8 @@
     "appId": "com.pointpro.posdesktop",
     "productName": "POS Desktop Enterprise",
     "extraMetadata": {
-      "desktopRendererUrl": "https://pos-next-js-kohl.vercel.app"
+      "desktopRendererUrl": "https://pos-next-js-kohl.vercel.app",
+      "desktopLicenseEndpoint": "https://pos-next-js-kohl.vercel.app/api/desktop/license/activate"
     },
     "directories": {
       "output": "dist-desktop-build"
@@ -117,6 +119,11 @@
     "files": [
       "dist-electron/**",
       "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bindings/**/*",
+      "node_modules/file-uri-to-path/**/*"
     ],
     "win": {
       "target": [

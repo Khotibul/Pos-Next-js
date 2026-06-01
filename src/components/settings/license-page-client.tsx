@@ -26,7 +26,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 export function LicensePageClient() {
   const isDesktop = typeof window !== "undefined" && Boolean(window.posDesktop?.device?.getInfo);
   const [device, setDevice] = useState<DeviceInfo | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [license, setLicense] = useState<PosDesktopLicenseRow | null>(null);
   const [valid, setValid] = useState<PosDesktopLicenseValidity | null>(null);
 
@@ -41,14 +41,18 @@ export function LicensePageClient() {
   async function refresh() {
     setNotice(null);
     if (!isDesktop || !window.posDesktop) return;
-    const info = await window.posDesktop.device.getInfo();
-    setDevice(info);
-    const res = await window.posDesktop.license.getCurrent();
-    if (res.ok === true) {
-      setLicense(res.data.license ?? null);
-      setValid(res.data.valid ?? null);
-    } else {
-      setNotice(isRecord(res) && typeof res.message === "string" ? res.message : "Gagal memuat data lisensi.");
+    try {
+      const info = await window.posDesktop.device.getInfo();
+      setDevice(info);
+      const res = await window.posDesktop.license.getCurrent();
+      if (res.ok === true) {
+        setLicense(res.data.license ?? null);
+        setValid(res.data.valid ?? null);
+      } else {
+      setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Gagal memuat data lisensi." });
+      }
+    } catch (error) {
+      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Gagal memuat data lisensi desktop." });
     }
   }
 
@@ -65,7 +69,14 @@ export function LicensePageClient() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {notice ? <Alert variant="destructive">{notice}</Alert> : null}
+      {notice ? (
+        <Alert
+          variant={notice.tone === "error" ? "destructive" : "default"}
+          className={notice.tone === "success" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : undefined}
+        >
+          {notice.message}
+        </Alert>
+      ) : null}
 
       <Card className="rounded-3xl">
         <CardHeader className="pb-2">
@@ -132,12 +143,14 @@ export function LicensePageClient() {
                 onClick={() => {
                   setNotice(null);
                   start(async () => {
-                    const res = await window.posDesktop!.license.activateKey({ serial });
+                    const res = await window.posDesktop!.license.activateKey({ serial: serial.trim() });
                     if (!isRecord(res) || res.ok !== true) {
-                      setNotice(isRecord(res) && typeof res.message === "string" ? res.message : "Aktivasi serial gagal.");
+                      setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Aktivasi serial gagal." });
                       return;
                     }
                     await refresh();
+                    setSerial("");
+                    setNotice({ tone: "success", message: "Serial berhasil diaktifkan di perangkat ini." });
                   });
                 }}
               >
@@ -191,7 +204,7 @@ export function LicensePageClient() {
                       days,
                     });
                     if (!isRecord(res) || res.ok !== true) {
-                      setNotice(isRecord(res) && typeof res.message === "string" ? res.message : "Aktivasi trial gagal.");
+                      setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Aktivasi trial gagal." });
                       return;
                     }
                     await refresh();
@@ -227,7 +240,7 @@ export function LicensePageClient() {
                 start(async () => {
                   const res = await window.posDesktop!.license.clear();
                   if (!isRecord(res) || res.ok !== true) {
-                    setNotice(isRecord(res) && typeof res.message === "string" ? res.message : "Gagal reset lisensi.");
+                    setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Gagal reset lisensi." });
                     return;
                   }
                   await refresh();

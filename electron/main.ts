@@ -173,6 +173,33 @@ function getPackagedRendererUrlFromMetadata() {
   }
 }
 
+function getPackagedLicenseEndpointFromMetadata() {
+  try {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    if (!fs.existsSync(pkgPath)) return "";
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const json = JSON.parse(raw) as { desktopLicenseEndpoint?: unknown; build?: { extraMetadata?: { desktopLicenseEndpoint?: unknown } } };
+    if (typeof json.desktopLicenseEndpoint === "string") return json.desktopLicenseEndpoint;
+    const nested = json.build?.extraMetadata?.desktopLicenseEndpoint;
+    return typeof nested === "string" ? nested : "";
+  } catch {
+    return "";
+  }
+}
+
+function getLicenseActivationEndpoint() {
+  const explicit = safeUrl(getEnvString("DESKTOP_LICENSE_ENDPOINT")) || safeUrl(getPackagedLicenseEndpointFromMetadata());
+  if (explicit) return explicit;
+
+  const rendererUrl = getRendererUrl();
+  if (!rendererUrl) return null;
+  try {
+    return new URL("/api/desktop/license/activate", rendererUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 function escapeHtml(s: string) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -404,16 +431,12 @@ ipcMain.handle("license:activateKey", async (_evt: unknown, input: { serial: str
 
   const deviceId = cachedDeviceId ?? getDeviceFingerprint();
 
-  const explicit = process.env.DESKTOP_LICENSE_ENDPOINT?.trim();
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL?.trim();
-  const endpoint =
-    explicit ||
-    (rendererUrl && rendererUrl.startsWith("http") ? new URL("/api/desktop/license/activate", rendererUrl).toString() : null);
+  const endpoint = getLicenseActivationEndpoint();
 
   if (!endpoint) {
     return {
       ok: false,
-      message: "Endpoint aktivasi lisensi belum dikonfigurasi. Set `DESKTOP_LICENSE_ENDPOINT` ke URL server (contoh: https://domainmu.com/api/desktop/license/activate).",
+      message: "Endpoint aktivasi lisensi belum dikonfigurasi. Set `DESKTOP_LICENSE_ENDPOINT` atau `ELECTRON_RENDERER_URL` ke URL server.",
     };
   }
 
@@ -456,7 +479,10 @@ ipcMain.handle("license:activateKey", async (_evt: unknown, input: { serial: str
     const saved = await activateLicenseOffline({ db: desktopDb, deviceId, input: inputForStore });
     return { ok: true, data: saved };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Gagal aktivasi lisensi." };
+    return {
+      ok: false,
+      message: e instanceof Error ? `Gagal menghubungi server aktivasi: ${e.message}` : "Gagal aktivasi lisensi.",
+    };
   }
 });
 
