@@ -6,6 +6,7 @@ import { Menu, Plus, LogOut, HelpCircle, Search, Sparkles } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { AppLogo } from "@/components/brand/app-logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TenantSwitcher, type TenantOption } from "@/components/layout/tenant-switcher";
 import { PERMISSIONS } from "@/lib/permissions-keys";
@@ -38,12 +39,7 @@ export function MobileNav({
           <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/30 blur-3xl" />
           <div className="flex items-center justify-between">
             <div className="grid leading-tight">
-              <div className="flex items-center gap-2 text-lg font-bold tracking-[-0.04em]">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-sm text-primary-foreground shadow-lg shadow-primary/30">
-                  PP
-                </span>
-                POS Pro
-              </div>
+              <AppLogo href="/dashboard" className="w-fit rounded-2xl bg-white/95 px-3 py-2 shadow-lg" imageClassName="h-9" />
               <div className="pl-12 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">SaaS Solutions</div>
             </div>
           </div>
@@ -58,10 +54,7 @@ export function MobileNav({
         </div>
 
         <div className="hidden h-16 items-center justify-between px-4">
-          <div className="grid leading-tight">
-            <div className="text-base font-semibold tracking-tight">POS Pro</div>
-            <div className="text-xs text-muted-foreground">SaaS Solutions</div>
-          </div>
+          <AppLogo href="/dashboard" imageClassName="h-9" />
         </div>
 
         <div className="px-4 py-4">

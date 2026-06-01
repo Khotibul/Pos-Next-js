@@ -6,6 +6,7 @@ import { ChevronLeft, HelpCircle, LogOut, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/brand/app-logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 
@@ -21,12 +22,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
     >
       <div className="flex h-16 items-center justify-between px-3">
         <div className={cn("grid leading-tight", collapsed && "sr-only")}>
-          <Link href="/dashboard" prefetch className="flex items-center gap-2 text-lg font-bold tracking-[-0.035em]">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary text-sm text-primary-foreground shadow-lg shadow-primary/25">
-              PP
-            </span>
-            <span>POS Pro</span>
-          </Link>
+          <AppLogo href="/dashboard" className="w-fit rounded-2xl bg-white/95 px-2.5 py-1.5 shadow-lg" imageClassName="h-8" />
           <div className="pl-11 text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">SaaS Solutions</div>
         </div>
         <Button

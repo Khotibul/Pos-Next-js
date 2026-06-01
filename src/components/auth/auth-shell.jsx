@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AuthHero } from "@/components/auth/auth-hero";
+import { AppLogo } from "@/components/brand/app-logo";
 
 export function AuthShell({
   variant,
@@ -30,17 +31,7 @@ export function AuthShell({
           ].join(" ")}
         >
           <header className="flex items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
-            <Link href="/" className="group flex items-center gap-2.5">
-              <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-transform group-hover:-rotate-3 group-hover:scale-105">
-                PP
-              </span>
-              <span className="grid leading-none">
-                <span className="text-xl font-black tracking-[-0.045em] text-primary">PointPro POS</span>
-                <span className="hidden text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground sm:block">
-                  Retail SaaS
-                </span>
-              </span>
-            </Link>
+            <AppLogo href="/" priority imageClassName="h-11" />
             <div className="shrink-0 text-right text-xs font-medium text-muted-foreground sm:text-sm">
               {topText}{" "}
               <Link className="font-bold text-primary hover:underline" href={topLinkHref}>
@@ -56,7 +47,7 @@ export function AuthShell({
           </main>
 
           <footer className="mt-auto flex flex-wrap items-center justify-center gap-3 border-t bg-background/70 px-5 py-4 text-center text-xs text-muted-foreground sm:justify-between sm:px-8 lg:px-10">
-            <div>{"\u00A9"} {year} PointPro POS. All rights reserved.</div>
+            <div>{"\u00A9"} {year} Posqu Pro. All rights reserved.</div>
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
               <Link href="#" className="hover:text-foreground">
                 Terms of Service

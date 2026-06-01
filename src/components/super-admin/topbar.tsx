@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { AppLogo } from "@/components/brand/app-logo";
 import { SUPER_ADMIN_NAV } from "@/components/super-admin/nav";
 import { SuperAdminUserMenu } from "@/components/super-admin/user-menu";
 import { cn } from "@/lib/utils";
@@ -29,12 +30,7 @@ export function SuperAdminTopbar({
               <SheetTitle>Super Admin Menu</SheetTitle>
             </SheetHeader>
             <div className="bg-[radial-gradient(circle_at_10%_0%,rgba(37,99,235,0.32),transparent_42%),linear-gradient(135deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.94))] px-4 pb-5 pt-4 text-white">
-              <div className="flex items-center gap-2 text-lg font-black tracking-[-0.045em]">
-                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-sm text-primary-foreground shadow-lg shadow-primary/30">
-                  SA
-                </span>
-                POS Pro
-              </div>
+              <AppLogo href="/super-admin" className="w-fit rounded-2xl bg-white/95 px-3 py-2 shadow-lg" imageClassName="h-9" />
               <div className="pl-12 text-[10px] font-bold uppercase tracking-[0.22em] text-white/50">Super Admin</div>
             </div>
             <nav className="grid gap-1.5 px-3 py-4">

@@ -7,6 +7,7 @@ import { ArrowRight, Download, Menu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { AppLogo } from "@/components/brand/app-logo";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -23,15 +24,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/78 shadow-sm shadow-slate-950/[0.03] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-2.5 font-semibold tracking-tight">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-transform group-hover:-rotate-3 group-hover:scale-105">
-            PP
-          </span>
-          <span className="grid leading-none">
-            <span className="text-lg font-black tracking-[-0.045em] text-primary sm:text-xl">POS Pro</span>
-            <span className="hidden text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground sm:block">SaaS</span>
-          </span>
-        </Link>
+        <AppLogo href="/" priority imageClassName="h-11" />
 
         <nav className="hidden items-center gap-1 rounded-2xl border bg-background/65 p-1 shadow-sm lg:flex">
           {links.map((l) => {
@@ -76,15 +69,7 @@ export function SiteHeader() {
             </SheetHeader>
             <div className="relative overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.36),transparent_46%),linear-gradient(135deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.93))] px-5 pb-6 pt-5 text-white">
               <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-primary/35 blur-3xl" />
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">
-                  PP
-                </span>
-                <div className="grid leading-tight">
-                  <div className="text-xl font-black tracking-[-0.045em]">POS Pro</div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/55">Retail SaaS</div>
-                </div>
-              </div>
+              <AppLogo href="/" className="w-fit rounded-2xl bg-white/95 px-3 py-2 shadow-lg" imageClassName="h-10" priority />
               <div className="mt-5 rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/65">
                   <Sparkles className="h-3.5 w-3.5" />

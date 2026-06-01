@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { BarChart3, Boxes, Cloud, CreditCard, ShieldCheck, Users } from "lucide-react";
+import { AppLogo } from "@/components/brand/app-logo";
 
 function FeatureCard({ icon: Icon, title, desc }) {
   return (
@@ -43,10 +44,7 @@ export function AuthHero({ variant }) {
       </div>
 
       <div className="relative flex h-full flex-col justify-between p-8 xl:p-12">
-        <div className="flex items-center gap-2 text-sm font-bold tracking-tight">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/20 bg-white/10">PP</span>
-          PointPro POS
-        </div>
+        <AppLogo className="w-fit rounded-2xl bg-white/95 px-3 py-2 shadow-xl shadow-blue-950/10" imageClassName="h-9" />
 
         {isRegister ? (
           <div className="max-w-2xl">
@@ -56,7 +54,7 @@ export function AuthHero({ variant }) {
               Dan Kecepatan Tinggi.
             </div>
             <p className="mt-6 max-w-xl text-base leading-7 text-white/80">
-              Bergabunglah dengan ribuan pengusaha yang telah beralih ke PointPro untuk operasional bisnis yang lebih
+              Bergabunglah dengan ribuan pengusaha yang telah beralih ke Posqu Pro untuk operasional bisnis yang lebih
               cerdas dan terintegrasi.
             </p>
 
@@ -76,7 +74,7 @@ export function AuthHero({ variant }) {
             <div className="mt-8 text-4xl font-black leading-[1.08] tracking-[-0.06em] xl:text-6xl">
               Kelola Bisnis Lebih Cerdas
               <br />
-              dengan PointPro.
+              dengan Posqu Pro.
             </div>
             <p className="mt-6 max-w-xl text-base leading-7 text-white/80">
               Platform POS SaaS terintegrasi untuk membantu Anda memantau transaksi, stok inventaris, dan laporan
@@ -91,7 +89,7 @@ export function AuthHero({ variant }) {
         )}
 
         <div className="text-xs font-medium tracking-[0.08em] text-white/70">
-          {"\u00A9"} {year} PointPro SaaS POS. Secured with Enterprise Encryption.
+          {"\u00A9"} {year} Posqu Pro SaaS POS. Secured with Enterprise Encryption.
         </div>
       </div>
     </div>

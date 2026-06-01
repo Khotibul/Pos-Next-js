@@ -2,6 +2,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { TenantSwitcher } from "@/components/layout/tenant-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { AppLogo } from "@/components/brand/app-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Bell, LayoutGrid, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,7 @@ export async function Topbar() {
             tenantStatus: m.tenantStatus,
           }))}
         />
-        <div className="min-w-0 md:hidden">
-          <div className="truncate text-base font-bold tracking-[-0.04em] text-primary">POS Pro</div>
-          <div className="-mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">SaaS</div>
-        </div>
+        <AppLogo href="/dashboard" className="md:hidden" imageClassName="h-9" />
         <div className="hidden md:flex">
           <TenantSwitcher
             currentTenantId={ctx.tenantId}

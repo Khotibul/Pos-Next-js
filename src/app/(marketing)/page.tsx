@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, Eye, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppLogo } from "@/components/brand/app-logo";
 
 export default function LandingPage() {
   return (
@@ -179,7 +180,7 @@ export default function LandingPage() {
       <footer className="mt-16 border-t py-10">
         <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
           <div>
-            <div className="font-semibold text-foreground">POS Pro</div>
+            <AppLogo href="/" imageClassName="h-9" />
             <div className="mt-1 text-xs">Solusi POS modern untuk masa depan bisnis yang lebih efisien dan terukur.</div>
           </div>
           <div className="flex flex-wrap gap-6 text-xs">

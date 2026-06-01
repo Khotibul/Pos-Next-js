@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AppLogo } from "@/components/brand/app-logo";
 import { cn } from "@/lib/utils";
 import { SUPER_ADMIN_NAV } from "@/components/super-admin/nav";
 
@@ -11,12 +12,7 @@ export function SuperAdminSidebar() {
     <aside className="hidden w-72 border-r border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.28),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.96))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-slate-950/10 md:flex md:flex-col">
       <div className="flex h-16 items-center px-5">
         <div className="grid leading-tight">
-          <Link href="/super-admin" className="flex items-center gap-2 text-lg font-black tracking-[-0.045em]">
-            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary text-sm text-primary-foreground shadow-lg shadow-primary/25">
-              SA
-            </span>
-            POS Pro
-          </Link>
+          <AppLogo href="/super-admin" className="w-fit rounded-2xl bg-white/95 px-2.5 py-1.5 shadow-lg" imageClassName="h-8" />
           <div className="pl-11 text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">Super Admin</div>
         </div>
       </div>
