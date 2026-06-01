@@ -2,6 +2,8 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
+import { requireSuperAdmin } from "@/lib/super-admin";
+import { normalizePagination } from "@/modules/super-admin/shared";
 import type { UpsertTenantInput } from "@/modules/super-admin/tenants/validators";
 
 function parseDateOrNull(value: string | undefined) {
@@ -12,11 +14,53 @@ function parseDateOrNull(value: string | undefined) {
   return d;
 }
 
-export async function listTenants() {
-  return prisma.tenant.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { plan: { select: { id: true, slug: true, name: true } } },
-  });
+export async function listTenants(params: { q?: string | null; status?: string | null; planId?: string | null; page?: number; pageSize?: number } = {}) {
+  await requireSuperAdmin();
+  const { page, pageSize, skip } = normalizePagination(params);
+  const q = params.q?.trim() || "";
+  const where = {
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { slug: { contains: q, mode: "insensitive" as const } },
+            { domain: { contains: q, mode: "insensitive" as const } },
+            { subdomain: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+    ...(params.status ? { status: params.status as "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED" } : {}),
+    ...(params.planId ? { planId: params.planId } : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.tenant.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        domain: true,
+        subdomain: true,
+        status: true,
+        trialEndsAt: true,
+        suspendedAt: true,
+        planId: true,
+        createdAt: true,
+        plan: { select: { id: true, slug: true, name: true } },
+        memberships: {
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { user: { select: { name: true, email: true } }, role: { select: { name: true } } },
+        },
+        _count: { select: { memberships: true, branches: true, sales: true } },
+      },
+    }),
+    prisma.tenant.count({ where }),
+  ]);
+  return { items, total, page, pageSize, q };
 }
 
 export async function listPlansForSelect() {
@@ -28,6 +72,7 @@ export async function listPlansForSelect() {
 }
 
 export async function upsertTenant(input: UpsertTenantInput) {
+  await requireSuperAdmin();
   const domain = (input.domain || "").trim() || null;
   const subdomain = (input.subdomain || "").trim() || null;
   const planId = (input.planId || "").trim() || null;
@@ -73,4 +118,3 @@ export async function upsertTenant(input: UpsertTenantInput) {
   });
   return created;
 }
-

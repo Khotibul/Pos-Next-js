@@ -19,6 +19,7 @@ const AUTH_ERROR_MESSAGES = {
   GOOGLE_ACCOUNT_IN_USE: "Akun Google ini sudah terhubung ke user lain. Silakan gunakan akun Google yang benar atau hubungi admin.",
   GOOGLE_TOKEN_INVALID: "Token Google tidak valid. Silakan coba login ulang.",
   GOOGLE_EMAIL_NOT_VERIFIED: "Email Google belum terverifikasi oleh Google.",
+  USER_DISABLED: "Akun ini sedang dinonaktifkan oleh Super Admin. Hubungi administrator untuk mengaktifkan kembali.",
   CALLBACK_URL_ERROR: "Callback URL Google tidak valid. Pastikan AUTH_URL/NEXTAUTH_URL sesuai domain aplikasi.",
   Configuration: "Konfigurasi Google OAuth belum lengkap. Periksa GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AUTH_URL, dan callback URL.",
   AccessDenied: "Akses Google ditolak atau akun belum memenuhi syarat login.",

@@ -66,10 +66,12 @@ export const {
             passwordHash: true,
             emailVerified: true,
             isSuperAdmin: true,
+            isActive: true,
           },
         });
         endQuery();
         if (!user?.passwordHash) return null;
+        if (!user.isActive) throw new Error("USER_DISABLED");
         if (!user.emailVerified) {
           await setCachedEmailVerified(user.id, false);
           throw new Error("EMAIL_NOT_VERIFIED");
@@ -114,6 +116,7 @@ export const {
         select: {
           id: true,
           email: true,
+          isActive: true,
           accounts: { select: { provider: true } },
         },
       });
@@ -137,6 +140,7 @@ export const {
       }
 
       const linkedGoogle = existing.accounts.some((a) => a.provider === "google");
+      if (!existing.isActive) return "/login?error=USER_DISABLED";
       if (!linkedGoogle) {
         // Allow explicit account linking flow, or trusted Google email auto-link.
         // Google `email_verified=true` is safe enough to avoid OAuthAccountNotLinked for existing credential users.

@@ -118,6 +118,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       email: true,
       image: true,
       isSuperAdmin: true,
+      isActive: true,
       memberships: {
         select: {
           tenantId: true,
@@ -140,6 +141,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   endDb();
 
   if (!user) throw Errors.unauthorized("User not found.");
+  if (!user.isActive) throw Errors.forbidden("Akun ini sedang dinonaktifkan.");
 
   // Super Admin can access all tenants.
   if (user.isSuperAdmin) {

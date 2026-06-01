@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
+import Link from "next/link";
 import type { ActionResult } from "@/lib/action";
 import { upsertTenantAction } from "@/modules/super-admin/tenants/actions";
 import { Alert } from "@/components/ui/alert";
@@ -25,6 +26,11 @@ type TenantRow = {
   suspendedAt: string | null;
   planId: string | null;
   planName: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  userCount: number;
+  branchCount: number;
+  transactionCount: number;
   createdAt: string;
 };
 
@@ -33,13 +39,14 @@ function FieldError({ msg }: { msg?: string }) {
   return <p className="text-xs text-destructive">{msg}</p>;
 }
 
-export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: PlanOption[] }) {
+export function TenantsTable({ items, plans, total, page, pageSize }: { items: TenantRow[]; plans: PlanOption[]; total: number; page: number; pageSize: number }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TenantRow | null>(null);
 
   const [state, formAction, isPending] = useActionState(upsertTenantAction, null as ActionResult<{ id: string }> | null);
   const fieldErrors = useMemo(() => ((state && !state.ok ? state.fieldErrors : undefined) ?? {}) as Record<string, string>, [state]);
   const message = state && !state.ok ? state.message : null;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
     if (state && state.ok) {
@@ -52,7 +59,9 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
     <div className="grid gap-4">
       <Card className="rounded-2xl">
         <CardContent className="flex flex-wrap items-center justify-between gap-2 py-4">
-          <div className="text-sm text-muted-foreground">Kelola tenant: aktif/nonaktif, trial, domain/subdomain, dan paket.</div>
+          <div className="text-sm text-muted-foreground">
+            Kelola tenant: aktif/nonaktif, trial, domain/subdomain, dan paket. Total {total.toLocaleString("id-ID")} tenant · halaman {page}/{totalPages}.
+          </div>
           <Button
             type="button"
             className="rounded-xl"
@@ -71,9 +80,12 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
           <TableHeader className="bg-muted/30">
             <TableRow>
               <TableHead>Tenant</TableHead>
+              <TableHead>Owner</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Trial Ends</TableHead>
+              <TableHead className="text-right">Users</TableHead>
+              <TableHead className="text-right">Cabang</TableHead>
               <TableHead>Domain</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -81,7 +93,7 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                   Belum ada tenant.
                 </TableCell>
               </TableRow>
@@ -92,6 +104,10 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
                     <div className="font-medium">{t.name}</div>
                     <div className="text-xs text-muted-foreground font-mono">{t.slug}</div>
                   </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{t.ownerName ?? "-"}</div>
+                    <div className="text-xs text-muted-foreground">{t.ownerEmail ?? "-"}</div>
+                  </TableCell>
                   <TableCell className="text-sm">{t.planName ?? "-"}</TableCell>
                   <TableCell>
                     <span className={`inline-flex rounded-full px-2 py-1 text-xs ${t.status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : t.status === "TRIAL" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300" : t.status === "SUSPENDED" ? "bg-orange-500/15 text-orange-700 dark:text-orange-300" : "bg-muted text-muted-foreground"}`}>
@@ -99,21 +115,28 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
                     </span>
                   </TableCell>
                   <TableCell className="text-sm">{t.trialEndsAt ? new Date(t.trialEndsAt).toLocaleDateString("id-ID") : "-"}</TableCell>
+                  <TableCell className="text-right text-sm">{t.userCount.toLocaleString("id-ID")}</TableCell>
+                  <TableCell className="text-right text-sm">{t.branchCount.toLocaleString("id-ID")}</TableCell>
                   <TableCell className="text-sm">{t.domain || t.subdomain ? `${t.subdomain ? `${t.subdomain}.` : ""}${t.domain ?? ""}` : "-"}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 w-9 rounded-xl p-0"
-                      onClick={() => {
-                        setEditing(t);
-                        setOpen(true);
-                      }}
-                      aria-label="Edit tenant"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button asChild variant="outline" size="sm" className="rounded-xl">
+                        <Link href={`/super-admin/users?tenantId=${encodeURIComponent(t.id)}`}>Users</Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 rounded-xl p-0"
+                        onClick={() => {
+                          setEditing(t);
+                          setOpen(true);
+                        }}
+                        aria-label="Edit tenant"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -219,4 +242,3 @@ export function TenantsTable({ items, plans }: { items: TenantRow[]; plans: Plan
     </div>
   );
 }
-

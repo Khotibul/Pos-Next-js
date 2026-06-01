@@ -5,14 +5,17 @@ import { listPlansForSelect, listTenants } from "@/modules/super-admin/tenants/s
 
 export default async function SuperAdminDomainsPage() {
   await requireSuperAdmin();
-  const [items, plans] = await Promise.all([listTenants(), listPlansForSelect()]);
+  const [result, plans] = await Promise.all([listTenants({ page: 1, pageSize: 50 }), listPlansForSelect()]);
 
   return (
     <div className="grid gap-6">
       <PageHeader title="Domain / Subdomain Tenant" description="Kelola domain/subdomain tenant untuk custom domain." />
       <TenantsTable
         plans={plans}
-        items={items.map((t) => ({
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        items={result.items.map((t) => ({
           id: t.id,
           name: t.name,
           slug: t.slug,
@@ -23,10 +26,14 @@ export default async function SuperAdminDomainsPage() {
           suspendedAt: t.suspendedAt ? t.suspendedAt.toISOString() : null,
           planId: t.planId ?? null,
           planName: t.plan?.name ?? null,
+          ownerName: t.memberships[0]?.user.name ?? null,
+          ownerEmail: t.memberships[0]?.user.email ?? null,
+          userCount: t._count.memberships,
+          branchCount: t._count.branches,
+          transactionCount: t._count.sales,
           createdAt: t.createdAt.toISOString(),
         }))}
       />
     </div>
   );
 }
-

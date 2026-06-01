@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeAuditLog } from "@/lib/audit";
+import { invalidateTenantCache } from "@/lib/cache";
 import { upsertTenantSchema } from "@/modules/super-admin/tenants/validators";
 import { upsertTenant } from "@/modules/super-admin/tenants/service";
 
@@ -29,6 +30,7 @@ export async function upsertTenantAction(_prev: unknown, formData: FormData): Pr
       entityId: res.id,
       metadata: { slug: parsed.data.slug, planId: parsed.data.planId ?? null, status: parsed.data.status ?? null },
     });
+    await invalidateTenantCache(res.id);
 
     revalidatePath("/super-admin");
     revalidatePath("/super-admin/tenants");
@@ -38,4 +40,3 @@ export async function upsertTenantAction(_prev: unknown, formData: FormData): Pr
     return { ok: false, message: "Terjadi kesalahan saat menyimpan tenant." };
   }
 }
-
