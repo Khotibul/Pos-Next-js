@@ -37,7 +37,9 @@ function main() {
   console.log(`[desktop-dist] Output: ${outputDirAbs}`);
 
   run("npm.cmd", ["run", "electron:build"]);
-  run("npm.cmd", ["run", "desktop:rebuild-native"]);
+  if (process.env.DESKTOP_REBUILD_NATIVE === "1") {
+    run("npm.cmd", ["run", "desktop:rebuild-native"]);
+  }
   // Renderer is hosted (Vercel) for initial desktop production. We don't bundle local Next standalone.
   // Keep `build:desktop:renderer` script available for future offline/local renderer mode.
 

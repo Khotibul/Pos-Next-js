@@ -129,9 +129,52 @@ function getDeviceFingerprint() {
 }
 
 let mainWindow: BrowserWindowT | null = null;
-let desktopDb: Awaited<ReturnType<typeof openDesktopDb>> | null = null;
+type DesktopDbInstance = Awaited<ReturnType<typeof openDesktopDb>>;
+let desktopDb: DesktopDbInstance | null = null;
+let desktopDbOpening: Promise<DesktopDbInstance> | null = null;
+let desktopDbInitError: string | null = null;
 let cachedDeviceId: string | null = null;
 let syncWorkerStop: null | (() => void) = null;
+
+async function ensureDesktopDb() {
+  if (desktopDb) return desktopDb;
+  if (desktopDbOpening) return desktopDbOpening;
+
+  desktopDbOpening = (async () => {
+    const { userData } = getAppPaths();
+    try {
+      const db = await openDesktopDb({ userDataDir: userData });
+      desktopDb = db;
+      desktopDbInitError = null;
+
+      const endpoint = process.env.DESKTOP_SYNC_ENDPOINT?.trim();
+      if (endpoint && !syncWorkerStop) {
+        const worker = startOfflineSyncWorker({ db, endpoint });
+        syncWorkerStop = () => worker.stop();
+      }
+
+      return db;
+    } catch (error) {
+      desktopDb = null;
+      desktopDbInitError = error instanceof Error ? error.message : String(error);
+      throw error;
+    } finally {
+      desktopDbOpening = null;
+    }
+  })();
+
+  return desktopDbOpening;
+}
+
+function desktopDbNotReadyMessage(error?: unknown) {
+  const reason =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : desktopDbInitError;
+  return reason ? `Database desktop belum siap. Detail: ${reason}` : "Database desktop belum siap. Coba klik Refresh atau restart aplikasi.";
+}
 
 function getEnvString(key: string) {
   const v = process.env[key];
@@ -305,15 +348,9 @@ async function createMainWindow() {
 }
 
 app.on("ready", async () => {
-  const { userData } = getAppPaths();
   cachedDeviceId = getDeviceFingerprint();
   try {
-    desktopDb = await openDesktopDb({ userDataDir: userData });
-    const endpoint = process.env.DESKTOP_SYNC_ENDPOINT?.trim();
-    if (endpoint) {
-      const worker = startOfflineSyncWorker({ db: desktopDb, endpoint });
-      syncWorkerStop = () => worker.stop();
-    }
+    await ensureDesktopDb();
   } catch (e) {
     // DB init errors will be shown in renderer; keep app running.
     // eslint-disable-next-line no-console
@@ -354,47 +391,56 @@ ipcMain.handle("device:getInfo", async () => {
 });
 
 ipcMain.handle("license:getCurrent", async () => {
-  if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
-  const deviceId = cachedDeviceId ?? getDeviceFingerprint();
-  const row = await getCurrentLicense(desktopDb);
-  if (!row) return { ok: true, data: { license: null } };
+  try {
+    const db = await ensureDesktopDb();
+    const deviceId = cachedDeviceId ?? getDeviceFingerprint();
+    const row = await getCurrentLicense(db);
+    if (!row) return { ok: true, data: { license: null, payload: null, valid: null } };
 
-  let payload = null as null | unknown;
-  let valid = null as null | { ok: boolean; reason?: string };
-  if (row.encryptedPayload) {
-    try {
-      const p = decryptStoredLicense({ deviceId, encryptedPayload: row.encryptedPayload });
-      payload = p;
-      valid = isLicenseValidNow(p);
-    } catch (e) {
-      valid = { ok: false, reason: e instanceof Error ? e.message : "Gagal decrypt lisensi." };
+    let payload = null as null | unknown;
+    let valid = null as null | { ok: boolean; reason?: string };
+    if (row.encryptedPayload) {
+      try {
+        const p = decryptStoredLicense({ deviceId, encryptedPayload: row.encryptedPayload });
+        payload = p;
+        valid = isLicenseValidNow(p);
+      } catch (e) {
+        valid = { ok: false, reason: e instanceof Error ? e.message : "Gagal decrypt lisensi." };
+      }
     }
-  }
 
-  return { ok: true, data: { license: row, payload, valid } };
+    return { ok: true, data: { license: row, payload, valid } };
+  } catch (error) {
+    return { ok: false, message: desktopDbNotReadyMessage(error) };
+  }
 });
 
 ipcMain.handle("sync:getStatus", async () => {
-  if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
   try {
-    const status = await getSyncQueueStatus(desktopDb);
+    const db = await ensureDesktopDb();
+    const status = await getSyncQueueStatus(db);
     return { ok: true, data: status };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Gagal membaca status sync." };
+    return { ok: false, message: e instanceof Error ? e.message : desktopDbNotReadyMessage(e) };
   }
 });
 
 ipcMain.handle(
   "license:activateTrial",
   async (_evt: unknown, input: { companyName: string; ownerName: string; email: string; phone: string; days: number }) => {
-    if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
+    let db: DesktopDbInstance;
+    try {
+      db = await ensureDesktopDb();
+    } catch (error) {
+      return { ok: false, message: desktopDbNotReadyMessage(error) };
+    }
     const deviceId = cachedDeviceId ?? getDeviceFingerprint();
     const days = Math.max(1, Math.min(30, Math.floor(Number(input.days) || 14)));
     const expires = new Date();
     expires.setDate(expires.getDate() + days);
 
     const res = await activateLicenseOffline({
-      db: desktopDb,
+      db,
       deviceId,
       input: {
         licenseKey: `TRIAL-${deviceId.slice(0, 10)}-${Date.now()}`,
@@ -415,17 +461,22 @@ ipcMain.handle(
 );
 
 ipcMain.handle("license:clear", async () => {
-  if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
   try {
-    await desktopDb.execute("DELETE FROM License");
+    const db = await ensureDesktopDb();
+    await db.execute("DELETE FROM License");
     return { ok: true, data: { ok: true } };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Gagal menghapus lisensi." };
+    return { ok: false, message: e instanceof Error ? e.message : desktopDbNotReadyMessage(e) };
   }
 });
 
 ipcMain.handle("license:activateKey", async (_evt: unknown, input: { serial: string }) => {
-  if (!desktopDb) return { ok: false, message: "Database desktop belum siap." };
+  let db: DesktopDbInstance;
+  try {
+    db = await ensureDesktopDb();
+  } catch (error) {
+    return { ok: false, message: desktopDbNotReadyMessage(error) };
+  }
   const serial = String(input?.serial ?? "").trim();
   if (serial.length < 6) return { ok: false, message: "Serial number tidak valid." };
 
@@ -476,7 +527,7 @@ ipcMain.handle("license:activateKey", async (_evt: unknown, input: { serial: str
       offlineGraceDays: Number(payload.offlineGraceDays ?? 3) || 3,
     };
 
-    const saved = await activateLicenseOffline({ db: desktopDb, deviceId, input: inputForStore });
+    const saved = await activateLicenseOffline({ db, deviceId, input: inputForStore });
     return { ok: true, data: saved };
   } catch (e) {
     return {
