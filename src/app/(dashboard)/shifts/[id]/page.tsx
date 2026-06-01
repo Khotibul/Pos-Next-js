@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
+import { Errors } from "@/lib/errors";
 import { getShiftDetail } from "@/modules/shifts/service";
 import { ShiftSummaryCard } from "@/components/shifts/shift-summary-card";
 import { CloseShiftDialog } from "@/components/shifts/close-shift-dialog";
@@ -54,7 +55,9 @@ export default async function ShiftDetailPage({ params }: { params: Promise<{ id
   const sales = detail.sales as Array<{ id: string; invoiceNo: string; status: string; total: unknown; createdAt: Date }>;
 
   const can = (perm: string) => ctx.isSuperAdmin || ctx.permissions.includes(perm);
-  const canClose = can(PERMISSIONS.transactions_shift_close) && shift.status === "OPEN" && shift.cashierId === ctx.userId;
+  const canManageAllShifts = ctx.isSuperAdmin || ["OWNER", "ADMIN", "BRANCH_MANAGER"].includes(ctx.roleName ?? "");
+  if (!canManageAllShifts && shift.cashierId !== ctx.userId) throw Errors.forbidden("Anda hanya bisa melihat shift milik Anda sendiri.");
+  const canClose = can(PERMISSIONS.transactions_shift_close) && shift.status === "OPEN" && (canManageAllShifts || shift.cashierId === ctx.userId);
   const canApprove = can(PERMISSIONS.transactions_shift_approve) && shift.status !== "OPEN" && shift.status !== "APPROVED";
 
   return (

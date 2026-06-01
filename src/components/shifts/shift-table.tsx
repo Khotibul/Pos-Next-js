@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 type Row = {
   id: string;
   status: "OPEN" | "CLOSED" | "APPROVED";
+  cashierId: string;
   cashierName: string;
   branchName: string;
   openedAt: string;
@@ -36,11 +37,15 @@ export function ShiftTable({
   openShiftId,
   canOpen,
   canClose,
+  canManageAll,
+  currentUserId,
 }: {
   items: Row[];
   openShiftId: string | null;
   canOpen: boolean;
   canClose: boolean;
+  canManageAll: boolean;
+  currentUserId: string;
 }) {
   return (
     <div className="grid gap-4">
@@ -99,7 +104,7 @@ export function ShiftTable({
                   <TableCell className={`text-right text-sm ${s.cashDifference === 0 ? "" : "text-destructive font-medium"}`}>{rupiah(s.cashDifference)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {canClose && s.status === "OPEN" ? (
+                      {canClose && s.status === "OPEN" && (canManageAll || s.cashierId === currentUserId) ? (
                         <CloseShiftDialog shiftId={s.id} triggerLabel="Tutup" />
                       ) : null}
                       <Button asChild variant="outline" size="sm" className="rounded-xl">

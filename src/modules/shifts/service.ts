@@ -12,6 +12,7 @@ function toNumber(value: unknown) {
 export async function listShifts(params: {
   tenantId: string;
   branchId?: string | null;
+  cashierId?: string | null;
   status?: "OPEN" | "CLOSED" | "APPROVED" | null;
   dateFrom?: Date | null;
   dateTo?: Date | null;
@@ -22,6 +23,7 @@ export async function listShifts(params: {
     where: {
       tenantId: params.tenantId,
       ...(params.branchId ? { branchId: params.branchId } : {}),
+      ...(params.cashierId ? { cashierId: params.cashierId } : {}),
       ...(params.status ? { status: params.status } : {}),
       ...(params.dateFrom || params.dateTo
         ? {

@@ -180,6 +180,8 @@ const rolePermissionMatrix = {
     "inventory.read",
     "inventory.write",
     "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
   ],
   // Warehouse staff commonly handles stock movements.
   // Keep inventory perms for future inventory module parity.
@@ -195,6 +197,8 @@ const rolePermissionMatrix = {
     "suppliers.read",
     "billing.read",
     "transactions.shift.read",
+    "transactions.shift.open",
+    "transactions.shift.close",
     "transactions.shift.export",
   ],
   BRANCH_MANAGER: [
