@@ -59,6 +59,8 @@ export function ProductImportUploader() {
       name: r["name"],
       sku: r["sku"],
       barcode: r["barcode"],
+      qrCode: r["qrcode"] ?? r["qr_code"] ?? r["qr"],
+      productType: r["producttype"] ?? r["product_type"] ?? r["type"],
       category: r["category"],
       brand: r["brand"],
       supplier: r["supplier"],
@@ -67,6 +69,9 @@ export function ProductImportUploader() {
       sellingPrice: r["sellingprice"] ?? r["selling_price"] ?? r["price"],
       stock: r["stock"],
       minimumStock: r["minimumstock"] ?? r["minimum_stock"] ?? r["minstock"] ?? r["min_stock"],
+      reorderPoint: r["reorderpoint"] ?? r["reorder_point"],
+      weight: r["weight"],
+      volume: r["volume"],
       expiredDate: r["expireddate"] ?? r["expired_date"] ?? r["exp"] ?? r["expiry"],
       batchNumber: r["batchnumber"] ?? r["batch_number"] ?? r["batch"],
       description: r["description"],
@@ -75,6 +80,7 @@ export function ProductImportUploader() {
       imageUrl: r["imageurl"] ?? r["image_url"],
       isActive: r["isactive"] ?? r["active"],
       isFeatured: r["isfeatured"] ?? r["featured"],
+      isConsignment: r["isconsignment"] ?? r["is_consignment"] ?? r["consignment"],
     }));
 
     const validated = validateImportRows(mapped as Array<Record<string, unknown>>);
@@ -87,6 +93,8 @@ export function ProductImportUploader() {
             name: v.data.name,
             sku: v.data.sku,
             barcode: v.data.barcode,
+            qrCode: v.data.qrCode,
+            productType: v.data.productType,
             category: v.data.category,
             brand: v.data.brand,
             supplier: v.data.supplier,
@@ -97,12 +105,16 @@ export function ProductImportUploader() {
             margin: v.data.margin ?? 0,
             stock: v.data.stock,
             minimumStock: v.data.minimumStock,
+            reorderPoint: v.data.reorderPoint,
+            weight: v.data.weight,
+            volume: v.data.volume,
             batchNumber: v.data.batchNumber,
             expiredDate: v.data.expiredDate ? v.data.expiredDate.toISOString().slice(0, 10) : null,
             description: v.data.description ?? null,
             imageUrl: v.data.imageUrl ?? null,
             isActive: v.data.isActive ?? true,
             isFeatured: v.data.isFeatured ?? false,
+            isConsignment: v.data.isConsignment ?? false,
           },
         };
       }
@@ -115,6 +127,8 @@ export function ProductImportUploader() {
           name: typeof raw.name === "string" ? raw.name : undefined,
           sku: typeof raw.sku === "string" ? raw.sku : undefined,
           barcode: typeof raw.barcode === "string" ? raw.barcode : raw.barcode == null ? null : String(raw.barcode),
+          qrCode: typeof raw.qrCode === "string" ? raw.qrCode : raw.qrCode == null ? null : String(raw.qrCode),
+          productType: typeof raw.productType === "string" ? raw.productType : "SINGLE",
           category: typeof raw.category === "string" ? raw.category : undefined,
           brand: typeof raw.brand === "string" ? raw.brand : undefined,
           supplier: typeof raw.supplier === "string" ? raw.supplier : undefined,
@@ -123,6 +137,9 @@ export function ProductImportUploader() {
           sellingPrice: typeof raw.sellingPrice === "number" ? raw.sellingPrice : Number(raw.sellingPrice),
           stock: typeof raw.stock === "number" ? raw.stock : Number(raw.stock),
           minimumStock: typeof raw.minimumStock === "number" ? raw.minimumStock : Number(raw.minimumStock),
+          reorderPoint: typeof raw.reorderPoint === "number" ? raw.reorderPoint : Number(raw.reorderPoint),
+          weight: typeof raw.weight === "number" ? raw.weight : Number(raw.weight),
+          volume: typeof raw.volume === "number" ? raw.volume : Number(raw.volume),
           expiredDate: raw.expiredDate ? String(raw.expiredDate) : null,
           batchNumber: raw.batchNumber ? String(raw.batchNumber) : null,
         },
@@ -142,6 +159,8 @@ export function ProductImportUploader() {
         name: r.data.name,
         sku: r.data.sku,
         barcode: r.data.barcode ?? "",
+        qrCode: r.data.qrCode ?? "",
+        productType: r.data.productType ?? "SINGLE",
         category: r.data.category,
         brand: r.data.brand,
         supplier: r.data.supplier,
@@ -150,6 +169,9 @@ export function ProductImportUploader() {
         sellingPrice: r.data.sellingPrice,
         stock: r.data.stock,
         minimumStock: r.data.minimumStock,
+        reorderPoint: r.data.reorderPoint ?? r.data.minimumStock ?? 0,
+        weight: r.data.weight ?? 0,
+        volume: r.data.volume ?? 0,
         expiredDate: r.data.expiredDate ?? "",
         batchNumber: r.data.batchNumber ?? "",
         description: r.data.description ?? "",
@@ -158,6 +180,7 @@ export function ProductImportUploader() {
         imageUrl: r.data.imageUrl ?? "",
         isActive: r.data.isActive ?? true,
         isFeatured: r.data.isFeatured ?? false,
+        isConsignment: r.data.isConsignment ?? false,
       }));
 
     // Chunk client-side for basic progress
@@ -205,7 +228,7 @@ export function ProductImportUploader() {
               <div className="text-xs text-muted-foreground">Upload Excel/CSV, preview, lalu simpan.</div>
             </div>
             <Button asChild variant="outline" className="gap-2 rounded-xl">
-              <a href="/api/products/template">
+              <a href="/api/products/template" download="product-import-template.xlsx">
                 <Download className="h-4 w-4" />
                 Download Template
               </a>

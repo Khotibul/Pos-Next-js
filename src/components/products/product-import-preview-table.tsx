@@ -10,6 +10,8 @@ export type ImportPreviewRow = {
     name?: string;
     sku?: string;
     barcode?: string | null;
+    qrCode?: string | null;
+    productType?: string;
     category?: string;
     brand?: string;
     supplier?: string;
@@ -20,12 +22,16 @@ export type ImportPreviewRow = {
     margin?: number;
     stock?: number;
     minimumStock?: number;
+    reorderPoint?: number;
+    weight?: number;
+    volume?: number;
     expiredDate?: string | null;
     batchNumber?: string | null;
     description?: string | null;
     imageUrl?: string | null;
     isActive?: boolean;
     isFeatured?: boolean;
+    isConsignment?: boolean;
   };
 };
 
@@ -40,6 +46,8 @@ export function ProductImportPreviewTable({ rows }: { rows: ImportPreviewRow[] }
             <th className="px-3 py-2">SKU</th>
             <th className="px-3 py-2">Produk</th>
             <th className="px-3 py-2">Barcode</th>
+            <th className="px-3 py-2">QR</th>
+            <th className="px-3 py-2">Tipe</th>
             <th className="px-3 py-2">Kategori</th>
             <th className="px-3 py-2">Brand</th>
             <th className="px-3 py-2">Supplier</th>
@@ -55,7 +63,7 @@ export function ProductImportPreviewTable({ rows }: { rows: ImportPreviewRow[] }
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={15} className="px-3 py-10 text-center text-muted-foreground">
+              <td colSpan={17} className="px-3 py-10 text-center text-muted-foreground">
                 Belum ada data.
               </td>
             </tr>
@@ -74,6 +82,8 @@ export function ProductImportPreviewTable({ rows }: { rows: ImportPreviewRow[] }
                 <td className="px-3 py-2 font-mono text-xs">{r.data.sku ?? "-"}</td>
                 <td className="px-3 py-2 font-medium">{r.data.name ?? "-"}</td>
                 <td className="px-3 py-2 font-mono text-xs">{r.data.barcode ?? "-"}</td>
+                <td className="px-3 py-2 font-mono text-xs">{r.data.qrCode ?? "-"}</td>
+                <td className="px-3 py-2 text-xs">{r.data.productType ?? "SINGLE"}</td>
                 <td className="px-3 py-2">{r.data.category ?? "-"}</td>
                 <td className="px-3 py-2">{r.data.brand ?? "-"}</td>
                 <td className="px-3 py-2">{r.data.supplier ?? "-"}</td>
