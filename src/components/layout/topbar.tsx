@@ -6,9 +6,12 @@ import { AppLogo } from "@/components/brand/app-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Bell, LayoutGrid, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { dashboardCopy, type Locale } from "@/lib/i18n";
 
-export async function Topbar() {
+export async function Topbar({ locale }: { locale: Locale }) {
   const ctx = await getTenantContext();
+  const copy = dashboardCopy[locale];
   return (
     <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 border-b bg-background/82 px-3 shadow-sm shadow-slate-950/5 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 sm:px-4">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -16,6 +19,7 @@ export async function Topbar() {
           permissions={ctx.permissions}
           isSuperAdmin={ctx.isSuperAdmin}
           currentTenantId={ctx.tenantId}
+          locale={locale}
           tenantOptions={ctx.memberships.map((m) => ({
             tenantId: m.tenantId,
             tenantName: m.tenantName,
@@ -39,7 +43,7 @@ export async function Topbar() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             className="h-12 w-full rounded-2xl border bg-muted/35 px-10 text-sm font-medium outline-none ring-offset-background transition focus:border-primary/40 focus:bg-background focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Cari data, produk, atau laporan..."
+            placeholder={copy.topbarSearch}
           />
         </div>
       </div>
@@ -51,6 +55,9 @@ export async function Topbar() {
         <Button variant="ghost" size="sm" className="hidden h-10 w-10 rounded-2xl p-0 hover:bg-muted md:inline-flex" aria-label="Apps">
           <LayoutGrid className="h-4 w-4" />
         </Button>
+        <div className="hidden sm:block">
+          <LanguageSwitcher locale={locale} label={copy.language} description={copy.languageDescription} activeLabel={copy.active} />
+        </div>
         <ThemeToggle />
         <UserMenu name={ctx.userName} email={ctx.userEmail} image={ctx.userImage} />
       </div>

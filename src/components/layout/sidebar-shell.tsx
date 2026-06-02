@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/brand/app-logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { dashboardCopy, type Locale } from "@/lib/i18n";
 
-export function SidebarShell({ permissions, isSuperAdmin }: { permissions: string[]; isSuperAdmin: boolean }) {
+export function SidebarShell({ permissions, isSuperAdmin, locale }: { permissions: string[]; isSuperAdmin: boolean; locale: Locale }) {
   const [collapsed, setCollapsed] = useState(false);
+  const copy = dashboardCopy[locale];
 
   return (
     <aside
@@ -38,7 +40,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
       </div>
       <Separator className="bg-white/10" />
       <div className={cn("min-h-0 flex-1 overflow-y-auto py-2", collapsed && "px-1")}>
-        <SidebarNav variant="sidebar" collapsed={collapsed} permissions={permissions} isSuperAdmin={isSuperAdmin} />
+        <SidebarNav variant="sidebar" collapsed={collapsed} permissions={permissions} isSuperAdmin={isSuperAdmin} locale={locale} />
       </div>
       <div className="border-t border-white/10 px-3 py-3">
         <div className={cn("mb-3", collapsed && "hidden")}>
@@ -46,7 +48,7 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
             <Button asChild className="h-12 w-full justify-start gap-2 rounded-2xl bg-primary shadow-lg shadow-primary/25">
               <Link href="/pos" prefetch>
                 <Plus className="h-4 w-4" />
-                New Transaction
+                {copy.newTransaction}
               </Link>
             </Button>
           ) : null}
@@ -54,12 +56,12 @@ export function SidebarShell({ permissions, isSuperAdmin }: { permissions: strin
         <div className="grid gap-1">
           <Button variant="ghost" className={cn("h-11 justify-start gap-2 rounded-2xl text-white/70 hover:bg-white/10 hover:text-white", collapsed && "justify-center px-2")}>
             <HelpCircle className="h-4 w-4" />
-            <span className={cn(collapsed && "sr-only")}>Help Center</span>
+            <span className={cn(collapsed && "sr-only")}>{copy.helpCenter}</span>
           </Button>
           <Button asChild variant="ghost" className={cn("h-11 justify-start gap-2 rounded-2xl text-white/70 hover:bg-white/10 hover:text-white", collapsed && "justify-center px-2")}>
             <Link href="/api/auth/signout">
               <LogOut className="h-4 w-4" />
-              <span className={cn(collapsed && "sr-only")}>Logout</span>
+              <span className={cn(collapsed && "sr-only")}>{copy.logout}</span>
             </Link>
           </Button>
         </div>

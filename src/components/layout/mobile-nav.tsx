@@ -10,19 +10,24 @@ import { AppLogo } from "@/components/brand/app-logo";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { TenantSwitcher, type TenantOption } from "@/components/layout/tenant-switcher";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { dashboardCopy, type Locale } from "@/lib/i18n";
 
 export function MobileNav({
   permissions,
   isSuperAdmin,
   currentTenantId,
   tenantOptions,
+  locale,
 }: {
   permissions: string[];
   isSuperAdmin: boolean;
   currentTenantId: string;
   tenantOptions: TenantOption[];
+  locale: Locale;
 }) {
   const [open, setOpen] = useState(false);
+  const copy = dashboardCopy[locale];
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -47,7 +52,7 @@ export function MobileNav({
           <div className="mt-5 rounded-3xl border border-white/10 bg-white/10 p-3 shadow-xl shadow-slate-950/20 backdrop-blur">
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
               <Sparkles className="h-3.5 w-3.5" />
-              Tenant aktif
+              {copy.activeTenant}
             </div>
             <TenantSwitcher currentTenantId={currentTenantId} options={tenantOptions} />
           </div>
@@ -62,8 +67,11 @@ export function MobileNav({
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               className="h-12 w-full rounded-2xl border bg-muted/40 px-10 text-sm font-medium outline-none ring-offset-background transition focus:border-primary/40 focus:bg-background focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Cari menu..."
+              placeholder={copy.searchMenu}
             />
+          </div>
+          <div className="mt-3">
+            <LanguageSwitcher locale={locale} label={copy.language} description={copy.languageDescription} activeLabel={copy.active} />
           </div>
 
           {isSuperAdmin || permissions.includes(PERMISSIONS.sales_write) ? (
@@ -71,7 +79,7 @@ export function MobileNav({
               <Button asChild className="h-12 w-full justify-start gap-2 rounded-2xl shadow-lg shadow-primary/20" onClick={() => setOpen(false)}>
                 <Link href="/pos" prefetch>
                   <Plus className="h-4 w-4" />
-                  New Transaction
+                  {copy.newTransaction}
                 </Link>
               </Button>
             </div>
@@ -81,7 +89,7 @@ export function MobileNav({
         <Separator />
 
         <div className="flex-1 overflow-y-auto py-2">
-          <SidebarNav variant="sheet" onNavigate={() => setOpen(false)} permissions={permissions} isSuperAdmin={isSuperAdmin} />
+          <SidebarNav variant="sheet" onNavigate={() => setOpen(false)} permissions={permissions} isSuperAdmin={isSuperAdmin} locale={locale} />
         </div>
 
         <Separator />
@@ -89,12 +97,12 @@ export function MobileNav({
         <div className="grid gap-1 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button type="button" variant="ghost" className="h-11 justify-start gap-2 rounded-2xl" onClick={() => setOpen(false)}>
             <HelpCircle className="h-4 w-4" />
-            Help Center
+            {copy.helpCenter}
           </Button>
           <Button asChild type="button" variant="ghost" className="h-11 justify-start gap-2 rounded-2xl">
             <Link href="/api/auth/signout">
               <LogOut className="h-4 w-4" />
-              Logout
+              {copy.logout}
             </Link>
           </Button>
         </div>

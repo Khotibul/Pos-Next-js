@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Separator } from "@/components/ui/separator";
 import { AppLogo } from "@/components/brand/app-logo";
 import { cn } from "@/lib/utils";
+import { PublicLanguageSwitcher } from "@/components/layout/public-language-switcher";
 
 const links = [
   { href: "/", label: "Beranda" },
@@ -46,6 +47,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <PublicLanguageSwitcher />
           <Button asChild variant="ghost" size="sm" className="hidden rounded-xl font-semibold lg:inline-flex">
             <Link href="/login">Masuk</Link>
           </Button>
@@ -96,6 +98,7 @@ export function SiteHeader() {
                 </Link>
               ))}
               <div className="mt-3 grid gap-2 px-1">
+                <PublicLanguageSwitcher compact />
                 <Button asChild className="h-12 w-full rounded-2xl shadow-lg shadow-primary/20">
                   <Link href="/register" onClick={() => setOpen(false)}>
                     Get Started

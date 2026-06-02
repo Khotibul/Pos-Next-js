@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "@/components/layout/nav";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { navLabel, type Locale } from "@/lib/i18n";
 
 export function SidebarNav({
   onNavigate,
@@ -12,12 +13,14 @@ export function SidebarNav({
   permissions,
   isSuperAdmin,
   variant = "sidebar",
+  locale = "id",
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
   permissions?: string[];
   isSuperAdmin?: boolean;
   variant?: "sidebar" | "sheet";
+  locale?: Locale;
 }) {
   const pathname = usePathname() ?? "";
 
@@ -70,12 +73,13 @@ export function SidebarNav({
               const Icon = item.icon;
               const match = ("match" in item && typeof item.match === "string" ? item.match : item.href) as string;
               const active = pathname === match || pathname === item.href || pathname.startsWith(`${match}/`);
+              const label = navLabel(item.label, locale);
               const link = (
                 <Link href={item.href} prefetch onClick={onNavigate} className={linkClass(active)}>
                   <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-colors", active ? "bg-white/15" : variant === "sidebar" ? "bg-white/5 group-hover:bg-white/10" : "bg-muted group-hover:bg-background")}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
+                  <span className={cn("truncate", collapsed && "sr-only")}>{label}</span>
                 </Link>
               );
 
@@ -84,7 +88,7 @@ export function SidebarNav({
               return (
                 <Tooltip key={item.href}>
                   <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
+                  <TooltipContent side="right">{label}</TooltipContent>
                 </Tooltip>
               );
             })}
