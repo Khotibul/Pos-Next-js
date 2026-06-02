@@ -16,6 +16,7 @@ export default async function PosPage() {
 
   const [products, printerSettings] = await Promise.all([
     prisma.product.findMany({
+      where: { tenantId: ctx.tenantId, isActive: true },
       orderBy: { updatedAt: "desc" },
       take: 60,
       select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
