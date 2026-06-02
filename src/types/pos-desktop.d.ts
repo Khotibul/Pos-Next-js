@@ -53,6 +53,18 @@ declare global {
       device: {
         getInfo: () => Promise<PosDesktopDeviceInfo>;
       };
+      database: {
+        ensure: () => Promise<
+          PosDesktopApiResult<{
+            ready: boolean;
+            userData: string;
+            dataDir: string;
+            backupDir: string;
+            logsDir: string;
+            message?: string;
+          }>
+        >;
+      };
       license: {
         getCurrent: () => Promise<PosDesktopLicenseGetCurrent>;
         activateTrial: (input: { companyName: string; ownerName: string; email: string; phone: string; days: number }) => Promise<PosDesktopLicenseActivateTrial>;

@@ -3,7 +3,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   // Production package name (avoid com.example/com.test).
   appId: "com.pospro.mobile",
-  appName: "POS Pro",
+  appName: "POSQU Pro",
   // Minimal local web assets for Capacitor bootstrap. The app uses hosted renderer (server.url) by default.
   webDir: "mobile/web",
   server: {

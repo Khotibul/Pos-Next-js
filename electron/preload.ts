@@ -26,6 +26,13 @@ const api = {
   device: {
     getInfo: async (): Promise<DeviceInfo> => ipcRenderer.invoke("device:getInfo"),
   },
+  database: {
+    ensure: async (): Promise<{
+      ok: boolean;
+      data?: { ready: boolean; userData: string; dataDir: string; backupDir: string; logsDir: string; message?: string };
+      message?: string;
+    }> => ipcRenderer.invoke("database:ensure"),
+  },
   license: {
     getCurrent: async () => ipcRenderer.invoke("license:getCurrent"),
     activateTrial: async (input: { companyName: string; ownerName: string; email: string; phone: string; days: number }) =>

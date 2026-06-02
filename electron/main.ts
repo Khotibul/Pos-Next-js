@@ -166,6 +166,19 @@ async function ensureDesktopDb() {
   return desktopDbOpening;
 }
 
+async function resetAndEnsureDesktopDb() {
+  if (desktopDb) {
+    try {
+      await desktopDb.close();
+    } catch {
+      // ignore close errors
+    }
+  }
+  desktopDb = null;
+  desktopDbOpening = null;
+  return ensureDesktopDb();
+}
+
 function desktopDbNotReadyMessage(error?: unknown) {
   const reason =
     error instanceof Error
@@ -388,6 +401,36 @@ ipcMain.handle("device:getInfo", async () => {
     platform: process.platform,
     arch: process.arch,
   };
+});
+
+ipcMain.handle("database:ensure", async () => {
+  const paths = getAppPaths();
+  try {
+    await resetAndEnsureDesktopDb();
+    return {
+      ok: true,
+      data: {
+        ready: true,
+        userData: paths.userData,
+        dataDir: paths.dataDir,
+        backupDir: paths.backupDir,
+        logsDir: paths.logsDir,
+        message: "Database SQLite desktop siap.",
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: desktopDbNotReadyMessage(error),
+      data: {
+        ready: false,
+        userData: paths.userData,
+        dataDir: paths.dataDir,
+        backupDir: paths.backupDir,
+        logsDir: paths.logsDir,
+      },
+    };
+  }
 });
 
 ipcMain.handle("license:getCurrent", async () => {

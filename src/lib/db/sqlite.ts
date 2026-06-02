@@ -1,6 +1,5 @@
-import fs from "node:fs";
 import Database from "better-sqlite3";
-import { ensureParentDir } from "./connection.js";
+import { backupSqliteFiles, ensureParentDir } from "./connection.js";
 
 export type QueryResultRow = Record<string, unknown>;
 
@@ -29,8 +28,19 @@ export class SqliteDb implements DesktopDb {
   static async openOrCreate(opts: SqliteDbOptions) {
     ensureParentDir(opts.dbPath);
     const db = new SqliteDb(opts);
-    await db.connect();
-    await db.ensureSchema();
+    try {
+      await db.connect();
+      await db.ensureSchema();
+      await db.ensureHealthy();
+    } catch {
+      await db.close().catch(() => undefined);
+      backupSqliteFiles(opts.dbPath, "open-failed");
+      const repaired = new SqliteDb(opts);
+      await repaired.connect();
+      await repaired.ensureSchema();
+      await repaired.ensureHealthy();
+      return repaired;
+    }
     return db;
   }
 
@@ -39,10 +49,6 @@ export class SqliteDb implements DesktopDb {
 
     // Ensure parent exists even if called directly.
     ensureParentDir(this.dbPath);
-    if (!fs.existsSync(this.dbPath)) {
-      fs.writeFileSync(this.dbPath, "");
-    }
-
     const db = new Database(this.dbPath, {
       fileMustExist: false,
       timeout: 5_000,
@@ -79,6 +85,15 @@ export class SqliteDb implements DesktopDb {
     const db = this.db!;
     const wrapped = db.transaction(() => fn(this));
     return wrapped();
+  }
+
+  async ensureHealthy() {
+    if (!this.db) await this.connect();
+    const row = this.db!.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
+    const result = row ? String(Object.values(row)[0] ?? "") : "";
+    if (result.toLowerCase() !== "ok") {
+      throw new Error(`SQLite integrity check gagal: ${result || "unknown"}`);
+    }
   }
 
   async ensureSchema() {
@@ -260,6 +275,8 @@ export class SqliteDb implements DesktopDb {
         saleId TEXT NOT NULL,
         method TEXT NOT NULL,
         amount REAL,
+        receivedAmount REAL,
+        changeAmount REAL,
         reference TEXT,
         createdAt TEXT,
         FOREIGN KEY (saleId) REFERENCES Sale(id)
@@ -286,6 +303,17 @@ export class SqliteDb implements DesktopDb {
     }
     if (!syncCols.includes("lastSyncedAt")) {
       db.exec("ALTER TABLE SyncQueue ADD COLUMN lastSyncedAt TEXT;");
+    }
+
+    const paymentCols = db
+      .prepare("PRAGMA table_info('Payment')")
+      .all()
+      .map((r) => String((r as { name?: unknown }).name));
+    if (!paymentCols.includes("receivedAmount")) {
+      db.exec("ALTER TABLE Payment ADD COLUMN receivedAmount REAL;");
+    }
+    if (!paymentCols.includes("changeAmount")) {
+      db.exec("ALTER TABLE Payment ADD COLUMN changeAmount REAL;");
     }
   }
 }

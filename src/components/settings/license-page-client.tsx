@@ -42,6 +42,13 @@ export function LicensePageClient() {
     setNotice(null);
     if (!isDesktop || !window.posDesktop) return;
     try {
+      const ensured = await window.posDesktop.database.ensure();
+      if (ensured.ok !== true) {
+        setNotice({
+          tone: "error",
+          message: isRecord(ensured) && typeof ensured.message === "string" ? ensured.message : "Database desktop belum siap.",
+        });
+      }
       const info = await window.posDesktop.device.getInfo();
       setDevice(info);
       const res = await window.posDesktop.license.getCurrent();
@@ -49,7 +56,7 @@ export function LicensePageClient() {
         setLicense(res.data.license ?? null);
         setValid(res.data.valid ?? null);
       } else {
-      setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Gagal memuat data lisensi." });
+        setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Gagal memuat data lisensi." });
       }
     } catch (error) {
       setNotice({ tone: "error", message: error instanceof Error ? error.message : "Gagal memuat data lisensi desktop." });
@@ -117,9 +124,40 @@ export function LicensePageClient() {
             </div>
           )}
 
-          <Button type="button" variant="outline" className="rounded-xl" onClick={() => start(refresh)} disabled={pending || !isDesktop}>
-            {pending ? "Memuat..." : "Refresh"}
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => start(refresh)}
+              disabled={pending || !isDesktop}
+            >
+              {pending ? "Memuat..." : "Refresh"}
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl"
+              onClick={() => {
+                setNotice(null);
+                start(async () => {
+                  if (!window.posDesktop) return;
+                  const res = await window.posDesktop.database.ensure();
+                  if (res.ok !== true) {
+                    setNotice({
+                      tone: "error",
+                      message: isRecord(res) && typeof res.message === "string" ? res.message : "Database desktop belum siap.",
+                    });
+                    return;
+                  }
+                  await refresh();
+                  setNotice({ tone: "success", message: res.data.message ?? "Database SQLite desktop siap." });
+                });
+              }}
+              disabled={pending || !isDesktop}
+            >
+              Siapkan Database
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -143,6 +181,14 @@ export function LicensePageClient() {
                 onClick={() => {
                   setNotice(null);
                   start(async () => {
+                    const dbReady = await window.posDesktop!.database.ensure();
+                    if (dbReady.ok !== true) {
+                      setNotice({
+                        tone: "error",
+                        message: isRecord(dbReady) && typeof dbReady.message === "string" ? dbReady.message : "Database desktop belum siap.",
+                      });
+                      return;
+                    }
                     const res = await window.posDesktop!.license.activateKey({ serial: serial.trim() });
                     if (!isRecord(res) || res.ok !== true) {
                       setNotice({ tone: "error", message: isRecord(res) && typeof res.message === "string" ? res.message : "Aktivasi serial gagal." });
@@ -196,6 +242,14 @@ export function LicensePageClient() {
                 onClick={() => {
                   setNotice(null);
                   start(async () => {
+                    const dbReady = await window.posDesktop!.database.ensure();
+                    if (dbReady.ok !== true) {
+                      setNotice({
+                        tone: "error",
+                        message: isRecord(dbReady) && typeof dbReady.message === "string" ? dbReady.message : "Database desktop belum siap.",
+                      });
+                      return;
+                    }
                     const res = await window.posDesktop!.license.activateTrial({
                       companyName,
                       ownerName,
