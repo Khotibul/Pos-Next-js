@@ -6,11 +6,44 @@ import { isAppError } from "@/lib/errors";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type XlsxModule = {
+  utils: {
+    json_to_sheet: (data: Array<Record<string, unknown>>, opts?: { header?: string[] }) => Record<string, unknown>;
+    sheet_add_aoa: (sheet: Record<string, unknown>, data: string[][], opts?: { origin?: string }) => void;
+    book_new: () => unknown;
+    book_append_sheet: (workbook: unknown, sheet: Record<string, unknown>, name: string) => void;
+    aoa_to_sheet: (data: string[][]) => Record<string, unknown>;
+  };
+  write: (workbook: unknown, opts: { type: "buffer"; bookType: "xlsx" }) => Buffer;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function getXlsxModule(mod: unknown): XlsxModule {
+  const candidate = isRecord(mod) && isRecord(mod.default) ? mod.default : mod;
+  if (!isRecord(candidate) || !isRecord(candidate.utils) || typeof candidate.write !== "function") {
+    throw new Error("Library Excel gagal dimuat.");
+  }
+  const utils = candidate.utils;
+  if (
+    typeof utils.json_to_sheet !== "function" ||
+    typeof utils.sheet_add_aoa !== "function" ||
+    typeof utils.book_new !== "function" ||
+    typeof utils.book_append_sheet !== "function" ||
+    typeof utils.aoa_to_sheet !== "function"
+  ) {
+    throw new Error("Library Excel gagal dimuat.");
+  }
+  return candidate as XlsxModule;
+}
+
 export async function GET() {
   try {
     await requirePermission(PERMISSIONS.products_import);
 
-    const XLSX = await import("xlsx");
+    const XLSX = getXlsxModule(await import("xlsx"));
 
     const headers = [
       "name",

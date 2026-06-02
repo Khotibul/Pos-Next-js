@@ -29,6 +29,89 @@ function toRecord(row: Record<string, unknown>) {
   return out;
 }
 
+type XlsxModule = {
+  read: (data: ArrayBuffer, opts: { type: "array"; cellDates?: boolean }) => { SheetNames: string[]; Sheets: Record<string, unknown> };
+  utils: {
+    sheet_to_json: (sheet: unknown, opts: { defval: string; raw?: boolean; dateNF?: string }) => Array<Record<string, unknown>>;
+  };
+};
+
+function getXlsxModule(mod: unknown): XlsxModule {
+  const candidate = isRecord(mod) && isRecord(mod.default) ? mod.default : mod;
+  if (!isRecord(candidate)) {
+    throw new Error("Library Excel gagal dimuat. Silakan refresh halaman lalu coba lagi.");
+  }
+  const read = candidate.read;
+  const utils = candidate.utils;
+  if (typeof read !== "function" || !isRecord(utils) || typeof utils.sheet_to_json !== "function") {
+    throw new Error("Library Excel gagal dimuat. Silakan refresh halaman lalu coba lagi.");
+  }
+  return candidate as XlsxModule;
+}
+
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let current = "";
+  let row: string[] = [];
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === "," && !quoted) {
+      row.push(current);
+      current = "";
+      continue;
+    }
+    if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") i += 1;
+      row.push(current);
+      if (row.some((cell) => cell.trim() !== "")) rows.push(row);
+      row = [];
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  row.push(current);
+  if (row.some((cell) => cell.trim() !== "")) rows.push(row);
+
+  const [headers, ...body] = rows;
+  if (!headers || headers.length === 0) return [];
+  return body.map((cells) => {
+    const item: Record<string, unknown> = {};
+    headers.forEach((header, index) => {
+      item[header] = cells[index] ?? "";
+    });
+    return item;
+  });
+}
+
+async function parseSpreadsheet(file: File) {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (ext === "csv") {
+    return parseCsv(await file.text());
+  }
+
+  const XLSX = getXlsxModule(await import("xlsx"));
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) throw new Error("Sheet tidak ditemukan.");
+  const ws = wb.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json(ws, { defval: "", raw: false, dateNF: "yyyy-mm-dd" }) as Array<Record<string, unknown>>;
+}
+
 export function ProductImportUploader() {
   const [state, setState] = useState<ImportState>({ step: "idle" });
   const [err, setErr] = useState<string | null>(null);
@@ -45,13 +128,8 @@ export function ProductImportUploader() {
     setErr(null);
     setState({ step: "parsing" });
 
-    const { default: XLSX } = await import("xlsx");
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array", cellDates: true });
-    const sheetName = wb.SheetNames[0];
-    if (!sheetName) throw new Error("Sheet tidak ditemukan.");
-    const ws = wb.Sheets[sheetName];
-    const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Array<Record<string, unknown>>;
+    const json = await parseSpreadsheet(file);
+    if (json.length === 0) throw new Error("File tidak memiliki data produk.");
     const normalized = json.map(toRecord);
 
     // Map common headers to expected keys
