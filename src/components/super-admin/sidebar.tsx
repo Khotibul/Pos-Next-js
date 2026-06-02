@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { SUPER_ADMIN_NAV } from "@/components/super-admin/nav";
 
 export function SuperAdminSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   return (
     <aside className="hidden w-72 border-r border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.28),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.96))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-slate-950/10 md:flex md:flex-col">
       <div className="flex h-16 items-center px-5">

@@ -17,7 +17,7 @@ type ReceiptSale = {
   tax: number;
   total: number;
   items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-  payments: Array<{ id: string; method: string; amount: number; reference: string | null }>;
+  payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
 };
 
 function requestPrint() {

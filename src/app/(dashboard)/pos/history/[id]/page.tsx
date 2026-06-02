@@ -48,6 +48,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       id: pmt.id,
       method: pmt.method,
       amount: toNumber(pmt.amount),
+      receivedAmount: toNumber(pmt.receivedAmount),
+      changeAmount: toNumber(pmt.changeAmount),
       reference: pmt.reference ?? null,
     })),
   };
@@ -130,9 +132,15 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 <div className="text-sm text-muted-foreground">-</div>
               ) : (
                 sale.payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-xl border bg-background p-3">
-                    <div className="text-sm font-medium">{p.method}</div>
-                    <div className="text-sm font-semibold">{rupiah(p.amount)}</div>
+                  <div key={p.id} className="grid gap-2 rounded-xl border bg-background p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">{p.method}</div>
+                      <div className="text-sm font-semibold">{rupiah(p.receivedAmount)}</div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Kembalian</span>
+                      <span>{rupiah(p.changeAmount)}</span>
+                    </div>
                   </div>
                 ))
               )}

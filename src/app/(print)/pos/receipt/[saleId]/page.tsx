@@ -52,6 +52,8 @@ export default async function ReceiptPage({
       id: pmt.id,
       method: pmt.method,
       amount: toNumber(pmt.amount),
+      receivedAmount: toNumber(pmt.receivedAmount),
+      changeAmount: toNumber(pmt.changeAmount),
       reference: pmt.reference,
     })),
   };
@@ -64,4 +66,3 @@ export default async function ReceiptPage({
     </div>
   );
 }
-

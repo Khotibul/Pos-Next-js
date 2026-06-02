@@ -65,7 +65,37 @@ export function PrinterSettingsForm({
         <FieldError msg={fieldErrors.footerNote} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 rounded-2xl border bg-muted/10 p-4">
+        <div>
+          <div className="text-sm font-semibold">Custom Keranjang POS</div>
+          <div className="mt-1 text-xs text-muted-foreground">Atur field yang tampil di keranjang kasir. Jika pajak/diskon dimatikan, POS tidak akan mengenakan nilai tersebut.</div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="cartShowSku" defaultChecked={initial.cartShowSku} />
+            Tampilkan SKU di keranjang
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="cartShowStock" defaultChecked={initial.cartShowStock} />
+            Tampilkan stok produk
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="cartShowDiscount" defaultChecked={initial.cartShowDiscount} />
+            Aktifkan diskon di keranjang
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="cartShowTax" defaultChecked={initial.cartShowTax} />
+            Aktifkan pajak di keranjang
+          </label>
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-2xl border bg-muted/10 p-4">
+        <div>
+          <div className="text-sm font-semibold">Tampilan Struk</div>
+          <div className="mt-1 text-xs text-muted-foreground">Hasil cetak mengikuti setting ini agar sinkron dengan keranjang POS.</div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="autoPrintAfterPayment" defaultChecked={initial.autoPrintAfterPayment} />
           Auto print setelah transaksi selesai
@@ -82,6 +112,15 @@ export function PrinterSettingsForm({
           <input type="checkbox" name="showTax" defaultChecked={initial.showTax} />
           Tampilkan pajak
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="showSkuOnReceipt" defaultChecked={initial.showSkuOnReceipt} />
+          Tampilkan SKU item
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="showUnitPriceOnReceipt" defaultChecked={initial.showUnitPriceOnReceipt} />
+          Tampilkan harga satuan
+        </label>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">

@@ -11,6 +11,12 @@ export const PrinterSettingsSchema = z.object({
   footerNote: z.string().trim().max(160).default("Terima kasih sudah berbelanja."),
   showTax: z.boolean().default(true),
   showDiscount: z.boolean().default(true),
+  showSkuOnReceipt: z.boolean().default(true),
+  showUnitPriceOnReceipt: z.boolean().default(true),
+  cartShowSku: z.boolean().default(true),
+  cartShowStock: z.boolean().default(true),
+  cartShowDiscount: z.boolean().default(true),
+  cartShowTax: z.boolean().default(true),
 });
 
 export type PrinterSettings = z.infer<typeof PrinterSettingsSchema>;
@@ -36,7 +42,30 @@ export const UpdatePrinterSettingsFormSchema = z.object({
     .union([z.boolean(), z.string()])
     .optional()
     .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  showSkuOnReceipt: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  showUnitPriceOnReceipt: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  cartShowSku: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  cartShowStock: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  cartShowDiscount: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  cartShowTax: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
 });
 
 export type UpdatePrinterSettingsForm = z.infer<typeof UpdatePrinterSettingsFormSchema>;
-

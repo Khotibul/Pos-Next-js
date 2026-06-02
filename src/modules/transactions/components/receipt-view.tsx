@@ -14,7 +14,7 @@ type ReceiptSale = {
   tax: number;
   total: number;
   items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-  payments: Array<{ id: string; method: string; amount: number; reference: string | null }>;
+  payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
 };
 
 function rupiah(value: number) {
@@ -103,7 +103,16 @@ export function ReceiptView({
                 </div>
                 <div className="bold">{rupiah(i.lineTotal)}</div>
               </div>
-              <div className="muted">{`${i.qty} x ${rupiah(i.price)}`}</div>
+              {printer.showUnitPriceOnReceipt || printer.showSkuOnReceipt ? (
+                <div className="muted">
+                  {[
+                    printer.showUnitPriceOnReceipt ? `${i.qty} x ${rupiah(i.price)}` : `${i.qty} item`,
+                    printer.showSkuOnReceipt ? `SKU: ${i.sku}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -143,9 +152,27 @@ export function ReceiptView({
             <div className="muted">-</div>
           ) : (
             sale.payments.map((p) => (
-              <div key={p.id} className="row">
-                <span>{p.method}</span>
-                <span>{rupiah(p.amount)}</span>
+              <div key={p.id} style={{ display: "grid", gap: 4 }}>
+                <div className="row">
+                  <span>Metode</span>
+                  <span className="bold">{p.method}</span>
+                </div>
+                <div className="row">
+                  <span>Dibayarkan</span>
+                  <span>{rupiah(p.receivedAmount || p.amount)}</span>
+                </div>
+                {p.changeAmount > 0 ? (
+                  <div className="row">
+                    <span>Kembalian</span>
+                    <span>{rupiah(p.changeAmount)}</span>
+                  </div>
+                ) : null}
+                {p.reference ? (
+                  <div className="row muted">
+                    <span>Ref</span>
+                    <span>{p.reference}</span>
+                  </div>
+                ) : null}
               </div>
             ))
           )}

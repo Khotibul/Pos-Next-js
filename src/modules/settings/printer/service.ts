@@ -13,6 +13,12 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = PrinterSettingsSchema.p
   footerNote: "Terima kasih sudah berbelanja.",
   showTax: true,
   showDiscount: true,
+  showSkuOnReceipt: true,
+  showUnitPriceOnReceipt: true,
+  cartShowSku: true,
+  cartShowStock: true,
+  cartShowDiscount: true,
+  cartShowTax: true,
 });
 
 export async function getPrinterSettings(params: { tenantId: string }): Promise<PrinterSettings> {
@@ -34,9 +40,14 @@ export async function updatePrinterSettings(params: { tenantId: string; input: u
     footerNote: parsed.data.footerNote ?? "",
     showTax: parsed.data.showTax ?? true,
     showDiscount: parsed.data.showDiscount ?? true,
+    showSkuOnReceipt: parsed.data.showSkuOnReceipt ?? true,
+    showUnitPriceOnReceipt: parsed.data.showUnitPriceOnReceipt ?? true,
+    cartShowSku: parsed.data.cartShowSku ?? true,
+    cartShowStock: parsed.data.cartShowStock ?? true,
+    cartShowDiscount: parsed.data.cartShowDiscount ?? true,
+    cartShowTax: parsed.data.cartShowTax ?? true,
   });
 
   await setSetting({ tenantId: params.tenantId, key: SETTINGS_KEYS.printer, value: normalized });
   return { ok: true as const, data: normalized };
 }
-

@@ -1064,6 +1064,8 @@ model Payment {
   saleId    String
   method    String
   amount    Decimal  @default(0)
+  receivedAmount Decimal @default(0)
+  changeAmount   Decimal @default(0)
   reference String?
   createdAt DateTime @default(now())
 

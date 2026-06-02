@@ -19,7 +19,7 @@ export function SidebarNav({
   isSuperAdmin?: boolean;
   variant?: "sidebar" | "sheet";
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   const allowed = (item: (typeof NAV_ITEMS)[number]) => {
     if ("superAdminOnly" in item && item.superAdminOnly && !isSuperAdmin) return false;

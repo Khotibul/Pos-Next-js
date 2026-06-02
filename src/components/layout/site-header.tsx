@@ -20,7 +20,7 @@ const links = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/78 shadow-sm shadow-slate-950/[0.03] backdrop-blur-2xl supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">

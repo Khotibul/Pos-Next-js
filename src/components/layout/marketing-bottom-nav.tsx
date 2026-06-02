@@ -14,7 +14,7 @@ const items = [
 ] as const;
 
 export function MarketingBottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/88 shadow-[0_-18px_50px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:hidden">
       <div className="mx-auto grid max-w-6xl grid-cols-5 px-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">

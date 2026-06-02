@@ -92,8 +92,10 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
   const discount = params.input.discount ?? 0;
   const tax = Math.max(0, (subtotal - discount) * ((params.input.taxRate ?? 0) / 100));
   const total = Math.max(0, subtotal - discount + tax);
+  const receivedAmount = params.input.payment.receivedAmount ?? params.input.payment.amount;
+  const changeAmount = Math.max(0, params.input.payment.changeAmount ?? receivedAmount - total);
 
-  if (params.input.payment.amount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
+  if (params.input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
 
   const invoiceNo = inv("TRX");
 
@@ -124,7 +126,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
           create: {
             tenantId: params.tenantId,
             method: params.input.payment.method,
-            amount: params.input.payment.amount,
+            amount: total,
+            receivedAmount,
+            changeAmount,
             reference: params.input.payment.reference || null,
           },
         },

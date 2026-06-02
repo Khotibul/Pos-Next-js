@@ -8,17 +8,29 @@ import { requirePermission } from "@/lib/permissions";
 import { requireCanTransact } from "@/lib/guards/require-can-transact";
 import { prisma } from "@/lib/prisma";
 import { PosScreen } from "@/modules/transactions/components/pos-screen";
+import { getPrinterSettings } from "@/modules/settings/printer/service";
 
 export default async function PosPage() {
   const ctx = await requirePermission(PERMISSIONS.sales_write);
   await requireCanTransact({ tenantId: ctx.tenantId, userId: ctx.userId });
 
-  const products = await prisma.product.findMany({
-    where: { tenantId: ctx.tenantId, isActive: true },
-    orderBy: { updatedAt: "desc" },
-    take: 60,
-    select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
-  });
+  const [products, printerSettings] = await Promise.all([
+    prisma.product.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 60,
+      select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
+    }),
+    getPrinterSettings({ tenantId: ctx.tenantId }),
+  ]);
+  const stockRows =
+    products.length === 0
+      ? []
+      : await prisma.productWarehouseStock.groupBy({
+          by: ["productId"],
+          where: { tenantId: ctx.tenantId, productId: { in: products.map((p) => p.id) } },
+          _sum: { qty: true },
+        });
+  const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.qty ?? 0)]));
 
   return (
     <div className="grid gap-4">
@@ -48,6 +60,7 @@ export default async function PosPage() {
         </Card>
       ) : (
         <PosScreen
+          initialSettings={printerSettings}
           products={products.map((p) => ({
             id: p.id,
             name: p.name,
@@ -55,6 +68,7 @@ export default async function PosPage() {
             barcode: p.barcode,
             qrCode: p.qrCode,
             price: Number(p.sellingPrice),
+            stock: stockByProductId.get(p.id) ?? 0,
           }))}
         />
       )}

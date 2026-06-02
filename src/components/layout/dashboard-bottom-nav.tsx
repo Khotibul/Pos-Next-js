@@ -23,7 +23,7 @@ export type DashboardNavItem = {
 };
 
 export function DashboardBottomNav({ items }: { items: DashboardNavItem[] }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   if (items.length === 0) return null;
 
   return (

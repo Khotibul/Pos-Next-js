@@ -15,8 +15,9 @@ function toIsoDateOnly(dateOnly: string) {
 
 export function RangeTabs() {
   const router = useRouter();
-  const pathname = usePathname();
-  const sp = useSearchParams();
+  const pathname = usePathname() ?? "/reports";
+  const searchParams = useSearchParams();
+  const sp = useMemo(() => new URLSearchParams(searchParams?.toString() ?? ""), [searchParams]);
   const preset = (sp.get("preset") as Preset) || "7d";
   const [from, setFrom] = useState(sp.get("from") ?? "");
   const [to, setTo] = useState(sp.get("to") ?? "");
@@ -100,4 +101,3 @@ export function RangeTabs() {
     </div>
   );
 }
-

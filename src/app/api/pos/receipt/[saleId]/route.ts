@@ -46,6 +46,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
           id: pmt.id,
           method: pmt.method,
           amount: toNumber(pmt.amount),
+          receivedAmount: toNumber(pmt.receivedAmount),
+          changeAmount: toNumber(pmt.changeAmount),
           reference: pmt.reference ?? null,
         })),
       },

@@ -13,6 +13,7 @@ import { PrintReceiptDialog } from "@/modules/transactions/components/print-rece
 import { QrScannerDialog } from "@/components/pos/qr-scanner-dialog";
 import { OpenShiftDialog } from "@/components/shifts/open-shift-dialog";
 import { ScanLine } from "lucide-react";
+import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 type Product = {
   id: string;
@@ -21,6 +22,7 @@ type Product = {
   price: number;
   barcode?: string | null;
   qrCode?: string | null;
+  stock?: number;
 };
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
@@ -29,7 +31,7 @@ function rupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 }
 
-export function PosScreen({ products }: { products: Product[] }) {
+export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -43,7 +45,7 @@ export function PosScreen({ products }: { products: Product[] }) {
   const [invoice, setInvoice] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
   const [printPayload, setPrintPayload] = useState<{ saleId: string; auto: boolean } | null>(null);
-  const [autoPrint, setAutoPrint] = useState<boolean | null>(null);
+  const [settings, setSettings] = useState<PrinterSettings>(initialSettings);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [extraProducts, setExtraProducts] = useState<Product[]>([]);
   const [openShiftId, setOpenShiftId] = useState<string | null>(null);
@@ -57,12 +59,10 @@ export function PosScreen({ products }: { products: Product[] }) {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (ignore) return;
-        const v = data?.data?.autoPrintAfterPayment;
-        setAutoPrint(typeof v === "boolean" ? v : false);
+        if (data?.data) setSettings(data.data as PrinterSettings);
       })
       .catch(() => {
-        if (ignore) return;
-        setAutoPrint(false);
+        // Keep server-provided initial settings.
       });
     return () => {
       ignore = true;
@@ -134,9 +134,11 @@ export function PosScreen({ products }: { products: Product[] }) {
       .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
   }, [cart, allProducts]);
 
+  const effectiveDiscount = settings.cartShowDiscount ? discount : 0;
+  const effectiveTaxRate = settings.cartShowTax ? taxRate : 0;
   const subtotal = lines.reduce((a, l) => a + l.lineTotal, 0);
-  const tax = Math.max(0, (subtotal - discount) * (taxRate / 100));
-  const total = Math.max(0, subtotal - discount + tax);
+  const tax = Math.max(0, (subtotal - effectiveDiscount) * (effectiveTaxRate / 100));
+  const total = Math.max(0, subtotal - effectiveDiscount + tax);
   const cashChange = Math.max(0, cashPaid - total);
   const cashShortage = Math.max(0, total - cashPaid);
 
@@ -177,8 +179,8 @@ export function PosScreen({ products }: { products: Product[] }) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="order-2 lg:order-1 lg:col-span-2">
+    <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+      <div className="order-2 min-w-0 xl:order-1">
         <div className="sticky top-[72px] z-10 mb-4 rounded-2xl border bg-background/90 p-3 backdrop-blur">
           <div className="flex gap-2">
             <div className="flex-1">
@@ -196,7 +198,7 @@ export function PosScreen({ products }: { products: Product[] }) {
             </Button>
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((p) => (
             <button
               key={p.id}
@@ -207,22 +209,28 @@ export function PosScreen({ products }: { products: Product[] }) {
               <div className="text-sm font-semibold">{p.name}</div>
               <div className="mt-1 text-xs text-muted-foreground">{p.sku}</div>
               <div className="mt-3 text-lg font-semibold text-primary">{rupiah(p.price)}</div>
-              <div className="mt-2 text-xs text-muted-foreground">Klik untuk tambah ke keranjang</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Klik untuk tambah</span>
+                {settings.cartShowStock ? <Badge variant="secondary">Stok {Number(p.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+              </div>
             </button>
           ))}
         </div>
       </div>
 
-      <Card className="order-1 lg:order-2 lg:sticky lg:top-[72px] lg:h-[calc(100vh-96px)]">
-        <CardHeader className="py-4">
-          <CardTitle className="text-base">Keranjang Belanja</CardTitle>
-          {invoice ? <Badge variant="secondary">Order {invoice}</Badge> : null}
+      <Card className="order-1 flex min-h-0 flex-col overflow-hidden rounded-3xl xl:sticky xl:top-[72px] xl:order-2 xl:max-h-[calc(100vh-96px)]">
+        <CardHeader className="shrink-0 border-b py-4">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base">Keranjang Belanja</CardTitle>
+            {invoice ? <Badge variant="secondary">Order {invoice}</Badge> : null}
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-3">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
           {notice ? <Alert>{notice}</Alert> : null}
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-          <div className="grid gap-2">
+          <div className="min-h-[120px] flex-1 overflow-y-auto pr-1">
+            <div className="grid gap-2">
             {lines.length === 0 ? (
               <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">Belum ada item.</div>
             ) : (
@@ -230,7 +238,11 @@ export function PosScreen({ products }: { products: Product[] }) {
                 <div key={l.productId} className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{l.name}</div>
-                    <div className="text-xs text-muted-foreground">{rupiah(l.price)} / unit</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{rupiah(l.price)} / unit</span>
+                      {settings.cartShowSku ? <span>• {l.sku}</span> : null}
+                      {settings.cartShowStock ? <Badge variant="secondary">Stok {Number(allProducts.find((p) => p.id === l.productId)?.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => dec(l.productId)}>
@@ -244,13 +256,15 @@ export function PosScreen({ products }: { products: Product[] }) {
                 </div>
               ))
             )}
+            </div>
           </div>
 
-          <div className="rounded-xl border bg-background p-3 text-sm">
+          <div className="shrink-0 rounded-xl border bg-background p-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
               <span>{rupiah(subtotal)}</span>
             </div>
+            {settings.cartShowDiscount ? (
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Diskon</span>
               <input
@@ -261,28 +275,33 @@ export function PosScreen({ products }: { products: Product[] }) {
                 onChange={(e) => setDiscount(Number(e.target.value || 0))}
               />
             </div>
+            ) : null}
+            {settings.cartShowTax ? (
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Pajak (%)</span>
               <input
                 type="number"
                 className="h-10 w-24 rounded-xl border bg-background px-3 text-sm"
-                value={taxRate}
+                value={effectiveTaxRate}
                 min={0}
                 max={100}
                 onChange={(e) => setTaxRate(Number(e.target.value || 0))}
               />
             </div>
+            ) : null}
+            {settings.cartShowTax ? (
             <div className="mt-2 flex justify-between">
               <span className="text-muted-foreground">Pajak</span>
               <span>{rupiah(tax)}</span>
             </div>
+            ) : null}
             <div className="mt-3 flex justify-between text-base font-semibold">
               <span>Total</span>
               <span className="text-primary">{rupiah(total)}</span>
             </div>
           </div>
 
-          <div className="grid gap-2">
+          <div className="shrink-0 grid gap-2">
             <div className="text-sm font-medium">Metode Pembayaran</div>
             <div className="grid grid-cols-3 gap-2">
               {(
@@ -318,7 +337,7 @@ export function PosScreen({ products }: { products: Product[] }) {
           </div>
 
           {method === "CASH" ? (
-            <div className="rounded-xl border bg-background p-3 text-sm">
+            <div className="shrink-0 rounded-xl border bg-background p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Tunai dibayarkan</span>
                 <input
@@ -342,7 +361,7 @@ export function PosScreen({ products }: { products: Product[] }) {
             </div>
           ) : null}
 
-          <div className="grid gap-2">
+          <div className="shrink-0 grid gap-2">
             <Button
               type="button"
               className="h-12"
@@ -358,9 +377,15 @@ export function PosScreen({ products }: { products: Product[] }) {
                   }
                   const payload = {
                     items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
-                    discount,
-                    taxRate,
-                    payment: { method, amount: total, reference: "" },
+                    discount: effectiveDiscount,
+                    taxRate: effectiveTaxRate,
+                    payment: {
+                      method,
+                      amount: total,
+                      receivedAmount: method === "CASH" ? cashPaid : total,
+                      changeAmount: method === "CASH" ? cashChange : 0,
+                      reference: "",
+                    },
                   };
                   const res = await createSaleAction(payload);
                   if (!res.ok) {
@@ -371,7 +396,7 @@ export function PosScreen({ products }: { products: Product[] }) {
                   setInvoice(res.data.invoiceNo);
                   setSaleId(res.data.id);
                   // Show receipt preview popup in-place (no new tab).
-                  setPrintPayload({ saleId: res.data.id, auto: Boolean(autoPrint) });
+                  setPrintPayload({ saleId: res.data.id, auto: Boolean(settings.autoPrintAfterPayment) });
                   setCart({});
                   setCashPaidTouched(false);
                   setCashPaid(0);
@@ -431,7 +456,7 @@ type ReceiptApiResponse = {
       tax: number;
       total: number;
       items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-      payments: Array<{ id: string; method: string; amount: number; reference: string | null }>;
+      payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
     };
     printer: import("@/modules/settings/printer/validators").PrinterSettings;
   };

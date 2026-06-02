@@ -15,7 +15,7 @@ export function SuperAdminTopbar({
 }: {
   user: { name: string | null; email: string | null; image?: string | null };
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   return (
     <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 border-b bg-background/82 px-3 shadow-sm shadow-slate-950/5 backdrop-blur-xl sm:px-4">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
