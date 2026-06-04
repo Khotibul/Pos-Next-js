@@ -19,6 +19,7 @@ import {
 type TenantAccessParams = {
   tenantId?: string;
   userId?: string;
+  isSuperAdmin?: boolean;
 };
 
 function isTrialExpired(status: CachedTenantStatus) {
@@ -40,7 +41,9 @@ async function resolveIds(params?: TenantAccessParams) {
 export async function requireTenantAccess(params?: TenantAccessParams): Promise<CachedTenantAccess> {
   const { tenantId, userId } = await resolveIds(params);
   const cachedAccess = await getCachedTenantAccess(tenantId, userId);
-  if (cachedAccess) return cachedAccess;
+  if (cachedAccess) {
+    return params?.isSuperAdmin === undefined ? cachedAccess : { ...cachedAccess, isSuperAdmin: params.isSuperAdmin };
+  }
 
   let status = await getCachedTenantStatus(tenantId);
   let membership = await getCachedTenantMembership(tenantId, userId);
@@ -53,10 +56,12 @@ export async function requireTenantAccess(params?: TenantAccessParams): Promise<
             where: { id: tenantId },
             select: { status: true, trialEndsAt: true },
           }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { isSuperAdmin: true },
-      }),
+      params?.isSuperAdmin === undefined
+        ? prisma.user.findUnique({
+            where: { id: userId },
+            select: { isSuperAdmin: true },
+          })
+        : Promise.resolve({ isSuperAdmin: params.isSuperAdmin }),
       membership
         ? Promise.resolve(null)
         : prisma.tenantUser.findUnique({
@@ -94,10 +99,13 @@ export async function requireTenantAccess(params?: TenantAccessParams): Promise<
     return access;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { isSuperAdmin: true },
-  });
+  const user =
+    params?.isSuperAdmin === undefined
+      ? await prisma.user.findUnique({
+          where: { id: userId },
+          select: { isSuperAdmin: true },
+        })
+      : { isSuperAdmin: params.isSuperAdmin };
 
   const access = { ...status, isSuperAdmin: Boolean(user?.isSuperAdmin), membership };
   if (!access.isSuperAdmin && !access.membership.exists) throw Errors.forbidden("Anda tidak punya akses tenant ini.");

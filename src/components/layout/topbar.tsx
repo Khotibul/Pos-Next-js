@@ -1,4 +1,4 @@
-import { getTenantContext } from "@/lib/tenant-context";
+import type { TenantContext } from "@/lib/tenant-context";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { TenantSwitcher } from "@/components/layout/tenant-switcher";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { dashboardCopy, type Locale } from "@/lib/i18n";
 
-export async function Topbar({ locale }: { locale: Locale }) {
-  const ctx = await getTenantContext();
+export function Topbar({ locale, ctx }: { locale: Locale; ctx: TenantContext }) {
   const copy = dashboardCopy[locale];
   return (
     <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between gap-3 border-b bg-background/82 px-3 shadow-sm shadow-slate-950/5 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 sm:px-4">

@@ -24,7 +24,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const copy = dashboardCopy[locale];
   const ctx = await getTenantContext();
   if (!ctx) redirect("/login");
-  await requireTenantAccess({ tenantId: ctx.tenantId, userId: ctx.userId });
+  await requireTenantAccess({ tenantId: ctx.tenantId, userId: ctx.userId, isSuperAdmin: ctx.isSuperAdmin });
 
   const sidebarKey = `${cacheKeys.sidebar(ctx.tenantId, ctx.userId)}:${locale}`;
   const cachedSidebar = await getCache<{ bottomItems: DashboardNavItem[] }>(sidebarKey);
@@ -50,7 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex">
         <SidebarShell permissions={ctx.permissions} isSuperAdmin={ctx.isSuperAdmin} locale={locale} />
         <div className="flex min-h-screen flex-1 flex-col">
-          <Topbar locale={locale} />
+          <Topbar locale={locale} ctx={ctx} />
           <main className="flex-1 px-3 py-4 pb-28 sm:px-5 md:px-6 md:py-6 md:pb-6">
             {ctx.tenantStatus === "SUSPENDED" || ctx.tenantStatus === "EXPIRED" ? (
               <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
