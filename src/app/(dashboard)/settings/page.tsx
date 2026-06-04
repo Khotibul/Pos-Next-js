@@ -4,7 +4,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { Building2, KeyRound, Mail, Printer, Shield, Users } from "lucide-react";
+import { Building2, KeyRound, Mail, MonitorSmartphone, Printer, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default async function SettingsPage() {
@@ -30,6 +30,25 @@ export default async function SettingsPage() {
               <Badge variant={ctx.tenantStatus === "ACTIVE" ? "default" : ctx.tenantStatus === "TRIAL" ? "secondary" : "destructive"}>
                 {ctx.tenantStatus}
               </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl">
+          <CardHeader className="py-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <MonitorSmartphone className="h-4 w-4" />
+              </span>
+              Customer Display
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm text-muted-foreground">
+            <div>Atur layar pelanggan, total belanja, pembayaran, dan pesan promo di kasir.</div>
+            <div>
+              <Button asChild variant="outline" size="sm" className="rounded-xl">
+                <Link href="/settings/customer-display">Buka Pengaturan</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
