@@ -4,7 +4,7 @@ import { rememberCache } from "@/lib/cache";
 import { CACHE_TTL, cacheKeys, hashCachePart } from "@/lib/cache-keys";
 import { prisma } from "@/lib/prisma";
 
-export type ReportPreset = "today" | "7d" | "month" | "custom";
+export type ReportPreset = "today" | "date" | "7d" | "month" | "custom";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -38,6 +38,10 @@ export function resolvePresetRange(preset: ReportPreset, custom?: { from?: Date 
   const now = new Date();
   if (preset === "today") {
     return { from: startOfDay(now), to: endOfDay(now), label: "Hari Ini" };
+  }
+  if (preset === "date") {
+    const selectedDate = custom?.from ?? now;
+    return { from: startOfDay(selectedDate), to: endOfDay(selectedDate), label: "Tanggal" };
   }
   if (preset === "month") {
     return { from: startOfMonth(now), to: endOfDay(now), label: "Bulan Ini" };

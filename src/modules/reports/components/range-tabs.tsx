@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Preset = "today" | "7d" | "month" | "custom";
+type Preset = "today" | "date" | "7d" | "month" | "custom";
 
 function toIsoDateOnly(dateOnly: string) {
   // dateOnly format: YYYY-MM-DD
@@ -19,6 +19,7 @@ export function RangeTabs() {
   const searchParams = useSearchParams();
   const sp = useMemo(() => new URLSearchParams(searchParams?.toString() ?? ""), [searchParams]);
   const preset = (sp.get("preset") as Preset) || "7d";
+  const [singleDate, setSingleDate] = useState(sp.get("from") ?? "");
   const [from, setFrom] = useState(sp.get("from") ?? "");
   const [to, setTo] = useState(sp.get("to") ?? "");
 
@@ -26,6 +27,7 @@ export function RangeTabs() {
     () =>
       [
         { k: "today" as const, label: "Hari Ini" },
+        { k: "date" as const, label: "Tanggal" },
         { k: "7d" as const, label: "7 Hari Terakhir" },
         { k: "month" as const, label: "Bulan Ini" },
         { k: "custom" as const, label: "Kustom" },
@@ -53,8 +55,15 @@ export function RangeTabs() {
                 const next = new URLSearchParams(sp.toString());
                 next.set("preset", o.k);
                 next.delete("page");
-                if (o.k !== "custom") {
+                if (o.k !== "custom" && o.k !== "date") {
                   next.delete("from");
+                  next.delete("to");
+                }
+                if (o.k === "date") {
+                  const today = new Date().toISOString().slice(0, 10);
+                  const selected = singleDate || sp.get("from") || today;
+                  setSingleDate(selected);
+                  next.set("from", selected);
                   next.delete("to");
                 }
                 push(next);
@@ -65,6 +74,33 @@ export function RangeTabs() {
           );
         })}
       </div>
+
+      {preset === "date" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={singleDate}
+            onChange={(e) => setSingleDate(e.target.value)}
+            className="h-10 rounded-xl border bg-background px-3 text-sm"
+            aria-label="Pilih tanggal laporan"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => {
+              const next = new URLSearchParams(sp.toString());
+              next.set("preset", "date");
+              next.delete("page");
+              if (singleDate) next.set("from", toIsoDateOnly(singleDate));
+              next.delete("to");
+              push(next);
+            }}
+          >
+            Terapkan Tanggal
+          </Button>
+        </div>
+      ) : null}
 
       {preset === "custom" ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -101,3 +137,4 @@ export function RangeTabs() {
     </div>
   );
 }
+

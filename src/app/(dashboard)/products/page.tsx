@@ -10,6 +10,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/layout/stat-card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+type ProductOverviewResult = Awaited<ReturnType<typeof getProductOverview>>;
+type ProductMetaResult = Awaited<ReturnType<typeof listProductMeta>>;
+type ProductListResult = Awaited<ReturnType<typeof listProducts>>;
+type LoadState<T> = { data: T; error: string | null };
+
+async function safeLoad<T>(loader: () => Promise<T>, fallback: T): Promise<LoadState<T>> {
+  try {
+    return { data: await loader(), error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Gagal memuat data.";
+    console.error("[products] load failed", message);
+    return { data: fallback, error: message };
+  }
+}
 
 export default async function ProductsPage({
   searchParams,
@@ -24,18 +40,39 @@ export default async function ProductsPage({
   const status = sp.status === "active" || sp.status === "inactive" ? sp.status : null;
   const page = sp.page ? Number(sp.page) : 1;
 
-  const [overview, meta, result] = await Promise.all([
-    getProductOverview({ tenantId: ctx.tenantId }),
-    listProductMeta({ tenantId: ctx.tenantId }),
-    listProducts({
-      tenantId: ctx.tenantId,
-      q,
-      categoryId,
-      status,
-      page: Number.isFinite(page) ? page : 1,
-      pageSize: 10,
-    }),
+  const safePage = Number.isFinite(page) ? page : 1;
+  const fallbackOverview: ProductOverviewResult = { total: 0, active: 0, inactive: 0, withBarcode: 0 };
+  const fallbackMeta: ProductMetaResult = { categories: [], brands: [], units: [], suppliers: [] };
+  const fallbackResult: ProductListResult = {
+    items: [],
+    total: 0,
+    page: safePage,
+    pageSize: 10,
+    q,
+    categoryId,
+    status,
+  };
+
+  const [overviewState, metaState, resultState] = await Promise.all([
+    safeLoad(() => getProductOverview({ tenantId: ctx.tenantId }), fallbackOverview),
+    safeLoad(() => listProductMeta({ tenantId: ctx.tenantId }), fallbackMeta),
+    safeLoad(
+      () =>
+        listProducts({
+          tenantId: ctx.tenantId,
+          q,
+          categoryId,
+          status,
+          page: safePage,
+          pageSize: 10,
+        }),
+      fallbackResult
+    ),
   ]);
+  const overview = overviewState.data;
+  const meta = metaState.data;
+  const result = resultState.data;
+  const loadErrors = [overviewState.error, metaState.error, resultState.error].filter((message): message is string => Boolean(message));
 
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const prevPage = Math.max(1, result.page - 1);
@@ -103,6 +140,15 @@ export default async function ProductsPage({
           </div>
         }
       />
+
+      {loadErrors.length > 0 ? (
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertTitle>Data produk belum bisa dimuat penuh.</AlertTitle>
+          <AlertDescription>
+            Halaman tetap dibuka dengan data kosong sementara. Pastikan database sudah dimigrasi/db push dan coba refresh halaman.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Boxes className="h-5 w-5" />} title="Total Produk" value={overview.total.toLocaleString("id-ID")} description="Semua item master produk" />

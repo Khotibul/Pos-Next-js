@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ReportRangePresetSchema = z.enum(["today", "7d", "month", "custom"]);
+export const ReportRangePresetSchema = z.enum(["today", "date", "7d", "month", "custom"]);
 
 export const SalesReportQuerySchema = z.object({
   preset: ReportRangePresetSchema.default("7d"),

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Banknote, Download, Package, Receipt, ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/layout/stat-card";
@@ -252,3 +252,4 @@ export default async function ReportsPage({
     </div>
   );
 }
+
