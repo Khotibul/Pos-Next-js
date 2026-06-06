@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { getTenantContext } from "@/lib/tenant-context";
 import { findProductByCode } from "@/modules/products/service";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
 
   const product = await findProductByCode({ tenantId: ctx.tenantId, branchId: ctx.branchId, code: parsed.data.code });
   if (!product) return NextResponse.json({ ok: false, message: "Produk tidak ditemukan." }, { status: 404 });
+  const stock = await prismaSafeStock(ctx.tenantId, product.id);
 
   return NextResponse.json({
     ok: true,
@@ -35,7 +37,18 @@ export async function GET(req: Request) {
         barcode: product.barcode,
         qrCode: product.qrCode,
         price: Number(product.sellingPrice),
+        stock,
       },
     },
   });
+}
+
+async function prismaSafeStock(tenantId: string, productId: string) {
+  const stock = await prisma.productWarehouseStock
+    .aggregate({
+      where: { tenantId, productId },
+      _sum: { qty: true },
+    })
+    .catch(() => null);
+  return Number(stock?._sum.qty ?? 0);
 }

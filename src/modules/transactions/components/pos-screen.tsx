@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { createSaleAction } from "@/modules/transactions/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [shiftCheckDone, setShiftCheckDone] = useState(false);
   const [forceOpenShift, setForceOpenShift] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -121,6 +122,17 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     });
   }, [allProducts, q]);
 
+  const productByCode = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const product of allProducts) {
+      for (const value of [product.sku, product.barcode, product.qrCode]) {
+        const key = value?.trim().toLowerCase();
+        if (key) map.set(key, product);
+      }
+    }
+    return map;
+  }, [allProducts]);
+
   const lines = useMemo(() => {
     const map = new Map(allProducts.map((p) => [p.id, p]));
     return Object.entries(cart)
@@ -148,6 +160,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     setCashPaid(total);
   }, [method, total, cashPaidTouched]);
 
+  const addProductToCart = useCallback((product: Product) => {
+    setExtraProducts((prev) => (prev.some((item) => item.id === product.id) ? prev : [...prev, product]));
+    setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + 1 }));
+    setNotice(`Ditambahkan: ${product.name}`);
+  }, []);
+
   function inc(id: string) {
     setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   }
@@ -155,37 +173,120 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }
 
-  async function addByCode(code: string) {
+  const addByCode = useCallback(async (code: string, options?: { throwOnFail?: boolean; clearQuery?: boolean }) => {
     const clean = code.trim();
-    if (!clean) return;
+    if (!clean) return false;
+
+    const now = Date.now();
+    const last = lastCodeRef.current;
+    if (last && last.code === clean && now - last.at <= 700) return false;
+    lastCodeRef.current = { code: clean, at: now };
+
     setError(null);
     setNotice(null);
+
+    const localProduct = productByCode.get(clean.toLowerCase());
+    if (localProduct) {
+      addProductToCart(localProduct);
+      if (options?.clearQuery) setQ("");
+      return true;
+    }
 
     const res = await fetch(`/api/products/find-by-code?code=${encodeURIComponent(clean)}`);
     if (!res.ok) {
       const msg = res.status === 404 ? "Produk tidak ditemukan" : "Gagal memproses kode";
       setNotice(msg);
-      return;
+      if (options?.throwOnFail) throw new Error(msg);
+      return false;
     }
 
     const json = (await res.json()) as {
       ok: true;
-      data: { product: { id: string; name: string; sku: string; barcode: string | null; qrCode: string | null; price: number } };
+      data: { product: Product };
     };
     const p = json.data.product;
-    setExtraProducts((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, { ...p }]));
-    inc(p.id);
-    setNotice(`Ditambahkan: ${p.name}`);
-  }
+    addProductToCart(p);
+    if (options?.clearQuery) setQ("");
+    return true;
+  }, [addProductToCart, productByCode]);
+
+  useEffect(() => {
+    let buffer = "";
+    let lastAt = 0;
+    let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const reset = () => {
+      buffer = "";
+      lastAt = 0;
+      if (resetTimer) {
+        clearTimeout(resetTimer);
+        resetTimer = null;
+      }
+    };
+
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey) return;
+      if (isTypingTarget(event.target)) return;
+
+      const now = Date.now();
+      if (event.key === "Enter") {
+        const code = buffer.trim();
+        reset();
+        if (code.length >= 4) {
+          event.preventDefault();
+          void addByCode(code);
+        }
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+      if (lastAt && now - lastAt > 120) buffer = "";
+      buffer += event.key;
+      lastAt = now;
+      if (resetTimer) clearTimeout(resetTimer);
+      resetTimer = setTimeout(reset, 180);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      reset();
+    };
+  }, [addByCode]);
 
   return (
     <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
       <div className="order-2 min-w-0 xl:order-1">
         <div className="sticky top-[72px] z-10 mb-4 rounded-2xl border bg-background/90 p-3 backdrop-blur">
-          <div className="flex gap-2">
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void addByCode(q, { clearQuery: true });
+            }}
+          >
             <div className="flex-1">
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari produk atau barcode..." />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Cari produk, scan barcode, lalu Enter..."
+                autoComplete="off"
+              />
             </div>
+            <Button
+              type="submit"
+              variant="outline"
+              className="h-10 gap-2 rounded-xl"
+              disabled={!q.trim()}
+            >
+              Tambah
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -196,7 +297,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               <ScanLine className="h-4 w-4" />
               <span className="hidden sm:inline">Scan</span>
             </Button>
-          </div>
+          </form>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((p) => (
@@ -425,7 +526,13 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
 
       {printPayload ? <PosReceiptPopup saleId={printPayload.saleId} auto={printPayload.auto} onDone={() => setPrintPayload(null)} /> : null}
 
-      <QrScannerDialog open={scannerOpen} onOpenChange={setScannerOpen} onDetected={addByCode} />
+      <QrScannerDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={async (code) => {
+          await addByCode(code, { throwOnFail: true });
+        }}
+      />
 
       <OpenShiftDialog
         open={forceOpenShift}
