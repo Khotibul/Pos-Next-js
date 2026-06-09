@@ -32,6 +32,8 @@ export async function updatePrinterSettings(params: { tenantId: string; input: u
   const parsed = UpdatePrinterSettingsFormSchema.safeParse(params.input);
   if (!parsed.success) return { ok: false as const, message: "Validasi gagal." };
   const normalized = PrinterSettingsSchema.parse({
+    connectionType: parsed.data.connectionType ?? "browser",
+    bluetoothDeviceName: parsed.data.bluetoothDeviceName ?? "",
     paper: parsed.data.paper,
     autoPrintAfterPayment: parsed.data.autoPrintAfterPayment ?? false,
     showLogo: parsed.data.showLogo ?? false,

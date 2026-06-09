@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import { ReceiptView } from "@/modules/transactions/components/receipt-view";
+import { generateReceiptText, printViaBluetooth } from "@/modules/settings/printer/bluetooth";
 
 type ReceiptSale = {
   id: string;
@@ -20,9 +21,17 @@ type ReceiptSale = {
   payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
 };
 
-function requestPrint() {
-  document.body.classList.add("print-receipt");
-  window.print();
+function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
+  if (printer.connectionType === "bluetooth") {
+    const text = generateReceiptText(sale, printer);
+    printViaBluetooth(text, printer.bluetoothDeviceName).catch((e) => {
+      console.error(e);
+      alert("Gagal print via Bluetooth: " + (e instanceof Error ? e.message : String(e)));
+    });
+  } else {
+    document.body.classList.add("print-receipt");
+    window.print();
+  }
 }
 
 export function PrintReceiptDialog({
@@ -58,11 +67,13 @@ export function PrintReceiptDialog({
     if (!autoPrintOnOpen) return;
     // Some browsers may block this because it's not a direct user gesture.
     const t = window.setTimeout(() => {
-      requestPrint();
-      window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+      requestPrint(printer, sale);
+      if (printer.connectionType !== "bluetooth") {
+        window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+      }
     }, 250);
     return () => window.clearTimeout(t);
-  }, [open, autoPrintOnOpen]);
+  }, [open, autoPrintOnOpen, printer, sale]);
 
   return (
     <>
@@ -103,10 +114,10 @@ export function PrintReceiptDialog({
                 type="button"
                 className="rounded-xl"
                 onClick={() => {
-                  // Ensure dialog stays open while printing so print-area exists in DOM.
-                  requestPrint();
-                  // Fallback cleanup for browsers that don't fire afterprint reliably.
-                  window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+                  requestPrint(printer, sale);
+                  if (printer.connectionType !== "bluetooth") {
+                    window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+                  }
                 }}
               >
                 Cetak

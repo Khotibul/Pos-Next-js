@@ -31,6 +31,15 @@ export function PrinterSettingsForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
+          <Label htmlFor="connectionType">Mode Koneksi</Label>
+          <select id="connectionType" name="connectionType" defaultValue={initial.connectionType || "browser"} className="h-10 rounded-xl border bg-background px-3 text-sm">
+            <option value="browser">Browser Print (Default / USB / Jaringan)</option>
+            <option value="bluetooth">Bluetooth (Web Bluetooth API)</option>
+          </select>
+          <FieldError msg={fieldErrors.connectionType} />
+        </div>
+
+        <div className="grid gap-2">
           <Label htmlFor="paper">Ukuran Kertas</Label>
           <select id="paper" name="paper" defaultValue={initial.paper} className="h-10 rounded-xl border bg-background px-3 text-sm">
             <option value="58mm">58mm</option>
@@ -38,13 +47,13 @@ export function PrinterSettingsForm({
           </select>
           <FieldError msg={fieldErrors.paper} />
         </div>
+      </div>
 
-        <div className="grid gap-2">
-          <Label>Mode</Label>
-          <div className="rounded-xl border bg-muted/10 p-3 text-sm text-muted-foreground">
-            Browser Print (Window Print)
-          </div>
-        </div>
+      <div className="grid gap-2">
+        <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
+        <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Biarkan kosong jika ingin selalu memilih secara manual" />
+        <div className="text-xs text-muted-foreground">Khusus untuk mode koneksi Bluetooth. (Note: browser mungkin akan tetap meminta izin/pemilihan perangkat)</div>
+        <FieldError msg={fieldErrors.bluetoothDeviceName} />
       </div>
 
       <div className="grid gap-2">

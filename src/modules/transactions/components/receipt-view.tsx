@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
+import { generateReceiptText, printViaBluetooth } from "@/modules/settings/printer/bluetooth";
 
 type ReceiptSale = {
   id: string;
@@ -21,6 +22,18 @@ function rupiah(value: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 }
 
+function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
+  if (printer.connectionType === "bluetooth") {
+    const text = generateReceiptText(sale, printer);
+    printViaBluetooth(text, printer.bluetoothDeviceName).catch((e) => {
+      console.error(e);
+      alert("Gagal print via Bluetooth: " + (e instanceof Error ? e.message : String(e)));
+    });
+  } else {
+    window.print();
+  }
+}
+
 export function ReceiptView({
   sale,
   printer,
@@ -37,9 +50,9 @@ export function ReceiptView({
 
   useEffect(() => {
     if (!autoPrint) return;
-    const t = window.setTimeout(() => window.print(), 250);
+    const t = window.setTimeout(() => requestPrint(printer, sale), 250);
     return () => window.clearTimeout(t);
-  }, [autoPrint]);
+  }, [autoPrint, printer, sale]);
 
   return (
     <div>
@@ -184,7 +197,7 @@ export function ReceiptView({
 
         {showPrintButton ? (
           <div className="no-print mt-4 flex justify-center gap-2">
-            <Button type="button" className="rounded-xl" onClick={() => window.print()}>
+            <Button type="button" className="rounded-xl" onClick={() => requestPrint(printer, sale)}>
               Cetak
             </Button>
           </div>
