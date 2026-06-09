@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import type { ActionResult } from "@/lib/action";
 import { Alert } from "@/components/ui/alert";
@@ -14,6 +14,12 @@ function FieldError({ msg }: { msg?: string }) {
   return <p className="text-xs text-destructive">{msg}</p>;
 }
 
+interface NavigatorWithBluetooth extends Navigator {
+  bluetooth?: {
+    requestDevice: (options: { acceptAllDevices?: boolean; optionalServices?: string[] }) => Promise<{ name?: string }>;
+  };
+}
+
 export function PrinterSettingsForm({
   initial,
   action,
@@ -24,6 +30,46 @@ export function PrinterSettingsForm({
   const [state, formAction, isPending] = useActionState(action, null);
   const fieldErrors = (state && !state.ok ? state.fieldErrors : undefined) ?? {};
   const message = state && !state.ok ? state.message : null;
+  const [desktopPrinters, setDesktopPrinters] = useState<Array<{ name: string; displayName: string }>>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.posDesktop?.printer) {
+      window.posDesktop.printer.getPrinters().then(setDesktopPrinters).catch(() => {});
+    }
+  }, []);
+
+  const handleCariBluetooth = async () => {
+    try {
+      const nav = navigator as NavigatorWithBluetooth;
+      if (!nav.bluetooth) {
+        alert("Browser atau perangkat ini tidak mendukung fitur Web Bluetooth.");
+        return;
+      }
+      
+      const device = await nav.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
+      });
+      if (device && device.name) {
+        const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
+        if (input) input.value = device.name;
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Pencarian dibatalkan atau gagal: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleRefreshDesktopPrinters = async () => {
+    if (typeof window !== "undefined" && window.posDesktop?.printer) {
+      try {
+        const list = await window.posDesktop.printer.getPrinters();
+        setDesktopPrinters(list);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
 
   return (
     <form action={formAction} className="grid gap-5">
@@ -42,6 +88,7 @@ export function PrinterSettingsForm({
         <div className="grid gap-2">
           <Label htmlFor="paper">Ukuran Kertas</Label>
           <select id="paper" name="paper" defaultValue={initial.paper} className="h-10 rounded-xl border bg-background px-3 text-sm">
+            <option value="48mm">48mm</option>
             <option value="58mm">58mm</option>
             <option value="80mm">80mm</option>
           </select>
@@ -50,9 +97,42 @@ export function PrinterSettingsForm({
       </div>
 
       <div className="grid gap-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="defaultBrowserPrinter">Printer Default (Khusus Aplikasi Desktop)</Label>
+          {desktopPrinters.length > 0 && (
+             <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={handleRefreshDesktopPrinters}>
+               Refresh List Printer
+             </Button>
+          )}
+        </div>
+        {desktopPrinters.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <select id="defaultBrowserPrinter" name="defaultBrowserPrinter" defaultValue={initial.defaultBrowserPrinter || ""} className="h-10 w-full rounded-xl border bg-background px-3 text-sm">
+              <option value="">-- Pilih Printer (Dialog Standar) --</option>
+              {desktopPrinters.map(p => (
+                <option key={p.name} value={p.name}>{p.displayName || p.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <Input id="defaultBrowserPrinter" name="defaultBrowserPrinter" defaultValue={initial.defaultBrowserPrinter} placeholder="Nama printer di OS (biarkan kosong untuk dialog standar)" />
+        )}
+        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 items-center">
+          <span>Jika diisi, aplikasi Desktop akan mencetak langsung ke printer ini tanpa dialog konfirmasi.</span>
+          <a href="ms-settings:printers" className="text-primary hover:underline font-medium">Buka Setting Printer OS (Windows)</a>
+        </div>
+        <FieldError msg={fieldErrors.defaultBrowserPrinter} />
+      </div>
+
+      <div className="grid gap-2">
         <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
-        <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Biarkan kosong jika ingin selalu memilih secara manual" />
-        <div className="text-xs text-muted-foreground">Khusus untuk mode koneksi Bluetooth. (Note: browser mungkin akan tetap meminta izin/pemilihan perangkat)</div>
+        <div className="flex items-center gap-2">
+          <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Contoh: RPP02N" className="flex-1" />
+          <Button type="button" variant="secondary" onClick={handleCariBluetooth} className="shrink-0 rounded-xl">
+            Cari / Add Printer
+          </Button>
+        </div>
+        <div className="text-xs text-muted-foreground">Khusus untuk mode koneksi Bluetooth. Klik Cari / Add Printer untuk mendeteksi perangkat.</div>
         <FieldError msg={fieldErrors.bluetoothDeviceName} />
       </div>
 

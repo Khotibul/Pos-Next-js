@@ -30,7 +30,14 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
       alert("Gagal print via Bluetooth: " + (e instanceof Error ? e.message : String(e)));
     });
   } else {
-    window.print();
+    if (typeof window !== "undefined" && window.posDesktop?.printer && printer.defaultBrowserPrinter) {
+      window.posDesktop.printer.print({ deviceName: printer.defaultBrowserPrinter, silent: true }).catch((e) => {
+        console.error(e);
+        alert("Gagal print via Desktop: " + (e instanceof Error ? e.message : String(e)));
+      });
+    } else {
+      window.print();
+    }
   }
 }
 
@@ -45,8 +52,8 @@ export function ReceiptView({
   autoPrint: boolean;
   showPrintButton?: boolean;
 }) {
-  const widthMm = printer.paper === "58mm" ? 58 : 80;
-  const maxPx = printer.paper === "58mm" ? 360 : 520;
+  const widthMm = printer.paper === "48mm" ? 48 : printer.paper === "58mm" ? 58 : 80;
+  const maxPx = printer.paper === "48mm" ? 300 : printer.paper === "58mm" ? 360 : 520;
 
   useEffect(() => {
     if (!autoPrint) return;

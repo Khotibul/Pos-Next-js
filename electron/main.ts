@@ -580,6 +580,31 @@ ipcMain.handle("license:activateKey", async (_evt: unknown, input: { serial: str
   }
 });
 
+ipcMain.handle("printer:getPrinters", async () => {
+  if (!mainWindow) return [];
+  return mainWindow.webContents.getPrintersAsync();
+});
+
+ipcMain.handle("printer:print", async (_evt, options: { deviceName?: string; silent?: boolean }) => {
+  if (!mainWindow) return { ok: false, message: "No main window" };
+  try {
+    // Note: webContents.print() doesn't return a promise in older electron versions, 
+    // but in modern ones it does. Wait, we don't need to await it. It just fires the print job.
+    // Actually, in Electron >= 20, it doesn't return a promise, we can just call it.
+    // Wait, wait, webContents.print() prints the CURRENT window (the receipt view?).
+    // Yes, the receipt page is what is open.
+    mainWindow.webContents.print({
+      silent: options.silent ?? true,
+      deviceName: options.deviceName,
+      color: false,
+      margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 // Global error handling: don't crash with a blocking dialog in production.
 process.on("uncaughtException", (err) => {
   // eslint-disable-next-line no-console

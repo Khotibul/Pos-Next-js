@@ -65,6 +65,10 @@ declare global {
           }>
         >;
       };
+      printer: {
+        getPrinters: () => Promise<Array<{ name: string; displayName: string; description: string; status: number; isDefault: boolean }>>;
+        print: (options: { deviceName?: string; silent?: boolean }) => Promise<{ ok: boolean; message?: string }>;
+      };
       license: {
         getCurrent: () => Promise<PosDesktopLicenseGetCurrent>;
         activateTrial: (input: { companyName: string; ownerName: string; email: string; phone: string; days: number }) => Promise<PosDesktopLicenseActivateTrial>;

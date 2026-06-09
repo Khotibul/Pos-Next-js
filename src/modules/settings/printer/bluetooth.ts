@@ -24,7 +24,7 @@ function padRight(str: string, length: number) {
 }
 
 export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings) {
-  const width = printer.paper === "58mm" ? 32 : 48; // Typical characters per line
+  const width = printer.paper === "48mm" ? 24 : printer.paper === "58mm" ? 32 : 48; // Typical characters per line
   let text = "";
 
   const centerText = (str: string) => {
@@ -107,24 +107,49 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   return text;
 }
 
+type BluetoothDevice = {
+  name?: string;
+  gatt?: {
+    connect: () => Promise<BluetoothRemoteGATTServer>;
+    disconnect: () => void;
+  };
+};
+
+type BluetoothRemoteGATTServer = {
+  getPrimaryServices: () => Promise<BluetoothRemoteGATTService[]>;
+};
+
+type BluetoothRemoteGATTService = {
+  getCharacteristics: () => Promise<BluetoothRemoteGATTCharacteristic[]>;
+};
+
+type BluetoothRemoteGATTCharacteristic = {
+  properties: { write?: boolean; writeWithoutResponse?: boolean };
+  writeValue: (value: Uint8Array) => Promise<void>;
+};
+
+interface NavigatorWithBluetooth extends Navigator {
+  bluetooth?: {
+    requestDevice: (options: { filters?: { name?: string }[]; acceptAllDevices?: boolean; optionalServices?: string[] }) => Promise<BluetoothDevice>;
+  };
+}
+
 export async function printViaBluetooth(text: string, deviceName?: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (!(navigator as any).bluetooth) {
+  const nav = navigator as NavigatorWithBluetooth;
+  if (!nav.bluetooth) {
     throw new Error("Browser ini tidak mendukung Web Bluetooth API.");
   }
   
-  let device;
+  let device: BluetoothDevice | null = null;
   if (deviceName && deviceName.trim() !== "") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    device = await (navigator as any).bluetooth.requestDevice({
+    device = await nav.bluetooth.requestDevice({
       filters: [{ name: deviceName }],
       optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
     }).catch(() => null);
   }
   
   if (!device) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     device = await (navigator as any).bluetooth.requestDevice({
+     device = await nav.bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
     });

@@ -40,6 +40,10 @@ const api = {
     activateKey: async (input: { serial: string }) => ipcRenderer.invoke("license:activateKey", input),
     clear: async () => ipcRenderer.invoke("license:clear"),
   },
+  printer: {
+    getPrinters: async () => ipcRenderer.invoke("printer:getPrinters"),
+    print: async (options: { deviceName?: string; silent?: boolean }) => ipcRenderer.invoke("printer:print", options),
+  },
   sync: {
     getStatus: async (): Promise<{ ok: boolean; data?: { pending: number; failed: number; sent: number }; message?: string }> =>
       ipcRenderer.invoke("sync:getStatus"),
