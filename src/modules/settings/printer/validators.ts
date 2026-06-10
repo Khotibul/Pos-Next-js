@@ -23,6 +23,7 @@ export const PrinterSettingsSchema = z.object({
   cartShowStock: z.boolean().default(true),
   cartShowDiscount: z.boolean().default(true),
   cartShowTax: z.boolean().default(true),
+  receiptFontSize: z.enum(["small", "medium", "large"]).default("medium"),
 });
 
 export type PrinterSettings = z.infer<typeof PrinterSettingsSchema>;
@@ -84,6 +85,7 @@ export const UpdatePrinterSettingsFormSchema = z.object({
     .union([z.boolean(), z.string()])
     .optional()
     .transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
+  receiptFontSize: z.enum(["small", "medium", "large"]).optional().default("medium"),
 });
 
 export type UpdatePrinterSettingsForm = z.infer<typeof UpdatePrinterSettingsFormSchema>;

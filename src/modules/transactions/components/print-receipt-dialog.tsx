@@ -35,8 +35,16 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
       alert("Gagal print via Bluetooth Android: " + (e instanceof Error ? e.message : String(e)));
     });
   } else {
-    document.body.classList.add("print-receipt");
-    window.print();
+    if (typeof window !== "undefined" && window.posDesktop?.printer && printer.defaultBrowserPrinter) {
+      window.posDesktop.printer.print({ deviceName: printer.defaultBrowserPrinter, silent: true }).catch((e) => {
+        console.error(e);
+        document.body.classList.add("print-receipt");
+        window.print();
+      });
+    } else {
+      document.body.classList.add("print-receipt");
+      window.print();
+    }
   }
 }
 
@@ -71,7 +79,6 @@ export function PrintReceiptDialog({
   useEffect(() => {
     if (!open) return;
     if (!autoPrintOnOpen) return;
-    // Some browsers may block this because it's not a direct user gesture.
     const t = window.setTimeout(() => {
       requestPrint(printer, sale);
       if (printer.connectionType !== "bluetooth") {
@@ -89,13 +96,6 @@ export function PrintReceiptDialog({
           {triggerLabel}
         </Button>
       ) : null}
-
-      <style>{`
-        @media print {
-          body.print-receipt-dialog * { display: none !important; }
-          body.print-receipt-dialog .print-receipt-content { display: block !important; }
-        }
-      `}</style>
 
       <Dialog
         open={open}
@@ -127,11 +127,9 @@ export function PrintReceiptDialog({
                 type="button"
                 className="rounded-xl"
                 onClick={() => {
-                  document.body.classList.add("print-receipt-dialog");
                   requestPrint(printer, sale);
                   if (printer.connectionType !== "bluetooth") {
                     window.setTimeout(() => {
-                      document.body.classList.remove("print-receipt-dialog");
                       document.body.classList.remove("print-receipt");
                     }, 1500);
                   }

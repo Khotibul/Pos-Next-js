@@ -140,9 +140,9 @@ export function PrinterSettingsForm({
     <form action={formAction} className="grid gap-5">
       {message ? <Alert variant="destructive">{message}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="connectionType">Mode Koneksi</Label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="connectionType">Mode Koneksi</Label>
           <select id="connectionType" name="connectionType" defaultValue={initial.connectionType || "browser"} className="h-10 rounded-xl border bg-background px-3 text-sm">
             <option value="browser">Browser Print (Default / USB / Jaringan)</option>
             <option value="bluetooth">{isAndroid ? "Bluetooth (Android Native)" : "Bluetooth (Web Bluetooth API)"}</option>
@@ -349,6 +349,16 @@ export function PrinterSettingsForm({
           <input type="checkbox" name="showUnitPriceOnReceipt" defaultChecked={initial.showUnitPriceOnReceipt} />
           Tampilkan harga satuan
         </label>
+        </div>
+        <div className="grid gap-2 sm:col-span-2">
+          <Label htmlFor="receiptFontSize">Ukuran Font Struk</Label>
+          <select id="receiptFontSize" name="receiptFontSize" defaultValue={initial.receiptFontSize || "medium"} className="h-10 rounded-xl border bg-background px-3 text-sm">
+            <option value="small">Kecil</option>
+            <option value="medium">Sedang</option>
+            <option value="large">Besar</option>
+          </select>
+          <div className="text-xs text-muted-foreground">Menyesuaikan ukuran teks pada hasil cetak struk.</div>
+          <FieldError msg={fieldErrors.receiptFontSize} />
         </div>
       </div>
 

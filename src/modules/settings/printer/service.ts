@@ -18,11 +18,12 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = PrinterSettingsSchema.p
   showDiscount: true,
   showSkuOnReceipt: true,
   showUnitPriceOnReceipt: true,
-  cartShowSku: true,
-  cartShowStock: true,
-  cartShowDiscount: true,
-  cartShowTax: true,
-});
+    cartShowSku: true,
+    cartShowStock: true,
+    cartShowDiscount: true,
+    cartShowTax: true,
+    receiptFontSize: "medium",
+  });
 
 export async function getPrinterSettings(params: { tenantId: string }): Promise<PrinterSettings> {
   const cacheKey = `printer:settings:${params.tenantId}`;
@@ -60,6 +61,7 @@ export async function updatePrinterSettings(params: { tenantId: string; input: u
     cartShowStock: parsed.data.cartShowStock ?? true,
     cartShowDiscount: parsed.data.cartShowDiscount ?? true,
     cartShowTax: parsed.data.cartShowTax ?? true,
+    receiptFontSize: parsed.data.receiptFontSize ?? "medium",
   });
 
   await setSetting({ tenantId: params.tenantId, key: SETTINGS_KEYS.printer, value: normalized });

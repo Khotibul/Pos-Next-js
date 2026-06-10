@@ -145,12 +145,12 @@
     visibility: hidden !important;
   }
 
-  body.print-receipt .print-area,
-  body.print-receipt .print-area * {
+  body.print-receipt .receipt-print-root,
+  body.print-receipt .receipt-print-root * {
     visibility: visible !important;
   }
 
-  body.print-receipt .print-area {
+  body.print-receipt .receipt-print-root {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
