@@ -62,8 +62,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
     return " ".repeat(Math.max(0, leftPad)) + trimmed + "\n";
   };
 
-  const sepFull = "\u2500".repeat(width);
-  const sepThin = "\u2502";
+  const sepFull = "=".repeat(width);
 
   text += "\x1B\x61\x01";
   text += centerText(printer.headerTitle);
@@ -82,21 +81,20 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
 
   for (const item of sale.items) {
     const name = truncateMid(item.name, nameColWidth);
-    text += name + "\n";
-    if (printer.showSkuOnReceipt && item.sku) {
-      text += `  SKU: ${truncateMid(item.sku, width - 6)}\n`;
-    }
-
-    const qtyPart = `${item.qty} x ${formatRupiah(item.price)}`;
     const totalStr = formatRupiah(item.lineTotal);
     const paddedTotal = padRight(totalStr, priceColWidth);
-
+    text += padRight(name, nameColWidth) + " " + paddedTotal + "\n";
+    const details: string[] = [];
     if (printer.showUnitPriceOnReceipt) {
-      const qtyDisplay = qtyPart.length > nameColWidth ? qtyPart.substring(0, nameColWidth) : qtyPart;
-      text += padRight(qtyDisplay, nameColWidth) + sepThin + paddedTotal + "\n";
+      details.push(`${item.qty} x ${formatRupiah(item.price)}`);
     } else {
-      const qtyStr = `${item.qty} item`;
-      text += padRight(qtyStr, nameColWidth) + sepThin + paddedTotal + "\n";
+      details.push(`${item.qty} item`);
+    }
+    if (printer.showSkuOnReceipt && item.sku) {
+      details.push(`SKU: ${item.sku}`);
+    }
+    if (details.length > 0) {
+      text += " " + details.join("  ") + "\n";
     }
   }
 
@@ -116,6 +114,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   if (printer.showTax && sale.tax > 0) {
     addTotalLine("Pajak", sale.tax);
   }
+  text += "-".repeat(width) + "\n";
   addTotalLine("Total", sale.total);
 
   if (sale.payments && sale.payments.length > 0) {
