@@ -24,19 +24,29 @@ type ReceiptSale = {
   payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
 };
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
+function formatRupiah(amount: number): string {
+  const neg = amount < 0;
+  const abs = Math.abs(amount);
+  const s = abs.toLocaleString("id-ID");
+  return neg ? `-Rp${s}` : `Rp${s}`;
 }
 
 function padRight(str: string, length: number) {
-  return str.length > length ? str.substring(0, length) : str.padEnd(length, " ");
+  if (str.length >= length) return str;
+  return str + " ".repeat(length - str.length);
+}
+
+function truncateMid(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  if (maxLen <= 3) return str.substring(0, maxLen);
+  return str.substring(0, maxLen - 2) + "..";
 }
 
 function getCharsPerLine(printer: PrinterSettings): number {
   if (printer.paper === "48mm") return 24;
   if (printer.paper === "58mm") return 32;
   if (printer.paper === "80mm") return 48;
-  return Math.max(12, Math.round((printer.customWidthMm ?? 58) * 0.6));
+  return Math.max(16, Math.round((printer.customWidthMm ?? 58) * 0.55));
 }
 
 export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings) {
@@ -44,12 +54,13 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   let text = "";
 
   const centerText = (str: string) => {
-    if (str.length >= width) return str.substring(0, width) + "\n";
-    const leftPad = Math.floor((width - str.length) / 2);
-    return " ".repeat(leftPad) + str + "\n";
+    const trimmed = str.length > width ? str.substring(0, width) : str;
+    const leftPad = Math.floor((width - trimmed.length) / 2);
+    return " ".repeat(Math.max(0, leftPad)) + trimmed + "\n";
   };
 
-  const line = "-".repeat(width) + "\n";
+  const sepFull = "\u2500".repeat(width);
+  const sepThin = "\u2502";
 
   text += "\x1B\x61\x01";
   text += centerText(printer.headerTitle);
@@ -59,34 +70,40 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   text += "\n";
 
   text += "\x1B\x61\x00";
-  text += `No: ${sale.invoiceNo}\n`;
-  text += `Tgl: ${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
-  text += line;
+  text += `${padRight("No:", 15)} ${sale.invoiceNo}\n`;
+  text += `${padRight("Tgl:", 15)} ${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
+  text += sepFull + "\n";
+
+  const priceColWidth = 14;
+  const nameColWidth = width - priceColWidth - 1;
 
   for (const item of sale.items) {
-    text += `${item.name}\n`;
+    const name = truncateMid(item.name, nameColWidth);
+    text += name + "\n";
     if (printer.showSkuOnReceipt && item.sku) {
-      text += `SKU: ${item.sku}\n`;
+      text += `  SKU: ${truncateMid(item.sku, width - 6)}\n`;
     }
-    
-    const qtyPrice = `${item.qty} x ${formatCurrency(item.price)}`;
-    const total = formatCurrency(item.lineTotal);
-    
+
+    const qtyPart = `${item.qty} x ${formatRupiah(item.price)}`;
+    const totalStr = formatRupiah(item.lineTotal);
+    const paddedTotal = padRight(totalStr, priceColWidth);
+
     if (printer.showUnitPriceOnReceipt) {
-      const spaceLeft = width - total.length;
-      text += padRight(qtyPrice, spaceLeft) + total + "\n";
+      const qtyDisplay = qtyPart.length > nameColWidth ? qtyPart.substring(0, nameColWidth) : qtyPart;
+      text += padRight(qtyDisplay, nameColWidth) + sepThin + paddedTotal + "\n";
     } else {
       const qtyStr = `${item.qty} item`;
-      const spaceLeft = width - total.length;
-      text += padRight(qtyStr, spaceLeft) + total + "\n";
+      text += padRight(qtyStr, nameColWidth) + sepThin + paddedTotal + "\n";
     }
   }
-  text += line;
+
+  text += sepFull + "\n";
 
   const addTotalLine = (label: string, value: number) => {
-    const valStr = formatCurrency(value);
-    const spaceLeft = width - valStr.length;
-    text += padRight(label, spaceLeft) + valStr + "\n";
+    const valStr = formatRupiah(value);
+    const spaceAvailable = width - valStr.length;
+    const labelTrunc = label.length > spaceAvailable ? label.substring(0, spaceAvailable) : label;
+    text += padRight(labelTrunc, spaceAvailable) + valStr + "\n";
   };
 
   addTotalLine("Subtotal", sale.subtotal);
@@ -97,9 +114,9 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
     addTotalLine("Pajak", sale.tax);
   }
   addTotalLine("Total", sale.total);
-  
+
   if (sale.payments && sale.payments.length > 0) {
-    text += line;
+    text += sepFull + "\n";
     for (const p of sale.payments) {
       addTotalLine(`Bayar (${p.method})`, p.amount);
       if (p.changeAmount > 0) {
@@ -108,7 +125,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
     }
   }
 
-  text += line;
+  text += sepFull + "\n";
   text += "\x1B\x61\x01";
   if (printer.footerNote) {
     text += centerText(printer.footerNote);

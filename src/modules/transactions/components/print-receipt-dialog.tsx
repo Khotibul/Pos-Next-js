@@ -90,6 +90,13 @@ export function PrintReceiptDialog({
         </Button>
       ) : null}
 
+      <style>{`
+        @media print {
+          body.print-receipt-dialog * { display: none !important; }
+          body.print-receipt-dialog .print-receipt-content { display: block !important; }
+        }
+      `}</style>
+
       <Dialog
         open={open}
         onOpenChange={(v) => {
@@ -98,7 +105,7 @@ export function PrintReceiptDialog({
         }}
       >
         <DialogContent className="max-w-3xl rounded-2xl p-0 overflow-hidden">
-          <div className="p-6">
+          <div className="no-print p-6">
             <DialogHeader>
               <DialogTitle>Preview Struk</DialogTitle>
               <DialogDescription>{sale.invoiceNo}</DialogDescription>
@@ -106,12 +113,12 @@ export function PrintReceiptDialog({
           </div>
 
           <div className="bg-muted/20 px-6 pb-6">
-            <div className="print-area">
+            <div className="print-receipt-content">
               <ReceiptView sale={sale} printer={printer} autoPrint={false} showPrintButton={false} />
             </div>
           </div>
 
-          <div className="border-t bg-background px-6 py-4">
+          <div className="no-print border-t bg-background px-6 py-4">
             <DialogFooter className="mt-0">
               <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
                 Tutup
@@ -120,9 +127,13 @@ export function PrintReceiptDialog({
                 type="button"
                 className="rounded-xl"
                 onClick={() => {
+                  document.body.classList.add("print-receipt-dialog");
                   requestPrint(printer, sale);
                   if (printer.connectionType !== "bluetooth") {
-                    window.setTimeout(() => document.body.classList.remove("print-receipt"), 1500);
+                    window.setTimeout(() => {
+                      document.body.classList.remove("print-receipt-dialog");
+                      document.body.classList.remove("print-receipt");
+                    }, 1500);
                   }
                 }}
               >

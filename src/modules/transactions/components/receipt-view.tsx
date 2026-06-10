@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import { generateReceiptText, printViaBluetooth, isAndroidApp } from "@/modules/settings/printer/bluetooth";
@@ -61,11 +61,15 @@ function getHeightMm(printer: PrinterSettings): number | null {
 
 function getMaxWidthPx(printer: PrinterSettings): string {
   const w = getWidthMm(printer);
-  const px = Math.round(w * 6.5);
+  const px = Math.round(w * 3.78);
   return `${px}px`;
 }
 
-const BASELINE_WIDTH = 80;
+const PAPER_SPECS: Record<string, { charsPerLine: number; baseFont: number; titleFont: number }> = {
+  "48mm": { charsPerLine: 24, baseFont: 11, titleFont: 13 },
+  "58mm": { charsPerLine: 32, baseFont: 12, titleFont: 14 },
+  "80mm": { charsPerLine: 48, baseFont: 14, titleFont: 16 },
+};
 
 export function ReceiptView({
   sale,
@@ -78,31 +82,34 @@ export function ReceiptView({
   autoPrint: boolean;
   showPrintButton?: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
   const widthMm = getWidthMm(printer);
   const heightMm = getHeightMm(printer);
-  const scale = widthMm / BASELINE_WIDTH;
+  const specs = useMemo(
+    () => PAPER_SPECS[printer.paper] ?? { charsPerLine: Math.round(widthMm * 0.6), baseFont: 12, titleFont: 14 },
+    [printer.paper, widthMm],
+  );
 
   const fontSize = useMemo(() => {
-    const base = Math.round(14 * scale);
     return {
-      base: `${Math.max(8, base)}px`,
-      small: `${Math.max(7, Math.round(12 * scale))}px`,
-      total: `${Math.max(9, Math.round(16 * scale))}px`,
-      title: `${Math.max(9, Math.round(15 * scale))}px`,
+      base: `${specs.baseFont}px`,
+      small: `${Math.max(9, specs.baseFont - 1)}px`,
+      total: `${specs.baseFont + 3}px`,
+      title: `${specs.titleFont}px`,
     };
-  }, [scale]);
+  }, [specs]);
 
   const gaps = useMemo(() => {
     return {
-      hr: `${Math.max(4, Math.round(12 * scale))}px`,
-      items: `${Math.max(4, Math.round(8 * scale))}px`,
-      itemGap: `${Math.max(1, Math.round(2 * scale))}px`,
-      rowGap: `${Math.max(4, Math.round(12 * scale))}px`,
-      payGap: `${Math.max(2, Math.round(4 * scale))}px`,
+      hr: `${Math.max(6, Math.round(widthMm * 0.2))}px`,
+      itemGap: `${Math.max(2, Math.round(widthMm * 0.05))}px`,
+      rowGap: `${Math.max(4, Math.round(widthMm * 0.12))}px`,
+      payGap: `${Math.max(2, Math.round(widthMm * 0.06))}px`,
     };
-  }, [scale]);
+  }, [widthMm]);
 
-  const maxWidthStr = getMaxWidthPx(printer);
+  const maxWidthPx = getMaxWidthPx(printer);
+  const lineChars = specs.charsPerLine;
 
   useEffect(() => {
     if (!autoPrint) return;
@@ -114,42 +121,86 @@ export function ReceiptView({
     ? `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`
     : `@page { size: ${widthMm}mm auto; margin: 0; }`;
 
+  const hr = "\u2500".repeat(lineChars);
+
   return (
-    <div>
+    <div ref={ref}>
       <style>{`
         :root { color-scheme: light; }
-        .receipt-wrap { max-width: ${maxWidthStr}; width: 100%; margin: 0 auto; padding: ${gaps.hr}; background: #fff; font-size: ${fontSize.base}; }
+        .receipt-wrap {
+          max-width: ${maxWidthPx};
+          width: 100%;
+          margin: 0 auto;
+          padding: ${gaps.hr};
+          background: #fff;
+          font-size: ${fontSize.base};
+          line-height: 1.35;
+          font-family: 'Courier New', 'Lucida Console', 'Liberation Mono', 'Noto Mono', monospace;
+          word-break: break-all;
+        }
         .center { text-align: center; }
         .muted { color: #64748b; }
-        .hr { border-top: 1px dashed #cbd5e1; margin: ${gaps.hr} 0; }
-        .row { display: flex; justify-content: space-between; gap: ${gaps.rowGap}; }
-        .items { margin-top: ${gaps.items}; display: grid; gap: ${gaps.items}; }
-        .item { display: grid; gap: ${gaps.itemGap}; }
-        .item-top { display: flex; justify-content: space-between; gap: ${gaps.rowGap}; }
+        .hr {
+          border: none;
+          margin: ${gaps.hr} 0;
+          font-size: ${fontSize.small};
+          letter-spacing: 0;
+          white-space: pre;
+          text-align: center;
+        }
+        .row {
+          display: flex;
+          justify-content: space-between;
+          gap: ${gaps.rowGap};
+          margin-bottom: ${gaps.itemGap};
+        }
+        .row-end { text-align: right; white-space: nowrap; }
+        .row-start { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .item-grid { display: grid; gap: ${gaps.itemGap}; }
+        .item-line { display: flex; justify-content: space-between; gap: ${gaps.rowGap}; }
+        .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .item-total { white-space: nowrap; font-weight: 600; }
+        .item-detail { display: flex; gap: 0.4em; flex-wrap: wrap; }
+        .item-detail span { white-space: nowrap; }
         .small { font-size: ${fontSize.small}; }
         .bold { font-weight: 700; }
         .title { font-size: ${fontSize.title}; font-weight: 700; }
+        .pay-grid { display: grid; gap: ${gaps.payGap}; }
         @media print {
           ${pageSizeCss}
-          body { margin: 0; background: #fff; }
-          .receipt-wrap { max-width: 100%; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: ${gaps.hr}; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            width: ${widthMm}mm;
+          }
+          body > *:not(.receipt-print-root) { display: none !important; }
+          .receipt-print-root { display: block !important; }
+          .receipt-wrap {
+            max-width: ${widthMm}mm;
+            width: ${widthMm}mm;
+            margin: 0;
+            padding: 2mm 3mm;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            font-size: ${fontSize.small};
+          }
           .no-print { display: none !important; }
+          .hr { margin: 1.5mm 0; }
+          .row { margin-bottom: 0.5mm; }
+          .item-grid { gap: 0.5mm; }
         }
       `}</style>
 
-      <div
-        className="receipt-wrap bg-white shadow-sm"
-        style={{
-          fontFamily:
-            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        }}
-      >
+      <div className="receipt-print-root">
+      <div className="receipt-wrap shadow-sm">
         <div className="center">
           <div className="title">{printer.headerTitle}</div>
           {printer.headerSubtitle ? <div className="small muted">{printer.headerSubtitle}</div> : null}
         </div>
 
-        <div className="hr" />
+        <div className="hr">{hr}</div>
 
         <div className="small">
           <div className="row">
@@ -166,67 +217,59 @@ export function ReceiptView({
           </div>
         </div>
 
-        <div className="hr" />
+        <div className="hr">{hr}</div>
 
-        <div className="items small">
+        <div className="item-grid small">
           {sale.items.map((i) => (
-            <div key={i.id} className="item">
-              <div className="item-top">
-                <div className="bold" style={{ flex: 1, minWidth: 0 }}>
-                  {i.name}
-                </div>
-                <div className="bold">{rupiah(i.lineTotal)}</div>
+            <div key={i.id}>
+              <div className="item-line">
+                <div className="item-name">{i.name}</div>
+                <div className="item-total">{rupiah(i.lineTotal)}</div>
               </div>
               {printer.showUnitPriceOnReceipt || printer.showSkuOnReceipt ? (
-                <div className="muted">
-                  {[
-                    printer.showUnitPriceOnReceipt ? `${i.qty} x ${rupiah(i.price)}` : `${i.qty} item`,
-                    printer.showSkuOnReceipt ? `SKU: ${i.sku}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" • ")}
+                <div className="item-detail muted">
+                  {printer.showUnitPriceOnReceipt ? <span>{i.qty} x {rupiah(i.price)}</span> : <span>{i.qty} item</span>}
+                  {printer.showSkuOnReceipt ? <span>SKU: {i.sku}</span> : null}
                 </div>
               ) : null}
             </div>
           ))}
         </div>
 
-        <div className="hr" />
+        <div className="hr">{hr}</div>
 
         <div className="small">
           <div className="row">
             <span>Subtotal</span>
             <span>{rupiah(sale.subtotal)}</span>
           </div>
-          {printer.showDiscount ? (
+          {printer.showDiscount && sale.discount > 0 ? (
             <div className="row">
               <span>Diskon</span>
               <span>{rupiah(sale.discount)}</span>
             </div>
           ) : null}
-          {printer.showTax ? (
+          {printer.showTax && sale.tax > 0 ? (
             <div className="row">
               <span>Pajak</span>
               <span>{rupiah(sale.tax)}</span>
             </div>
           ) : null}
-          <div className="row bold" style={{ marginTop: gaps.items, fontSize: fontSize.total }}>
+          <div className="row bold" style={{ fontSize: fontSize.total, marginTop: gaps.itemGap }}>
             <span>Total</span>
             <span>{rupiah(sale.total)}</span>
           </div>
         </div>
 
-        <div className="hr" />
+        <div className="hr">{hr}</div>
 
         <div className="small">
-          <div className="bold" style={{ marginBottom: gaps.items }}>
-            Pembayaran
-          </div>
+          <div className="bold" style={{ marginBottom: gaps.itemGap }}>Pembayaran</div>
           {sale.payments.length === 0 ? (
             <div className="muted">-</div>
           ) : (
             sale.payments.map((p) => (
-              <div key={p.id} style={{ display: "grid", gap: gaps.payGap }}>
+              <div key={p.id} className="pay-grid">
                 <div className="row">
                   <span>Metode</span>
                   <span className="bold">{p.method}</span>
@@ -252,17 +295,18 @@ export function ReceiptView({
           )}
         </div>
 
-        <div className="hr" />
+        <div className="hr">{hr}</div>
 
         <div className="center small muted">{printer.footerNote}</div>
 
         {showPrintButton ? (
-          <div className="no-print mt-4 flex justify-center gap-2">
+          <div className="no-print" style={{ marginTop: gaps.hr, textAlign: "center" }}>
             <Button type="button" className="rounded-xl" onClick={() => requestPrint(printer, sale)}>
               Cetak
             </Button>
           </div>
         ) : null}
+      </div>
       </div>
     </div>
   );
