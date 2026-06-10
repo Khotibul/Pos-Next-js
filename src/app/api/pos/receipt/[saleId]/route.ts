@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
+import { getCachedReceiptData, cacheReceiptData } from "@/lib/transaction-cache";
 
 function toNumber(value: unknown) {
   const num = typeof value === "number" ? value : Number(value);
@@ -13,6 +14,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
   const authCtx = await requirePermission(PERMISSIONS.sales_read);
   const p = await ctx.params;
 
+  const cached = await getCachedReceiptData(p.saleId, authCtx.tenantId);
+  if (cached) {
+    const printer = cached.printer && Object.keys(cached.printer).length > 0
+      ? cached.printer
+      : await getPrinterSettings({ tenantId: authCtx.tenantId });
+    return NextResponse.json({ ok: true, data: { printer, sale: cached.sale } });
+  }
+
   const sale = await prisma.sale.findFirst({
     where: { tenantId: authCtx.tenantId, id: p.saleId },
     include: { items: { orderBy: { name: "asc" } }, payments: true },
@@ -21,36 +30,37 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
 
   const printer = await getPrinterSettings({ tenantId: authCtx.tenantId });
 
-  return NextResponse.json({
-    ok: true,
-    data: {
-      printer,
-      sale: {
-        id: sale.id,
-        invoiceNo: sale.invoiceNo,
-        status: sale.status,
-        createdAt: sale.createdAt.toISOString(),
-        subtotal: toNumber(sale.subtotal),
-        discount: toNumber(sale.discount),
-        tax: toNumber(sale.tax),
-        total: toNumber(sale.total),
-        items: sale.items.map((i: { id: string; name: string; sku: string; price: unknown; qty: number; lineTotal: unknown }) => ({
-          id: i.id,
-          name: i.name,
-          sku: i.sku,
-          price: toNumber(i.price),
-          qty: i.qty,
-          lineTotal: toNumber(i.lineTotal),
-        })),
-        payments: sale.payments.map((pmt) => ({
-          id: pmt.id,
-          method: pmt.method,
-          amount: toNumber(pmt.amount),
-          receivedAmount: toNumber(pmt.receivedAmount),
-          changeAmount: toNumber(pmt.changeAmount),
-          reference: pmt.reference ?? null,
-        })),
-      },
+  const receiptData = {
+    printer,
+    sale: {
+      id: sale.id,
+      invoiceNo: sale.invoiceNo,
+      status: sale.status,
+      createdAt: sale.createdAt.toISOString(),
+      subtotal: toNumber(sale.subtotal),
+      discount: toNumber(sale.discount),
+      tax: toNumber(sale.tax),
+      total: toNumber(sale.total),
+      items: sale.items.map((i: { id: string; name: string; sku: string; price: unknown; qty: number; lineTotal: unknown }) => ({
+        id: i.id,
+        name: i.name,
+        sku: i.sku,
+        price: toNumber(i.price),
+        qty: i.qty,
+        lineTotal: toNumber(i.lineTotal),
+      })),
+      payments: sale.payments.map((pmt: { id: string; method: string; amount: unknown; receivedAmount: unknown; changeAmount: unknown; reference: string | null }) => ({
+        id: pmt.id,
+        method: pmt.method,
+        amount: toNumber(pmt.amount),
+        receivedAmount: toNumber(pmt.receivedAmount),
+        changeAmount: toNumber(pmt.changeAmount),
+        reference: pmt.reference ?? null,
+      })),
     },
-  });
+  };
+
+  void cacheReceiptData(p.saleId, authCtx.tenantId, receiptData);
+
+  return NextResponse.json({ ok: true, data: receiptData });
 }

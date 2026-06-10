@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
-import { generateReceiptText, printViaBluetooth } from "@/modules/settings/printer/bluetooth";
+import { generateReceiptText, printViaBluetooth, isAndroidApp } from "@/modules/settings/printer/bluetooth";
 
 type ReceiptSale = {
   id: string;
@@ -28,6 +28,12 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
     printViaBluetooth(text, printer.bluetoothDeviceName).catch((e) => {
       console.error(e);
       alert("Gagal print via Bluetooth: " + (e instanceof Error ? e.message : String(e)));
+    });
+  } else if (isAndroidApp()) {
+    const text = generateReceiptText(sale, printer);
+    printViaBluetooth(text).catch((e) => {
+      console.error(e);
+      alert("Gagal print via Bluetooth Android: " + (e instanceof Error ? e.message : String(e)));
     });
   } else {
     if (typeof window !== "undefined" && window.posDesktop?.printer && printer.defaultBrowserPrinter) {

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
-import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus } from "@/modules/settings/printer/bluetooth";
+import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, getPairedDevices, connectBluetooth } from "@/modules/settings/printer/bluetooth";
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -27,8 +27,10 @@ export function PrinterSettingsForm({
   const message = state && !state.ok ? state.message : null;
   const [desktopPrinters, setDesktopPrinters] = useState<Array<{ name: string; displayName: string }>>([]);
   const [selectedPaper, setSelectedPaper] = useState(initial.paper);
-  const [btStatus, setBtStatus] = useState(getBluetoothStatus);
+  const [btStatus, setBtStatus] = useState<{ connected: boolean; deviceName: string | null }>({ connected: false, deviceName: null });
   const [btPairing, setBtPairing] = useState(false);
+  const [pairedDevices, setPairedDevices] = useState<Array<{ name: string; address: string }>>([]);
+  const isAndroid = isAndroidApp();
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.posDesktop?.printer) {
@@ -37,9 +39,20 @@ export function PrinterSettingsForm({
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => setBtStatus(getBluetoothStatus()), 2000);
+    const refresh = async () => {
+      const status = await getBluetoothStatus();
+      setBtStatus(status);
+      if (isAndroid) {
+        try {
+          const devices = await getPairedDevices();
+          setPairedDevices(devices);
+        } catch { /* ignore */ }
+      }
+    };
+    refresh();
+    const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAndroid]);
 
   const handlePairBluetooth = async () => {
     setBtPairing(true);
@@ -47,7 +60,8 @@ export function PrinterSettingsForm({
       const name = await pairWithPrinter();
       const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
       if (input) input.value = name;
-      setBtStatus(getBluetoothStatus());
+      const status = await getBluetoothStatus();
+      setBtStatus(status);
       alert(`Berhasil terhubung ke "${name}". Koneksi akan tersimpan untuk cetak berikutnya.`);
     } catch (err) {
       console.error(err);
@@ -61,9 +75,26 @@ export function PrinterSettingsForm({
     }
   };
 
-  const handleDisconnectBluetooth = () => {
+  const handleAndroidConnect = async (address: string, name: string) => {
+    setBtPairing(true);
+    try {
+      await connectBluetooth(address);
+      const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
+      if (input) input.value = name;
+      const status = await getBluetoothStatus();
+      setBtStatus(status);
+      alert(`Berhasil terhubung ke "${name}".`);
+    } catch (err) {
+      alert("Gagal: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setBtPairing(false);
+    }
+  };
+
+  const handleDisconnectBluetooth = async () => {
     disconnectBluetooth();
-    setBtStatus(getBluetoothStatus());
+    const status = await getBluetoothStatus();
+    setBtStatus(status);
   };
 
   const handleRefreshDesktopPrinters = async () => {
@@ -77,6 +108,16 @@ export function PrinterSettingsForm({
     }
   };
 
+  const handleRefreshAndroidDevices = async () => {
+    try {
+      const devices = await getPairedDevices();
+      setPairedDevices(devices);
+      alert(`Ditemukan ${devices.length} perangkat ter-pair.`);
+    } catch (err) {
+      alert("Gagal: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
   return (
     <form action={formAction} className="grid gap-5">
       {message ? <Alert variant="destructive">{message}</Alert> : null}
@@ -86,7 +127,7 @@ export function PrinterSettingsForm({
           <Label htmlFor="connectionType">Mode Koneksi</Label>
           <select id="connectionType" name="connectionType" defaultValue={initial.connectionType || "browser"} className="h-10 rounded-xl border bg-background px-3 text-sm">
             <option value="browser">Browser Print (Default / USB / Jaringan)</option>
-            <option value="bluetooth">Bluetooth (Web Bluetooth API)</option>
+            <option value="bluetooth">{isAndroid ? "Bluetooth (Android Native)" : "Bluetooth (Web Bluetooth API)"}</option>
           </select>
           <FieldError msg={fieldErrors.connectionType} />
         </div>
@@ -120,6 +161,7 @@ export function PrinterSettingsForm({
         </div>
       ) : null}
 
+      {!isAndroid ? (
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="defaultBrowserPrinter">Printer Default (Khusus Aplikasi Desktop)</Label>
@@ -147,15 +189,45 @@ export function PrinterSettingsForm({
         </div>
         <FieldError msg={fieldErrors.defaultBrowserPrinter} />
       </div>
+      ) : null}
 
       <div className="grid gap-2">
         <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
-        <div className="flex items-center gap-2">
-          <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Contoh: RPP02N" className="flex-1" />
-          <Button type="button" variant="secondary" onClick={handlePairBluetooth} disabled={btPairing} className="shrink-0 rounded-xl">
-            {btPairing ? "Menghubungkan..." : "Pairing / Hubungkan"}
-          </Button>
-        </div>
+        {isAndroid && pairedDevices.length > 0 ? (
+          <div className="flex items-center gap-2">
+            <select
+              id="bluetoothDeviceName"
+              name="bluetoothDeviceName"
+              defaultValue={initial.bluetoothDeviceName || ""}
+              className="h-10 flex-1 rounded-xl border bg-background px-3 text-sm"
+            >
+              <option value="">-- Pilih Perangkat Bluetooth --</option>
+              {pairedDevices.map((d) => (
+                <option key={d.address} value={d.name}>{d.name} ({d.address})</option>
+              ))}
+            </select>
+            <Button type="button" variant="secondary" onClick={handleRefreshAndroidDevices} disabled={btPairing} className="shrink-0 rounded-xl">
+              Refresh
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => {
+              const sel = document.getElementById("bluetoothDeviceName") as HTMLSelectElement;
+              const opt = sel?.options[sel.selectedIndex];
+              if (opt && opt.value) {
+                const addr = opt.text.match(/\(([^)]+)\)$/)?.[1];
+                if (addr) void handleAndroidConnect(addr, opt.value);
+              }
+            }} disabled={btPairing} className="shrink-0 rounded-xl">
+              {btPairing ? "Menghubungkan..." : "Hubungkan"}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Contoh: RPP02N" className="flex-1" />
+            <Button type="button" variant="secondary" onClick={handlePairBluetooth} disabled={btPairing} className="shrink-0 rounded-xl">
+              {btPairing ? "Menghubungkan..." : "Pairing / Hubungkan"}
+            </Button>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-xs">
           {btStatus.connected ? (
             <span className="inline-flex items-center gap-1 font-medium text-green-600">

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import { ReceiptView } from "@/modules/transactions/components/receipt-view";
-import { generateReceiptText, printViaBluetooth } from "@/modules/settings/printer/bluetooth";
+import { generateReceiptText, printViaBluetooth, isAndroidApp } from "@/modules/settings/printer/bluetooth";
 
 type ReceiptSale = {
   id: string;
@@ -27,6 +27,12 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
     printViaBluetooth(text, printer.bluetoothDeviceName).catch((e) => {
       console.error(e);
       alert("Gagal print via Bluetooth: " + (e instanceof Error ? e.message : String(e)));
+    });
+  } else if (isAndroidApp()) {
+    const text = generateReceiptText(sale, printer);
+    printViaBluetooth(text).catch((e) => {
+      console.error(e);
+      alert("Gagal print via Bluetooth Android: " + (e instanceof Error ? e.message : String(e)));
     });
   } else {
     document.body.classList.add("print-receipt");

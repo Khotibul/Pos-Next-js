@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import type { CreateSaleInput } from "@/modules/transactions/validators";
+import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
 
 function inv(prefix = "TRX") {
   const d = new Date();
@@ -71,12 +72,8 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
   }
 
   const productIds = params.input.items.map((i) => i.productId);
-  const products = await prisma.product.findMany({
-    where: { tenantId: params.tenantId, id: { in: productIds }, isActive: true },
-    select: { id: true, name: true, sku: true, sellingPrice: true },
-  });
+  const productMap = await getCachedProducts(params.tenantId, productIds);
 
-  const productMap = new Map(products.map((p) => [p.id, p]));
   for (const item of params.input.items) {
     if (!productMap.has(item.productId)) throw Errors.badRequest("Produk tidak valid atau tidak aktif.");
   }
@@ -133,7 +130,7 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
           },
         },
       },
-      select: { id: true, invoiceNo: true, total: true },
+      select: { id: true, invoiceNo: true, total: true, createdAt: true, discount: true, tax: true, subtotal: true, status: true },
     });
 
     const totalCash = params.input.payment.method === "CASH" ? total : 0;
@@ -154,10 +151,43 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
       },
       select: { id: true },
     });
+
     return sale;
   });
 
-  return created;
+  void cacheReceiptData(created.id, params.tenantId, {
+    sale: {
+      id: created.id,
+      invoiceNo: created.invoiceNo,
+      status: created.status,
+      createdAt: created.createdAt.toISOString(),
+      subtotal: Number(created.subtotal),
+      discount: Number(created.discount),
+      tax: Number(created.tax),
+      total: Number(created.total),
+      items: lines.map((l, idx) => ({
+        id: `${created.id}-item-${idx}`,
+        name: l.name,
+        sku: l.sku,
+        price: l.price,
+        qty: l.qty,
+        lineTotal: l.lineTotal,
+      })),
+      payments: [
+        {
+          id: `${created.id}-payment-0`,
+          method: params.input.payment.method,
+          amount: total,
+          receivedAmount,
+          changeAmount,
+          reference: params.input.payment.reference || null,
+        },
+      ],
+    },
+    printer: {},
+  });
+
+  return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }
 
 export async function deleteSale(params: { tenantId: string; id: string }) {

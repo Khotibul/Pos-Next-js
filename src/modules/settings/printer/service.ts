@@ -3,6 +3,7 @@ import "server-only";
 import { SETTINGS_KEYS } from "@/modules/settings/keys";
 import { getSetting, setSetting } from "@/modules/settings/service";
 import { PrinterSettingsSchema, type PrinterSettings, UpdatePrinterSettingsFormSchema } from "@/modules/settings/printer/validators";
+import { getCache, setCache, deleteCache } from "@/lib/redis";
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = PrinterSettingsSchema.parse({
   paper: "80mm",
@@ -24,10 +25,17 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = PrinterSettingsSchema.p
 });
 
 export async function getPrinterSettings(params: { tenantId: string }): Promise<PrinterSettings> {
+  const cacheKey = `printer:settings:${params.tenantId}`;
+  const cached = await getCache<PrinterSettings>(cacheKey);
+  if (cached) return cached;
+
   const raw = await getSetting({ tenantId: params.tenantId, key: SETTINGS_KEYS.printer });
   if (!raw) return DEFAULT_PRINTER_SETTINGS;
   const parsed = PrinterSettingsSchema.safeParse(raw);
-  return parsed.success ? parsed.data : DEFAULT_PRINTER_SETTINGS;
+  const result = parsed.success ? parsed.data : DEFAULT_PRINTER_SETTINGS;
+
+  await setCache(cacheKey, result, 120);
+  return result;
 }
 
 export async function updatePrinterSettings(params: { tenantId: string; input: unknown }) {
@@ -55,5 +63,6 @@ export async function updatePrinterSettings(params: { tenantId: string; input: u
   });
 
   await setSetting({ tenantId: params.tenantId, key: SETTINGS_KEYS.printer, value: normalized });
+  await deleteCache(`printer:settings:${params.tenantId}`);
   return { ok: true as const, data: normalized };
 }

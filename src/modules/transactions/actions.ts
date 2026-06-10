@@ -12,6 +12,7 @@ import { requireActiveTenant } from "@/lib/tenant-guards";
 import { createSaleSchema } from "@/modules/transactions/validators";
 import { createSale, deleteSale } from "@/modules/transactions/service";
 import { getOpenShift } from "@/modules/shifts/service";
+import { checkIdempotencyKey, releaseIdempotencyKey } from "@/lib/transaction-cache";
 
 export async function createSaleAction(payload: unknown): Promise<ActionResult<{ id: string; invoiceNo: string }>> {
   try {
@@ -21,8 +22,16 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     const parsed = createSaleSchema.safeParse(payload);
     if (!parsed.success) return { ok: false, message: "Validasi gagal." };
 
+    const idempotencyRaw = parsed.data.payment.reference || `${ctx.userId}-${Date.now()}`;
+    const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
+    const allowed = await checkIdempotencyKey(ctx.tenantId, idempotencyKey);
+    if (!allowed) return { ok: false, message: "Transaksi sedang diproses. Harap tunggu." };
+
     const openShift = await getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId });
-    if (!openShift) return { ok: false, message: "Shift belum dibuka. Silakan buka shift terlebih dahulu." };
+    if (!openShift) {
+      await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
+      return { ok: false, message: "Shift belum dibuka. Silakan buka shift terlebih dahulu." };
+    }
 
     const created = await createSale({ tenantId: ctx.tenantId, cashierId: ctx.userId, shiftId: openShift.id, input: parsed.data });
 
@@ -35,6 +44,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       metadata: { invoiceNo: created.invoiceNo, total: created.total },
     });
     await invalidateDashboardCache(ctx.tenantId);
+    await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
 
     revalidatePath("/pos");
     revalidatePath("/pos/history");

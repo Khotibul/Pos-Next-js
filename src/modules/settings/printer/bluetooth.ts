@@ -1,6 +1,15 @@
 "use client";
 
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
+import {
+  isCapacitorBluetoothAvailable,
+  getPairedDevices as capGetPairedDevices,
+  printViaCapacitor,
+  disconnectCapacitorBluetooth,
+  getCapacitorBluetoothStatus,
+  connectBluetooth as capConnectBluetooth,
+  isAndroidApp as capIsAndroidApp,
+} from "@/lib/capacitor-bluetooth";
 
 type ReceiptSale = {
   id: string;
@@ -109,7 +118,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   return text;
 }
 
-// --- Internal types for Web Bluetooth ---
+// --- Web Bluetooth types ---
 
 type BluetoothGATTCharacteristic = {
   properties: { write?: boolean; writeWithoutResponse?: boolean };
@@ -147,7 +156,7 @@ interface NavigatorWithBluetooth extends Navigator {
   };
 }
 
-// --- Connection Cache ---
+// --- Web Bluetooth Connection Cache ---
 
 const SERVICE_UUIDS = [
   '000018f0-0000-1000-8000-00805f9b34fb',
@@ -175,9 +184,6 @@ function getNav() {
   return nav.bluetooth;
 }
 
-/**
- * Find a writable characteristic from a connected GATT server.
- */
 async function findWritableCharacteristic(server: BluetoothGATTServer): Promise<BluetoothGATTCharacteristic> {
   const services = await server.getPrimaryServices();
   for (const service of services) {
@@ -191,17 +197,11 @@ async function findWritableCharacteristic(server: BluetoothGATTServer): Promise<
   throw new Error("Tidak dapat menemukan karakteristik write pada printer Bluetooth.");
 }
 
-/**
- * Try to reconnect using a previously paired device.
- * Checks the in-memory cache first, then tries getDevices().
- */
 async function tryReconnect(deviceName?: string): Promise<boolean> {
-  // Already connected and cached
   if (cachedCharacteristic && cachedServer?.connected) {
     return true;
   }
 
-  // Cache exists but disconnected — try to reconnect
   if (cachedDevice && !cachedServer?.connected) {
     try {
       cachedServer = await cachedDevice.gatt!.connect();
@@ -213,7 +213,6 @@ async function tryReconnect(deviceName?: string): Promise<boolean> {
     }
   }
 
-  // Try getDevices() — find previously authorized device
   const bluetooth = getNav();
   try {
     const devices = await bluetooth.getDevices();
@@ -253,9 +252,6 @@ function setupDisconnectHandler(device: BluetoothDevice) {
   device.addEventListener('gattserverdisconnected', disconnectHandler);
 }
 
-/**
- * Send data in chunks to the characteristic.
- */
 async function sendData(data: Uint8Array) {
   if (!cachedCharacteristic) throw new Error("Tidak ada koneksi Bluetooth aktif.");
   const CHUNK_SIZE = 100;
@@ -267,15 +263,16 @@ async function sendData(data: Uint8Array) {
 
 // --- Public API ---
 
-/**
- * Pair with a new Bluetooth printer (shows browser chooser).
- * Connects, discovers services, and caches the connection for subsequent use.
- * Returns the device name on success.
- */
 export async function pairWithPrinter(): Promise<string> {
-  const bluetooth = getNav();
+  if (isCapacitorBluetoothAvailable()) {
+    const devices = await getPairedDevices();
+    if (devices.length === 0) {
+      throw new Error("Tidak ada perangkat Bluetooth yang ter-pair. Silakan pair melalui pengaturan Android.");
+    }
+    return JSON.stringify(devices);
+  }
 
-  // Disconnect any existing connection first
+  const bluetooth = getNav();
   disconnectBluetooth();
 
   const device = await bluetooth.requestDevice({
@@ -298,16 +295,15 @@ export async function pairWithPrinter(): Promise<string> {
   return device.name;
 }
 
-/**
- * Print receipt text via Bluetooth.
- * Automatically reuses cached connection or reconnects to a previously paired device.
- * Only shows browser chooser as last resort (requires user gesture context).
- */
 export async function printViaBluetooth(text: string, deviceName?: string) {
+  if (isCapacitorBluetoothAvailable()) {
+    await printViaCapacitor(text);
+    return;
+  }
+
   const connected = await tryReconnect(deviceName);
 
   if (!connected) {
-    // Last resort: request a new device (needs user gesture)
     const bluetooth = getNav();
     let device: BluetoothDevice;
     if (deviceName && deviceName.trim() !== "") {
@@ -348,16 +344,15 @@ export async function printViaBluetooth(text: string, deviceName?: string) {
     await sendData(lf);
     try { await sendData(cutCmd); } catch { /* ignore cut errors */ }
   } catch (err) {
-    // Connection lost during send — clear cache and rethrow
     clearCache();
     throw err;
   }
 }
 
-/**
- * Disconnect the current Bluetooth printer and clear the cache.
- */
 export function disconnectBluetooth() {
+  if (isCapacitorBluetoothAvailable()) {
+    void disconnectCapacitorBluetooth();
+  }
   if (cachedServer?.connected) {
     try {
       cachedServer.disconnect();
@@ -366,10 +361,11 @@ export function disconnectBluetooth() {
   clearCache();
 }
 
-/**
- * Check if we have an active Bluetooth connection.
- */
-export function getBluetoothStatus(): { connected: boolean; deviceName: string | null } {
+export async function getBluetoothStatus(): Promise<{ connected: boolean; deviceName: string | null }> {
+  if (isCapacitorBluetoothAvailable()) {
+    const status = await getCapacitorBluetoothStatus();
+    return { connected: status.connected, deviceName: status.deviceName || null };
+  }
   if (cachedServer?.connected && cachedDevice?.name) {
     return { connected: true, deviceName: cachedDevice.name };
   }
@@ -378,3 +374,8 @@ export function getBluetoothStatus(): { connected: boolean; deviceName: string |
   }
   return { connected: false, deviceName: null };
 }
+
+export { isCapacitorBluetoothAvailable };
+export const getPairedDevices = capGetPairedDevices;
+export const connectBluetooth = capConnectBluetooth;
+export const isAndroidApp = capIsAndroidApp;
