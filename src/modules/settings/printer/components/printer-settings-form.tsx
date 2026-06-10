@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
-import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, getPairedDevices, connectBluetooth } from "@/modules/settings/printer/bluetooth";
+import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, connectBluetooth, startDiscovery, stopDiscovery, getDiscoveredDevices } from "@/modules/settings/printer/bluetooth";
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -29,7 +29,8 @@ export function PrinterSettingsForm({
   const [selectedPaper, setSelectedPaper] = useState(initial.paper);
   const [btStatus, setBtStatus] = useState<{ connected: boolean; deviceName: string | null }>({ connected: false, deviceName: null });
   const [btPairing, setBtPairing] = useState(false);
-  const [pairedDevices, setPairedDevices] = useState<Array<{ name: string; address: string }>>([]);
+  const [pairedDevices, setPairedDevices] = useState<Array<{ name: string; address: string; paired: boolean }>>([]);
+  const [isScanning, setIsScanning] = useState(false);
   const isAndroid = isAndroidApp();
 
   useEffect(() => {
@@ -42,17 +43,27 @@ export function PrinterSettingsForm({
     const refresh = async () => {
       const status = await getBluetoothStatus();
       setBtStatus(status);
-      if (isAndroid) {
-        try {
-          const devices = await getPairedDevices();
-          setPairedDevices(devices);
-        } catch { /* ignore */ }
-      }
     };
     refresh();
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
-  }, [isAndroid]);
+  }, []);
+
+  // Poll discovered devices while scanning
+  useEffect(() => {
+    if (!isAndroid || !isScanning) return;
+    const poll = async () => {
+      try {
+        const result = await getDiscoveredDevices();
+        setPairedDevices(result.devices);
+        if (!result.isDiscovering) {
+          setIsScanning(false);
+        }
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(poll, 1500);
+    return () => clearInterval(interval);
+  }, [isAndroid, isScanning]);
 
   const handlePairBluetooth = async () => {
     setBtPairing(true);
@@ -108,13 +119,20 @@ export function PrinterSettingsForm({
     }
   };
 
-  const handleRefreshAndroidDevices = async () => {
+  const handleScanAndroidDevices = async () => {
+    setIsScanning(true);
     try {
-      const devices = await getPairedDevices();
-      setPairedDevices(devices);
-      alert(`Ditemukan ${devices.length} perangkat ter-pair.`);
+      await startDiscovery();
+      // Polling will update the list; auto-stop after 12s
+      setTimeout(async () => {
+        try {
+          await stopDiscovery();
+          setIsScanning(false);
+        } catch { /* ignore */ }
+      }, 12000);
     } catch (err) {
-      alert("Gagal: " + (err instanceof Error ? err.message : String(err)));
+      setIsScanning(false);
+      alert("Gagal scan: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -193,32 +211,41 @@ export function PrinterSettingsForm({
 
       <div className="grid gap-2">
         <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
-        {isAndroid && pairedDevices.length > 0 ? (
-          <div className="flex items-center gap-2">
-            <select
-              id="bluetoothDeviceName"
-              name="bluetoothDeviceName"
-              defaultValue={initial.bluetoothDeviceName || ""}
-              className="h-10 flex-1 rounded-xl border bg-background px-3 text-sm"
-            >
-              <option value="">-- Pilih Perangkat Bluetooth --</option>
-              {pairedDevices.map((d) => (
-                <option key={d.address} value={d.name}>{d.name} ({d.address})</option>
-              ))}
-            </select>
-            <Button type="button" variant="secondary" onClick={handleRefreshAndroidDevices} disabled={btPairing} className="shrink-0 rounded-xl">
-              Refresh
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => {
-              const sel = document.getElementById("bluetoothDeviceName") as HTMLSelectElement;
-              const opt = sel?.options[sel.selectedIndex];
-              if (opt && opt.value) {
-                const addr = opt.text.match(/\(([^)]+)\)$/)?.[1];
-                if (addr) void handleAndroidConnect(addr, opt.value);
-              }
-            }} disabled={btPairing} className="shrink-0 rounded-xl">
-              {btPairing ? "Menghubungkan..." : "Hubungkan"}
-            </Button>
+        {isAndroid ? (
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Nama atau alamat MAC" className="flex-1" />
+              <Button type="button" variant="secondary" onClick={handleScanAndroidDevices} disabled={isScanning || btPairing} className="shrink-0 rounded-xl">
+                {isScanning ? "Memindai..." : "Scan"}
+              </Button>
+            </div>
+            {pairedDevices.length > 0 ? (
+              <div className="max-h-48 overflow-y-auto rounded-xl border bg-background p-1">
+                {pairedDevices.map((d) => (
+                  <div key={d.address} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted/50">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{d.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{d.address}{d.paired ? " (ter-pair)" : ""}</div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0 rounded-lg text-xs h-8"
+                      disabled={btPairing}
+                      onClick={() => handleAndroidConnect(d.address, d.name)}
+                    >
+                      {btPairing ? "..." : "Hubungkan"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : isScanning ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl border bg-muted/10 px-3 py-6 text-sm text-muted-foreground">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Memindai perangkat Bluetooth...
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex items-center gap-2">

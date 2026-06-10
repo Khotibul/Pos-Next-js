@@ -9,6 +9,9 @@ import {
   getCapacitorBluetoothStatus,
   connectBluetooth as capConnectBluetooth,
   isAndroidApp as capIsAndroidApp,
+  startDiscovery as capStartDiscovery,
+  stopDiscovery as capStopDiscovery,
+  getDiscoveredDevices as capGetDiscoveredDevices,
 } from "@/lib/capacitor-bluetooth";
 
 type ReceiptSale = {
@@ -282,9 +285,14 @@ async function sendData(data: Uint8Array) {
 
 export async function pairWithPrinter(): Promise<string> {
   if (isCapacitorBluetoothAvailable()) {
-    const devices = await getPairedDevices();
+    await capStartDiscovery();
+    // Tunggu discovery selama 12 detik
+    await new Promise((resolve) => setTimeout(resolve, 12000));
+    await capStopDiscovery();
+    const result = await capGetDiscoveredDevices();
+    const devices = result.devices;
     if (devices.length === 0) {
-      throw new Error("Tidak ada perangkat Bluetooth yang ter-pair. Silakan pair melalui pengaturan Android.");
+      throw new Error("Tidak ada perangkat Bluetooth ditemukan. Pastikan printer dalam mode pairing.");
     }
     return JSON.stringify(devices);
   }
@@ -314,7 +322,7 @@ export async function pairWithPrinter(): Promise<string> {
 
 export async function printViaBluetooth(text: string, deviceName?: string) {
   if (isCapacitorBluetoothAvailable()) {
-    await printViaCapacitor(text);
+    await printViaCapacitor(text, deviceName);
     return;
   }
 
@@ -396,3 +404,6 @@ export { isCapacitorBluetoothAvailable };
 export const getPairedDevices = capGetPairedDevices;
 export const connectBluetooth = capConnectBluetooth;
 export const isAndroidApp = capIsAndroidApp;
+export const startDiscovery = capStartDiscovery;
+export const stopDiscovery = capStopDiscovery;
+export const getDiscoveredDevices = capGetDiscoveredDevices;

@@ -1,6 +1,18 @@
 type PairedDevice = {
   name: string;
   address: string;
+  paired?: boolean;
+};
+
+type DiscoveredDevice = {
+  name: string;
+  address: string;
+  paired: boolean;
+};
+
+type DiscoveryResult = {
+  devices: DiscoveredDevice[];
+  isDiscovering: boolean;
 };
 
 type BluetoothStatus = {
@@ -10,6 +22,9 @@ type BluetoothStatus = {
 
 type CapPlugin = {
   getPairedDevices: () => Promise<{ devices: PairedDevice[] }>;
+  startDiscovery: () => Promise<{ started: boolean }>;
+  stopDiscovery: () => Promise<{ stopped: boolean }>;
+  getDiscoveredDevices: () => Promise<DiscoveryResult>;
   connect: (opts: { address: string }) => Promise<{ connected: boolean; deviceName: string }>;
   print: (opts: { data: string }) => Promise<{ success: boolean }>;
   printRaw: (opts: { data: number[] }) => Promise<{ success: boolean }>;
@@ -36,6 +51,24 @@ export async function getPairedDevices(): Promise<PairedDevice[]> {
   return result.devices;
 }
 
+export async function startDiscovery(): Promise<void> {
+  const p = getPlugin();
+  if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
+  await p.startDiscovery();
+}
+
+export async function stopDiscovery(): Promise<void> {
+  const p = getPlugin();
+  if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
+  await p.stopDiscovery();
+}
+
+export async function getDiscoveredDevices(): Promise<DiscoveryResult> {
+  const p = getPlugin();
+  if (!p) return { devices: [], isDiscovering: false };
+  return p.getDiscoveredDevices();
+}
+
 export async function connectBluetooth(address: string): Promise<{ deviceName: string }> {
   const p = getPlugin();
   if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
@@ -43,15 +76,58 @@ export async function connectBluetooth(address: string): Promise<{ deviceName: s
   return { deviceName: result.deviceName };
 }
 
-export async function printViaCapacitor(data: string): Promise<void> {
+async function ensureConnected(p: CapPlugin, deviceName?: string): Promise<void> {
+  if (!deviceName || deviceName.trim() === "") return;
+  try {
+    const status = await p.getStatus();
+    const currentName = status.deviceName;
+    const isConnected = status.connected;
+
+    if (isConnected && currentName?.toLowerCase() === deviceName.toLowerCase()) {
+      return;
+    }
+
+    // Cari perangkat dari hasil discovery terakhir atau paired devices
+    let devices: { name: string; address: string }[] = [];
+    try {
+      const discoveryResult = await p.getDiscoveredDevices();
+      devices = discoveryResult.devices;
+    } catch { /* ignore */ }
+
+    if (devices.length === 0) {
+      try {
+        const paired = await p.getPairedDevices();
+        devices = paired.devices;
+      } catch { /* ignore */ }
+    }
+
+    const target = deviceName.includes(":")
+      ? devices.find((d) => d.address.toLowerCase() === deviceName.toLowerCase() || d.name.toLowerCase() === deviceName.toLowerCase())
+      : devices.find((d) => d.name.toLowerCase() === deviceName.toLowerCase());
+
+    if (target) {
+      console.log(`Auto-connecting to Bluetooth printer: ${target.name} (${target.address})...`);
+      await p.connect({ address: target.address });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } else {
+      console.warn(`Bluetooth printer "${deviceName}" not found in discovered devices.`);
+    }
+  } catch (err) {
+    console.error("Auto-connect failed, attempting print anyway:", err);
+  }
+}
+
+export async function printViaCapacitor(data: string, deviceName?: string): Promise<void> {
   const p = getPlugin();
   if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
+  await ensureConnected(p, deviceName);
   await p.print({ data });
 }
 
-export async function printRawViaCapacitor(data: number[]): Promise<void> {
+export async function printRawViaCapacitor(data: number[], deviceName?: string): Promise<void> {
   const p = getPlugin();
   if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
+  await ensureConnected(p, deviceName);
   await p.printRaw({ data });
 }
 
