@@ -91,6 +91,7 @@ export function PrinterSettingsForm({
             <option value="48mm">48mm</option>
             <option value="58mm">58mm</option>
             <option value="80mm">80mm</option>
+            <option value="custom">Custom (Menyesuaikan)</option>
           </select>
           <FieldError msg={fieldErrors.paper} />
         </div>

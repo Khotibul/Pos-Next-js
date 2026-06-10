@@ -61,7 +61,7 @@ export default async function ReceiptPage({
   const autoPrint = printer.autoPrintAfterPayment && sp.auto === "1";
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 print:m-0 print:p-0 print:max-w-none">
       <ReceiptView sale={saleData} printer={printer} autoPrint={autoPrint} />
     </div>
   );

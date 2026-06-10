@@ -52,8 +52,8 @@ export function ReceiptView({
   autoPrint: boolean;
   showPrintButton?: boolean;
 }) {
-  const widthMm = printer.paper === "48mm" ? 48 : printer.paper === "58mm" ? 58 : 80;
-  const maxPx = printer.paper === "48mm" ? 300 : printer.paper === "58mm" ? 360 : 520;
+  const widthMm = printer.paper === "48mm" ? 48 : printer.paper === "58mm" ? 58 : printer.paper === "80mm" ? 80 : null;
+  const maxWidthStr = printer.paper === "48mm" ? "300px" : printer.paper === "58mm" ? "360px" : printer.paper === "80mm" ? "520px" : "100%";
 
   useEffect(() => {
     if (!autoPrint) return;
@@ -65,7 +65,7 @@ export function ReceiptView({
     <div>
       <style>{`
         :root { color-scheme: light; }
-        .receipt-wrap { max-width: ${maxPx}px; margin: 0 auto; padding: 16px; }
+        .receipt-wrap { max-width: ${maxWidthStr}; width: 100%; margin: 0 auto; padding: 10px; background: #fff; }
         .center { text-align: center; }
         .muted { color: #64748b; }
         .hr { border-top: 1px dashed #cbd5e1; margin: 12px 0; }
@@ -76,15 +76,15 @@ export function ReceiptView({
         .small { font-size: 12px; }
         .bold { font-weight: 700; }
         @media print {
-          @page { size: ${widthMm}mm auto; margin: 0; }
+          ${printer.paper === "custom" ? "@page { margin: 0; }" : `@page { size: ${widthMm}mm auto; margin: 0; }`}
           body { margin: 0; background: #fff; }
-          .receipt-wrap { padding: 10px; }
+          .receipt-wrap { max-width: 100%; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 10px; }
           .no-print { display: none !important; }
         }
       `}</style>
 
       <div
-        className="receipt-wrap rounded-2xl border bg-white"
+        className="receipt-wrap bg-white shadow-sm"
         style={{
           fontFamily:
             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',

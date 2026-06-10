@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PrinterPaperSchema = z.enum(["48mm", "58mm", "80mm"]);
+export const PrinterPaperSchema = z.enum(["48mm", "58mm", "80mm", "custom"]);
 export const PrinterConnectionTypeSchema = z.enum(["browser", "bluetooth"]);
 
 export const PrinterSettingsSchema = z.object({
