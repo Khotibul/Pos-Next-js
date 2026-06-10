@@ -45,6 +45,12 @@ export const PERMISSIONS = {
   settings_read: "settings.read",
   settings_write: "settings.write",
   billing_read: "billing.read",
+  printer_read: "printer.read",
+  printer_create: "printer.create",
+  printer_update: "printer.update",
+  printer_delete: "printer.delete",
+  printer_test: "printer.test",
+  printer_print: "printer.print",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

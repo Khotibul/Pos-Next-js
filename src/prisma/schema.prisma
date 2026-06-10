@@ -76,6 +76,7 @@ model Tenant {
   products    Product[]
   sales       Sale[]
   productCategories ProductCategory[]
+  printers    Printer[]
   productBrands     ProductBrand[]
   productUnits      ProductUnit[]
   customers  Customer[]
@@ -273,6 +274,7 @@ model Branch {
   productPriceHistory ProductPriceHistory[]
   productBatches ProductBatch[]
   productDiscounts ProductDiscount[]
+  printers    Printer[]
 
   @@index([tenantId])
   @@index([categoryId])
@@ -1313,3 +1315,25 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model Printer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  branchId    String?
+  name        String
+  type        String   @default("BLUETOOTH")
+  paperSize   String   @default("58mm")
+  address     String?  // MAC address for BT, IP for LAN, path for USB
+  configJson  String?  @db.Text
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([branchId])
+}
+
