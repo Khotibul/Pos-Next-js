@@ -17,6 +17,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.IOException;
+import org.json.JSONException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -196,7 +197,7 @@ public class BluetoothPrinterPlugin extends Plugin {
             adapter.cancelDiscovery();
 
             boolean connected = false;
-            IOException lastException = null;
+            Exception lastException = null;
 
             // Metode 1: Standard Secure RFCOMM Socket
             try {
@@ -219,7 +220,7 @@ public class BluetoothPrinterPlugin extends Plugin {
                     socket.connect();
                     connected = true;
                     Log.i(TAG, "Koneksi Metode 2 berhasil.");
-                } catch (IOException e) {
+        } catch (IOException e) {
                     lastException = e;
                     Log.w(TAG, "Metode 2 gagal: " + e.getMessage());
                     disconnectInternal();
@@ -329,7 +330,7 @@ public class BluetoothPrinterPlugin extends Plugin {
             JSObject ret = new JSObject();
             ret.put("success", true);
             call.resolve(ret);
-        } catch (IOException e) {
+        } catch (IOException | JSONException e) {
             Log.e(TAG, "Gagal cetak raw: " + e.getMessage(), e);
             disconnectInternal();
             call.reject("Gagal cetak: " + e.getMessage());
