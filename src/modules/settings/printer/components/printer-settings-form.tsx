@@ -31,6 +31,7 @@ export function PrinterSettingsForm({
   const fieldErrors = (state && !state.ok ? state.fieldErrors : undefined) ?? {};
   const message = state && !state.ok ? state.message : null;
   const [desktopPrinters, setDesktopPrinters] = useState<Array<{ name: string; displayName: string }>>([]);
+  const [selectedPaper, setSelectedPaper] = useState(initial.paper);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.posDesktop?.printer) {
@@ -87,15 +88,32 @@ export function PrinterSettingsForm({
 
         <div className="grid gap-2">
           <Label htmlFor="paper">Ukuran Kertas</Label>
-          <select id="paper" name="paper" defaultValue={initial.paper} className="h-10 rounded-xl border bg-background px-3 text-sm">
+          <select id="paper" name="paper" defaultValue={initial.paper} onChange={(e) => setSelectedPaper(e.target.value as typeof initial.paper)} className="h-10 rounded-xl border bg-background px-3 text-sm">
             <option value="48mm">48mm</option>
             <option value="58mm">58mm</option>
             <option value="80mm">80mm</option>
-            <option value="custom">Custom (Menyesuaikan)</option>
+            <option value="custom">Custom</option>
           </select>
           <FieldError msg={fieldErrors.paper} />
         </div>
       </div>
+
+      {selectedPaper === "custom" ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="customWidthMm">Lebar Kertas (mm)</Label>
+            <Input id="customWidthMm" name="customWidthMm" type="number" min={10} max={200} defaultValue={initial.customWidthMm ?? 58} placeholder="Contoh: 58" />
+            <div className="text-xs text-muted-foreground">Min: 10mm, Maks: 200mm</div>
+            <FieldError msg={fieldErrors.customWidthMm} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="customHeightMm">Tinggi Kertas (mm)</Label>
+            <Input id="customHeightMm" name="customHeightMm" type="number" min={10} max={500} defaultValue={initial.customHeightMm ?? 150} placeholder="Contoh: 150" />
+            <div className="text-xs text-muted-foreground">Min: 10mm, Maks: 500mm (opsional, untuk @page)</div>
+            <FieldError msg={fieldErrors.customHeightMm} />
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between">

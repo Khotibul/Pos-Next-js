@@ -6,6 +6,8 @@ import { PrinterSettingsSchema, type PrinterSettings, UpdatePrinterSettingsFormS
 
 export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = PrinterSettingsSchema.parse({
   paper: "80mm",
+  customWidthMm: 58,
+  customHeightMm: 150,
   autoPrintAfterPayment: false,
   showLogo: false,
   headerTitle: "POS Pro",
@@ -35,6 +37,8 @@ export async function updatePrinterSettings(params: { tenantId: string; input: u
     connectionType: parsed.data.connectionType ?? "browser",
     bluetoothDeviceName: parsed.data.bluetoothDeviceName ?? "",
     paper: parsed.data.paper,
+    customWidthMm: parsed.data.customWidthMm ?? 58,
+    customHeightMm: parsed.data.customHeightMm ?? 150,
     autoPrintAfterPayment: parsed.data.autoPrintAfterPayment ?? false,
     showLogo: parsed.data.showLogo ?? false,
     headerTitle: parsed.data.headerTitle,

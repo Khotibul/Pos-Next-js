@@ -23,8 +23,16 @@ function padRight(str: string, length: number) {
   return str.length > length ? str.substring(0, length) : str.padEnd(length, " ");
 }
 
+function getCharsPerLine(printer: PrinterSettings): number {
+  if (printer.paper === "48mm") return 24;
+  if (printer.paper === "58mm") return 32;
+  if (printer.paper === "80mm") return 48;
+  // For custom, approximate: chars = widthMm * 0.6 (roughly 0.6 chars per mm)
+  return Math.max(12, Math.round((printer.customWidthMm ?? 58) * 0.6));
+}
+
 export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings) {
-  const width = printer.paper === "48mm" ? 24 : printer.paper === "58mm" ? 32 : 48; // Typical characters per line
+  const width = getCharsPerLine(printer);
   let text = "";
 
   const centerText = (str: string) => {

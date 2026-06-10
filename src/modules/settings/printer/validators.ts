@@ -8,6 +8,8 @@ export const PrinterSettingsSchema = z.object({
   bluetoothDeviceName: z.string().optional().default(""),
   defaultBrowserPrinter: z.string().optional().default(""),
   paper: PrinterPaperSchema.default("80mm"),
+  customWidthMm: z.number().min(10).max(200).optional().default(58),
+  customHeightMm: z.number().min(10).max(500).optional().default(150),
   autoPrintAfterPayment: z.boolean().default(false),
   showLogo: z.boolean().default(false),
   headerTitle: z.string().trim().min(1).max(60).default("POS Pro"),
@@ -29,6 +31,16 @@ export const UpdatePrinterSettingsFormSchema = z.object({
   connectionType: PrinterConnectionTypeSchema.optional().default("browser"),
   bluetoothDeviceName: z.string().trim().optional(),
   paper: PrinterPaperSchema,
+  customWidthMm: z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? undefined : typeof v === "number" ? v : Number(v)))
+    .pipe(z.number().min(10).max(200).optional()),
+  customHeightMm: z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? undefined : typeof v === "number" ? v : Number(v)))
+    .pipe(z.number().min(10).max(500).optional()),
   autoPrintAfterPayment: z
     .union([z.boolean(), z.string()])
     .optional()

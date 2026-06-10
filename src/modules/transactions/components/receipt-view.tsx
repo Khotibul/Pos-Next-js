@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import { generateReceiptText, printViaBluetooth } from "@/modules/settings/printer/bluetooth";
@@ -41,6 +41,26 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
   }
 }
 
+function getWidthMm(printer: PrinterSettings): number {
+  if (printer.paper === "48mm") return 48;
+  if (printer.paper === "58mm") return 58;
+  if (printer.paper === "80mm") return 80;
+  return printer.customWidthMm ?? 58;
+}
+
+function getHeightMm(printer: PrinterSettings): number | null {
+  if (printer.paper === "custom") return printer.customHeightMm ?? null;
+  return null;
+}
+
+function getMaxWidthPx(printer: PrinterSettings): string {
+  const w = getWidthMm(printer);
+  const px = Math.round(w * 6.5);
+  return `${px}px`;
+}
+
+const BASELINE_WIDTH = 80;
+
 export function ReceiptView({
   sale,
   printer,
@@ -52,8 +72,31 @@ export function ReceiptView({
   autoPrint: boolean;
   showPrintButton?: boolean;
 }) {
-  const widthMm = printer.paper === "48mm" ? 48 : printer.paper === "58mm" ? 58 : printer.paper === "80mm" ? 80 : null;
-  const maxWidthStr = printer.paper === "48mm" ? "300px" : printer.paper === "58mm" ? "360px" : printer.paper === "80mm" ? "520px" : "100%";
+  const widthMm = getWidthMm(printer);
+  const heightMm = getHeightMm(printer);
+  const scale = widthMm / BASELINE_WIDTH;
+
+  const fontSize = useMemo(() => {
+    const base = Math.round(14 * scale);
+    return {
+      base: `${Math.max(8, base)}px`,
+      small: `${Math.max(7, Math.round(12 * scale))}px`,
+      total: `${Math.max(9, Math.round(16 * scale))}px`,
+      title: `${Math.max(9, Math.round(15 * scale))}px`,
+    };
+  }, [scale]);
+
+  const gaps = useMemo(() => {
+    return {
+      hr: `${Math.max(4, Math.round(12 * scale))}px`,
+      items: `${Math.max(4, Math.round(8 * scale))}px`,
+      itemGap: `${Math.max(1, Math.round(2 * scale))}px`,
+      rowGap: `${Math.max(4, Math.round(12 * scale))}px`,
+      payGap: `${Math.max(2, Math.round(4 * scale))}px`,
+    };
+  }, [scale]);
+
+  const maxWidthStr = getMaxWidthPx(printer);
 
   useEffect(() => {
     if (!autoPrint) return;
@@ -61,24 +104,29 @@ export function ReceiptView({
     return () => window.clearTimeout(t);
   }, [autoPrint, printer, sale]);
 
+  const pageSizeCss = printer.paper === "custom" && heightMm
+    ? `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`
+    : `@page { size: ${widthMm}mm auto; margin: 0; }`;
+
   return (
     <div>
       <style>{`
         :root { color-scheme: light; }
-        .receipt-wrap { max-width: ${maxWidthStr}; width: 100%; margin: 0 auto; padding: 10px; background: #fff; }
+        .receipt-wrap { max-width: ${maxWidthStr}; width: 100%; margin: 0 auto; padding: ${gaps.hr}; background: #fff; font-size: ${fontSize.base}; }
         .center { text-align: center; }
         .muted { color: #64748b; }
-        .hr { border-top: 1px dashed #cbd5e1; margin: 12px 0; }
-        .row { display: flex; justify-content: space-between; gap: 12px; }
-        .items { margin-top: 8px; display: grid; gap: 8px; }
-        .item { display: grid; gap: 2px; }
-        .item-top { display: flex; justify-content: space-between; gap: 10px; }
-        .small { font-size: 12px; }
+        .hr { border-top: 1px dashed #cbd5e1; margin: ${gaps.hr} 0; }
+        .row { display: flex; justify-content: space-between; gap: ${gaps.rowGap}; }
+        .items { margin-top: ${gaps.items}; display: grid; gap: ${gaps.items}; }
+        .item { display: grid; gap: ${gaps.itemGap}; }
+        .item-top { display: flex; justify-content: space-between; gap: ${gaps.rowGap}; }
+        .small { font-size: ${fontSize.small}; }
         .bold { font-weight: 700; }
+        .title { font-size: ${fontSize.title}; font-weight: 700; }
         @media print {
-          ${printer.paper === "custom" ? "@page { margin: 0; }" : `@page { size: ${widthMm}mm auto; margin: 0; }`}
+          ${pageSizeCss}
           body { margin: 0; background: #fff; }
-          .receipt-wrap { max-width: 100%; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: 10px; }
+          .receipt-wrap { max-width: 100%; border: none !important; border-radius: 0 !important; box-shadow: none !important; padding: ${gaps.hr}; }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -91,7 +139,7 @@ export function ReceiptView({
         }}
       >
         <div className="center">
-          <div className="bold">{printer.headerTitle}</div>
+          <div className="title">{printer.headerTitle}</div>
           {printer.headerSubtitle ? <div className="small muted">{printer.headerSubtitle}</div> : null}
         </div>
 
@@ -156,7 +204,7 @@ export function ReceiptView({
               <span>{rupiah(sale.tax)}</span>
             </div>
           ) : null}
-          <div className="row bold" style={{ marginTop: 8, fontSize: 14 }}>
+          <div className="row bold" style={{ marginTop: gaps.items, fontSize: fontSize.total }}>
             <span>Total</span>
             <span>{rupiah(sale.total)}</span>
           </div>
@@ -165,14 +213,14 @@ export function ReceiptView({
         <div className="hr" />
 
         <div className="small">
-          <div className="bold" style={{ marginBottom: 6 }}>
+          <div className="bold" style={{ marginBottom: gaps.items }}>
             Pembayaran
           </div>
           {sale.payments.length === 0 ? (
             <div className="muted">-</div>
           ) : (
             sale.payments.map((p) => (
-              <div key={p.id} style={{ display: "grid", gap: 4 }}>
+              <div key={p.id} style={{ display: "grid", gap: gaps.payGap }}>
                 <div className="row">
                   <span>Metode</span>
                   <span className="bold">{p.method}</span>
