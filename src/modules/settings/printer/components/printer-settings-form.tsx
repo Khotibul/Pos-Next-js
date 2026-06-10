@@ -8,16 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
+import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus } from "@/modules/settings/printer/bluetooth";
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
   return <p className="text-xs text-destructive">{msg}</p>;
-}
-
-interface NavigatorWithBluetooth extends Navigator {
-  bluetooth?: {
-    requestDevice: (options: { acceptAllDevices?: boolean; optionalServices?: string[] }) => Promise<{ name?: string }>;
-  };
 }
 
 export function PrinterSettingsForm({
@@ -32,6 +27,8 @@ export function PrinterSettingsForm({
   const message = state && !state.ok ? state.message : null;
   const [desktopPrinters, setDesktopPrinters] = useState<Array<{ name: string; displayName: string }>>([]);
   const [selectedPaper, setSelectedPaper] = useState(initial.paper);
+  const [btStatus, setBtStatus] = useState(getBluetoothStatus);
+  const [btPairing, setBtPairing] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.posDesktop?.printer) {
@@ -39,26 +36,34 @@ export function PrinterSettingsForm({
     }
   }, []);
 
-  const handleCariBluetooth = async () => {
+  useEffect(() => {
+    const interval = setInterval(() => setBtStatus(getBluetoothStatus()), 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handlePairBluetooth = async () => {
+    setBtPairing(true);
     try {
-      const nav = navigator as NavigatorWithBluetooth;
-      if (!nav.bluetooth) {
-        alert("Browser atau perangkat ini tidak mendukung fitur Web Bluetooth.");
-        return;
-      }
-      
-      const device = await nav.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
-      });
-      if (device && device.name) {
-        const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
-        if (input) input.value = device.name;
-      }
+      const name = await pairWithPrinter();
+      const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
+      if (input) input.value = name;
+      setBtStatus(getBluetoothStatus());
+      alert(`Berhasil terhubung ke "${name}". Koneksi akan tersimpan untuk cetak berikutnya.`);
     } catch (err) {
       console.error(err);
-      alert("Pencarian dibatalkan atau gagal: " + (err instanceof Error ? err.message : String(err)));
+      if (err instanceof DOMException && err.name === "NotFoundError") {
+        alert("Pencarian dibatalkan.");
+      } else {
+        alert("Gagal: " + (err instanceof Error ? err.message : String(err)));
+      }
+    } finally {
+      setBtPairing(false);
     }
+  };
+
+  const handleDisconnectBluetooth = () => {
+    disconnectBluetooth();
+    setBtStatus(getBluetoothStatus());
   };
 
   const handleRefreshDesktopPrinters = async () => {
@@ -147,11 +152,28 @@ export function PrinterSettingsForm({
         <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
         <div className="flex items-center gap-2">
           <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Contoh: RPP02N" className="flex-1" />
-          <Button type="button" variant="secondary" onClick={handleCariBluetooth} className="shrink-0 rounded-xl">
-            Cari / Add Printer
+          <Button type="button" variant="secondary" onClick={handlePairBluetooth} disabled={btPairing} className="shrink-0 rounded-xl">
+            {btPairing ? "Menghubungkan..." : "Pairing / Hubungkan"}
           </Button>
         </div>
-        <div className="text-xs text-muted-foreground">Khusus untuk mode koneksi Bluetooth. Klik Cari / Add Printer untuk mendeteksi perangkat.</div>
+        <div className="flex items-center gap-2 text-xs">
+          {btStatus.connected ? (
+            <span className="inline-flex items-center gap-1 font-medium text-green-600">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              Terhubung ke {btStatus.deviceName}
+            </span>
+          ) : btStatus.deviceName ? (
+            <span className="inline-flex items-center gap-1 font-medium text-amber-600">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+              Perangkat dikenal ({btStatus.deviceName}) — tekan Cetak untuk konek ulang
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Klik Pairing untuk mencari dan menyambungkan printer Bluetooth. Cukup 1 kali, cetak berikutnya otomatis.</span>
+          )}
+          {btStatus.deviceName ? (
+            <button type="button" onClick={handleDisconnectBluetooth} className="text-destructive hover:underline ml-2">Lupakan</button>
+          ) : null}
+        </div>
         <FieldError msg={fieldErrors.bluetoothDeviceName} />
       </div>
 

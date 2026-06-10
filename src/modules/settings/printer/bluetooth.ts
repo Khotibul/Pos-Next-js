@@ -27,7 +27,6 @@ function getCharsPerLine(printer: PrinterSettings): number {
   if (printer.paper === "48mm") return 24;
   if (printer.paper === "58mm") return 32;
   if (printer.paper === "80mm") return 48;
-  // For custom, approximate: chars = widthMm * 0.6 (roughly 0.6 chars per mm)
   return Math.max(12, Math.round((printer.customWidthMm ?? 58) * 0.6));
 }
 
@@ -43,21 +42,18 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
 
   const line = "-".repeat(width) + "\n";
 
-  // Header
-  text += "\x1B\x61\x01"; // Align center
+  text += "\x1B\x61\x01";
   text += centerText(printer.headerTitle);
   if (printer.headerSubtitle) {
     text += centerText(printer.headerSubtitle);
   }
   text += "\n";
 
-  // Metadata
-  text += "\x1B\x61\x00"; // Align left
+  text += "\x1B\x61\x00";
   text += `No: ${sale.invoiceNo}\n`;
   text += `Tgl: ${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
   text += line;
 
-  // Items
   for (const item of sale.items) {
     text += `${item.name}\n`;
     if (printer.showSkuOnReceipt && item.sku) {
@@ -78,7 +74,6 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   }
   text += line;
 
-  // Totals
   const addTotalLine = (label: string, value: number) => {
     const valStr = formatCurrency(value);
     const spaceLeft = width - valStr.length;
@@ -104,9 +99,8 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
     }
   }
 
-  // Footer
   text += line;
-  text += "\x1B\x61\x01"; // Align center
+  text += "\x1B\x61\x01";
   if (printer.footerNote) {
     text += centerText(printer.footerNote);
   }
@@ -115,94 +109,272 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   return text;
 }
 
-type BluetoothDevice = {
-  name?: string;
-  gatt?: {
-    connect: () => Promise<BluetoothRemoteGATTServer>;
-    disconnect: () => void;
-  };
-};
+// --- Internal types for Web Bluetooth ---
 
-type BluetoothRemoteGATTServer = {
-  getPrimaryServices: () => Promise<BluetoothRemoteGATTService[]>;
-};
-
-type BluetoothRemoteGATTService = {
-  getCharacteristics: () => Promise<BluetoothRemoteGATTCharacteristic[]>;
-};
-
-type BluetoothRemoteGATTCharacteristic = {
+type BluetoothGATTCharacteristic = {
   properties: { write?: boolean; writeWithoutResponse?: boolean };
   writeValue: (value: Uint8Array) => Promise<void>;
+  service?: { device?: { gatt?: { disconnect: () => void } } };
+};
+
+type BluetoothGATTService = {
+  getCharacteristics: () => Promise<BluetoothGATTCharacteristic[]>;
+};
+
+type BluetoothGATTServer = {
+  connected: boolean;
+  connect: () => Promise<BluetoothGATTServer>;
+  disconnect: () => void;
+  getPrimaryServices: () => Promise<BluetoothGATTService[]>;
+};
+
+type BluetoothDevice = {
+  id: string;
+  name?: string;
+  gatt?: BluetoothGATTServer;
+  addEventListener: (event: string, handler: () => void) => void;
+  removeEventListener: (event: string, handler: () => void) => void;
 };
 
 interface NavigatorWithBluetooth extends Navigator {
   bluetooth?: {
-    requestDevice: (options: { filters?: { name?: string }[]; acceptAllDevices?: boolean; optionalServices?: string[] }) => Promise<BluetoothDevice>;
+    requestDevice: (options: {
+      filters?: { name?: string }[];
+      acceptAllDevices?: boolean;
+      optionalServices?: string[];
+    }) => Promise<BluetoothDevice>;
+    getDevices: () => Promise<BluetoothDevice[]>;
   };
 }
 
-export async function printViaBluetooth(text: string, deviceName?: string) {
+// --- Connection Cache ---
+
+const SERVICE_UUIDS = [
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '00001101-0000-1000-8000-00805f9b34fb',
+];
+
+let cachedDevice: BluetoothDevice | null = null;
+let cachedServer: BluetoothGATTServer | null = null;
+let cachedCharacteristic: BluetoothGATTCharacteristic | null = null;
+let disconnectHandler: (() => void) | null = null;
+
+function clearCache() {
+  cachedDevice = null;
+  cachedServer = null;
+  cachedCharacteristic = null;
+  disconnectHandler = null;
+}
+
+function getNav() {
   const nav = navigator as NavigatorWithBluetooth;
   if (!nav.bluetooth) {
     throw new Error("Browser ini tidak mendukung Web Bluetooth API.");
   }
-  
-  let device: BluetoothDevice | null = null;
-  if (deviceName && deviceName.trim() !== "") {
-    device = await nav.bluetooth.requestDevice({
-      filters: [{ name: deviceName }],
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
-    }).catch(() => null);
-  }
-  
-  if (!device) {
-     device = await nav.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb']
-    });
-  }
+  return nav.bluetooth;
+}
 
-  const server = await device.gatt?.connect();
-  if (!server) throw new Error("Gagal terhubung ke GATT server bluetooth");
-
+/**
+ * Find a writable characteristic from a connected GATT server.
+ */
+async function findWritableCharacteristic(server: BluetoothGATTServer): Promise<BluetoothGATTCharacteristic> {
   const services = await server.getPrimaryServices();
-  if (services.length === 0) throw new Error("Tidak ada service bluetooth yang ditemukan.");
-  
-  let writeCharacteristic;
   for (const service of services) {
     const characteristics = await service.getCharacteristics();
     for (const char of characteristics) {
       if (char.properties.write || char.properties.writeWithoutResponse) {
-        writeCharacteristic = char;
-        break;
+        return char;
       }
     }
-    if (writeCharacteristic) break;
+  }
+  throw new Error("Tidak dapat menemukan karakteristik write pada printer Bluetooth.");
+}
+
+/**
+ * Try to reconnect using a previously paired device.
+ * Checks the in-memory cache first, then tries getDevices().
+ */
+async function tryReconnect(deviceName?: string): Promise<boolean> {
+  // Already connected and cached
+  if (cachedCharacteristic && cachedServer?.connected) {
+    return true;
   }
 
-  if (!writeCharacteristic) throw new Error("Tidak dapat menemukan characteristic untuk mengirim data ke printer.");
+  // Cache exists but disconnected — try to reconnect
+  if (cachedDevice && !cachedServer?.connected) {
+    try {
+      cachedServer = await cachedDevice.gatt!.connect();
+      cachedCharacteristic = await findWritableCharacteristic(cachedServer);
+      setupDisconnectHandler(cachedDevice);
+      return true;
+    } catch {
+      clearCache();
+    }
+  }
+
+  // Try getDevices() — find previously authorized device
+  const bluetooth = getNav();
+  try {
+    const devices = await bluetooth.getDevices();
+    const targetName = deviceName?.trim().toLowerCase();
+    for (const device of devices) {
+      const match = targetName
+        ? device.name?.toLowerCase() === targetName
+        : true;
+      if (match && device.gatt) {
+        try {
+          const server = await device.gatt.connect();
+          const characteristic = await findWritableCharacteristic(server);
+          cachedDevice = device;
+          cachedServer = server;
+          cachedCharacteristic = characteristic;
+          setupDisconnectHandler(device);
+          return true;
+        } catch {
+          continue;
+        }
+      }
+    }
+  } catch {
+    // getDevices() not supported or failed
+  }
+
+  return false;
+}
+
+function setupDisconnectHandler(device: BluetoothDevice) {
+  if (disconnectHandler) {
+    device.removeEventListener('gattserverdisconnected', disconnectHandler);
+  }
+  disconnectHandler = () => {
+    clearCache();
+  };
+  device.addEventListener('gattserverdisconnected', disconnectHandler);
+}
+
+/**
+ * Send data in chunks to the characteristic.
+ */
+async function sendData(data: Uint8Array) {
+  if (!cachedCharacteristic) throw new Error("Tidak ada koneksi Bluetooth aktif.");
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+    const chunk = data.slice(i, i + CHUNK_SIZE);
+    await cachedCharacteristic.writeValue(chunk);
+  }
+}
+
+// --- Public API ---
+
+/**
+ * Pair with a new Bluetooth printer (shows browser chooser).
+ * Connects, discovers services, and caches the connection for subsequent use.
+ * Returns the device name on success.
+ */
+export async function pairWithPrinter(): Promise<string> {
+  const bluetooth = getNav();
+
+  // Disconnect any existing connection first
+  disconnectBluetooth();
+
+  const device = await bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: SERVICE_UUIDS,
+  });
+
+  if (!device.name) {
+    throw new Error("Perangkat Bluetooth tidak memiliki nama.");
+  }
+
+  const server = await device.gatt!.connect();
+  const characteristic = await findWritableCharacteristic(server);
+
+  cachedDevice = device;
+  cachedServer = server;
+  cachedCharacteristic = characteristic;
+  setupDisconnectHandler(device);
+
+  return device.name;
+}
+
+/**
+ * Print receipt text via Bluetooth.
+ * Automatically reuses cached connection or reconnects to a previously paired device.
+ * Only shows browser chooser as last resort (requires user gesture context).
+ */
+export async function printViaBluetooth(text: string, deviceName?: string) {
+  const connected = await tryReconnect(deviceName);
+
+  if (!connected) {
+    // Last resort: request a new device (needs user gesture)
+    const bluetooth = getNav();
+    let device: BluetoothDevice;
+    if (deviceName && deviceName.trim() !== "") {
+      device = await bluetooth.requestDevice({
+        filters: [{ name: deviceName }],
+        optionalServices: SERVICE_UUIDS,
+      }).catch(() => {
+        return bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: SERVICE_UUIDS,
+        });
+      });
+    } else {
+      device = await bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: SERVICE_UUIDS,
+      });
+    }
+
+    const server = await device.gatt!.connect();
+    const characteristic = await findWritableCharacteristic(server);
+
+    cachedDevice = device;
+    cachedServer = server;
+    cachedCharacteristic = characteristic;
+    setupDisconnectHandler(device);
+  }
 
   const encoder = new TextEncoder();
-  const initCmd = new Uint8Array([0x1B, 0x40]); 
-  const cutCmd = new Uint8Array([0x1D, 0x56, 0x41, 0x00]); // GS V A 0
+  const initCmd = new Uint8Array([0x1B, 0x40]);
+  const cutCmd = new Uint8Array([0x1D, 0x56, 0x41, 0x00]);
   const lf = new Uint8Array([0x0A, 0x0A, 0x0A]);
-  
   const textBytes = encoder.encode(text);
-  
-  const sendData = async (data: Uint8Array) => {
-    const CHUNK_SIZE = 100;
-    for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-      const chunk = data.slice(i, i + CHUNK_SIZE);
-      await writeCharacteristic!.writeValue(chunk);
-    }
-  };
 
-  await sendData(initCmd);
-  await sendData(textBytes);
-  await sendData(lf);
-  // Only some support cut, but it's safe to send
-  try { await sendData(cutCmd); } catch { /* ignore cut errors */ }
-  
-  await device.gatt?.disconnect();
+  try {
+    await sendData(initCmd);
+    await sendData(textBytes);
+    await sendData(lf);
+    try { await sendData(cutCmd); } catch { /* ignore cut errors */ }
+  } catch (err) {
+    // Connection lost during send — clear cache and rethrow
+    clearCache();
+    throw err;
+  }
+}
+
+/**
+ * Disconnect the current Bluetooth printer and clear the cache.
+ */
+export function disconnectBluetooth() {
+  if (cachedServer?.connected) {
+    try {
+      cachedServer.disconnect();
+    } catch { /* ignore */ }
+  }
+  clearCache();
+}
+
+/**
+ * Check if we have an active Bluetooth connection.
+ */
+export function getBluetoothStatus(): { connected: boolean; deviceName: string | null } {
+  if (cachedServer?.connected && cachedDevice?.name) {
+    return { connected: true, deviceName: cachedDevice.name };
+  }
+  if (cachedDevice?.name) {
+    return { connected: false, deviceName: cachedDevice.name };
+  }
+  return { connected: false, deviceName: null };
 }
