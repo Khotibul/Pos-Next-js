@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
-import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, isCapacitorBluetoothAvailable, connectBluetooth, startDiscovery, stopDiscovery, getDiscoveredDevices } from "@/modules/settings/printer/bluetooth";
+import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, isCapacitorBluetoothAvailable, connectBluetooth, startDiscovery, stopDiscovery, getDiscoveredDevices, requestBluetoothPermissions } from "@/modules/settings/printer/bluetooth";
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -124,7 +124,32 @@ export function PrinterSettingsForm({
     }
   };
 
+  const [requestingPerms, setRequestingPerms] = useState(false);
+
+  const handleRequestPermissions = async () => {
+    setRequestingPerms(true);
+    try {
+      const granted = await requestBluetoothPermissions(true);
+      if (!granted) {
+        alert(
+          "Izin Bluetooth dan lokasi diperlukan untuk memindai perangkat. " +
+          "Buka Pengaturan > Aplikasi > POSQU Pro > Izin, lalu aktifkan Nearby devices dan Lokasi."
+        );
+      }
+      return granted;
+    } catch (err) {
+      alert("Gagal meminta izin: " + (err instanceof Error ? err.message : String(err)));
+      return false;
+    } finally {
+      setRequestingPerms(false);
+    }
+  };
+
   const handleScanAndroidDevices = async () => {
+    const granted = await handleRequestPermissions();
+    if (!granted && hasCapacitorBt) {
+      return;
+    }
     setIsScanning(true);
     try {
       await startDiscovery();
@@ -220,8 +245,8 @@ export function PrinterSettingsForm({
           <div className="grid gap-2">
             <div className="flex items-center gap-2">
               <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Nama atau alamat MAC" className="flex-1" />
-              <Button type="button" variant="secondary" onClick={handleScanAndroidDevices} disabled={isScanning || btPairing} className="shrink-0 rounded-xl">
-                {isScanning ? "Memindai..." : "Scan"}
+              <Button type="button" variant="secondary" onClick={handleScanAndroidDevices} disabled={isScanning || btPairing || requestingPerms} className="shrink-0 rounded-xl">
+                {requestingPerms ? "Meminta izin..." : isScanning ? "Memindai..." : "Scan"}
               </Button>
             </div>
             {pairedDevices.length > 0 ? (

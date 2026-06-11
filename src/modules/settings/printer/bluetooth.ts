@@ -3,6 +3,7 @@
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import {
   isCapacitorBluetoothAvailable,
+  requestBluetoothPermissions as capRequestBluetoothPermissions,
   getPairedDevices as capGetPairedDevices,
   printViaCapacitor,
   disconnectCapacitorBluetooth,
@@ -433,8 +434,22 @@ export async function connectBluetooth(address: string): Promise<{ deviceName: s
   return { deviceName: device.name };
 }
 
+export async function requestBluetoothPermissions(forDiscovery = true): Promise<boolean> {
+  if (isCapacitorBluetoothAvailable()) {
+    return capRequestBluetoothPermissions(forDiscovery);
+  }
+  return true;
+}
+
 export async function startDiscovery(): Promise<void> {
   if (isCapacitorBluetoothAvailable()) {
+    const granted = await capRequestBluetoothPermissions(true);
+    if (!granted) {
+      throw new Error(
+        "Izin Bluetooth dan lokasi diperlukan untuk memindai perangkat. " +
+        "Aktifkan izin 'Nearby devices' atau 'Lokasi' dari Pengaturan Aplikasi."
+      );
+    }
     await capStartDiscovery();
     return;
   }

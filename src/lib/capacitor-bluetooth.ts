@@ -22,6 +22,7 @@ type BluetoothStatus = {
 };
 
 type CapPlugin = {
+  requestPermissions: (opts?: { forDiscovery?: boolean }) => Promise<{ granted: boolean }>;
   getPairedDevices: () => Promise<{ devices: PairedDevice[] }>;
   startDiscovery: () => Promise<{ started: boolean }>;
   stopDiscovery: () => Promise<{ stopped: boolean }>;
@@ -45,6 +46,20 @@ function getPlugin(): CapPlugin | null {
 
 export function isCapacitorBluetoothAvailable(): boolean {
   return getPlugin() !== null;
+}
+
+export async function requestBluetoothPermissions(forDiscovery = true): Promise<boolean> {
+  const p = getPlugin();
+  if (!p) throw new Error("Capacitor Bluetooth plugin tidak tersedia.");
+  if (!p.requestPermissions) {
+    return true;
+  }
+  try {
+    const result = await p.requestPermissions({ forDiscovery });
+    return result.granted;
+  } catch {
+    return false;
+  }
 }
 
 export async function getPairedDevices(): Promise<PairedDevice[]> {

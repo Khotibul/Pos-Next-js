@@ -34,7 +34,7 @@ import java.util.UUID;
     permissions = {
         @Permission(alias = "btConnect", strings = { Manifest.permission.BLUETOOTH_CONNECT }),
         @Permission(alias = "btScan", strings = { Manifest.permission.BLUETOOTH_SCAN }),
-        @Permission(alias = "location", strings = { Manifest.permission.ACCESS_FINE_LOCATION })
+        @Permission(alias = "location", strings = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION })
     }
 )
 public class BluetoothPrinterPlugin extends Plugin {
@@ -50,6 +50,32 @@ public class BluetoothPrinterPlugin extends Plugin {
     private final List<JSObject> discoveredDevices = new ArrayList<>();
     private BroadcastReceiver discoveryReceiver;
     private boolean isDiscovering = false;
+
+    @PluginMethod
+    public void requestPermissions(PluginCall call) {
+        boolean forDiscovery = call.getBoolean("forDiscovery", true);
+        if (hasBluetoothPermissions(forDiscovery)) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+            return;
+        }
+        requestPermissionForAliases(getRequiredPermissionAliases(forDiscovery), call, "permissionRequestCallback");
+    }
+
+    @PermissionCallback
+    private void permissionRequestCallback(PluginCall call) {
+        if (call == null) return;
+        boolean forDiscovery = "startDiscovery".equals(call.getMethodName()) || call.getBoolean("forDiscovery", true);
+        boolean granted = hasBluetoothPermissions(forDiscovery);
+        if (granted) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+        } else {
+            call.reject("Izin Bluetooth dan lokasi diperlukan untuk menemukan perangkat. Aktifkan dari pengaturan aplikasi.");
+        }
+    }
 
     @PluginMethod
     public void getPairedDevices(PluginCall call) {
@@ -466,14 +492,18 @@ public class BluetoothPrinterPlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             boolean connectGranted = getPermissionState("btConnect") == PermissionState.GRANTED;
             boolean scanGranted = !forDiscovery || getPermissionState("btScan") == PermissionState.GRANTED;
-            return connectGranted && scanGranted;
+            boolean locationGranted = !forDiscovery || getPermissionState("location") == PermissionState.GRANTED;
+            return connectGranted && scanGranted && locationGranted;
         }
-        return !forDiscovery || getPermissionState("location") == PermissionState.GRANTED;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return !forDiscovery || getPermissionState("location") == PermissionState.GRANTED;
+        }
+        return true;
     }
 
     private String[] getRequiredPermissionAliases(boolean forDiscovery) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return forDiscovery ? new String[]{ "btConnect", "btScan" } : new String[]{ "btConnect" };
+            return forDiscovery ? new String[]{ "btConnect", "btScan", "location" } : new String[]{ "btConnect" };
         }
         return forDiscovery ? new String[]{ "location" } : new String[]{};
     }
