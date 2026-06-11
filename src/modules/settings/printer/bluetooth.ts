@@ -187,6 +187,7 @@ let cachedDevice: BluetoothDevice | null = null;
 let cachedServer: BluetoothGATTServer | null = null;
 let cachedCharacteristic: BluetoothGATTCharacteristic | null = null;
 let disconnectHandler: (() => void) | null = null;
+let printingLock = false;
 
 function clearCache() {
   cachedDevice = null;
@@ -221,9 +222,9 @@ async function tryReconnect(deviceName?: string): Promise<boolean> {
     return true;
   }
 
-  if (cachedDevice && !cachedServer?.connected) {
+  if (cachedDevice?.gatt && !cachedServer?.connected) {
     try {
-      cachedServer = await cachedDevice.gatt!.connect();
+      cachedServer = await cachedDevice.gatt.connect();
       cachedCharacteristic = await findWritableCharacteristic(cachedServer);
       setupDisconnectHandler(cachedDevice);
       return true;
@@ -240,18 +241,17 @@ async function tryReconnect(deviceName?: string): Promise<boolean> {
       const match = targetName
         ? device.name?.toLowerCase() === targetName
         : true;
-      if (match && device.gatt) {
-        try {
-          const server = await device.gatt.connect();
-          const characteristic = await findWritableCharacteristic(server);
-          cachedDevice = device;
-          cachedServer = server;
-          cachedCharacteristic = characteristic;
-          setupDisconnectHandler(device);
-          return true;
-        } catch {
-          continue;
-        }
+      if (!match || !device.gatt) continue;
+      try {
+        const server = await device.gatt.connect();
+        const characteristic = await findWritableCharacteristic(server);
+        cachedDevice = device;
+        cachedServer = server;
+        cachedCharacteristic = characteristic;
+        setupDisconnectHandler(device);
+        return true;
+      } catch {
+        continue;
       }
     }
   } catch {
@@ -274,9 +274,13 @@ function setupDisconnectHandler(device: BluetoothDevice) {
 async function sendData(data: Uint8Array) {
   if (!cachedCharacteristic) throw new Error("Tidak ada koneksi Bluetooth aktif.");
   const CHUNK_SIZE = 100;
+  const CHUNK_DELAY_MS = 20;
   for (let i = 0; i < data.length; i += CHUNK_SIZE) {
     const chunk = data.slice(i, i + CHUNK_SIZE);
     await cachedCharacteristic.writeValue(chunk);
+    if (i + CHUNK_SIZE < data.length) {
+      await new Promise(r => setTimeout(r, CHUNK_DELAY_MS));
+    }
   }
 }
 
@@ -308,7 +312,8 @@ export async function pairWithPrinter(): Promise<string> {
     throw new Error("Perangkat Bluetooth tidak memiliki nama.");
   }
 
-  const server = await device.gatt!.connect();
+  if (!device.gatt) throw new Error("Gagal mengakses GATT server pada perangkat Bluetooth.");
+  const server = await device.gatt.connect();
   const characteristic = await findWritableCharacteristic(server);
 
   cachedDevice = device;
@@ -325,36 +330,19 @@ export async function printViaBluetooth(text: string, deviceName?: string) {
     return;
   }
 
-  const connected = await tryReconnect(deviceName);
-
-  if (!connected) {
-    const bluetooth = getNav();
-    let device: BluetoothDevice;
-    if (deviceName && deviceName.trim() !== "") {
-      device = await bluetooth.requestDevice({
-        filters: [{ name: deviceName }],
-        optionalServices: SERVICE_UUIDS,
-      }).catch(() => {
-        return bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: SERVICE_UUIDS,
-        });
-      });
-    } else {
-      device = await bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: SERVICE_UUIDS,
-      });
-    }
-
-    const server = await device.gatt!.connect();
-    const characteristic = await findWritableCharacteristic(server);
-
-    cachedDevice = device;
-    cachedServer = server;
-    cachedCharacteristic = characteristic;
-    setupDisconnectHandler(device);
+  if (printingLock) {
+    throw new Error("Proses cetak sedang berlangsung, harap tunggu.");
   }
+
+  const connected = await tryReconnect(deviceName);
+  if (!connected) {
+    throw new Error(
+      "Printer Bluetooth tidak terhubung. " +
+      "Buka Pengaturan > Printer dan lakukan pairing ulang."
+    );
+  }
+
+  printingLock = true;
 
   const encoder = new TextEncoder();
   const initCmd = new Uint8Array([0x1B, 0x40]);
@@ -367,9 +355,8 @@ export async function printViaBluetooth(text: string, deviceName?: string) {
     await sendData(textBytes);
     await sendData(lf);
     try { await sendData(cutCmd); } catch { /* ignore cut errors */ }
-  } catch (err) {
-    clearCache();
-    throw err;
+  } finally {
+    printingLock = false;
   }
 }
 
@@ -437,7 +424,8 @@ export async function connectBluetooth(address: string): Promise<{ deviceName: s
   });
 
   if (!device.name) throw new Error("Perangkat Bluetooth tidak memiliki nama.");
-  const server = await device.gatt!.connect();
+  if (!device.gatt) throw new Error("Gagal mengakses GATT server pada perangkat Bluetooth.");
+  const server = await device.gatt.connect();
   const characteristic = await findWritableCharacteristic(server);
   cachedDevice = device;
   cachedServer = server;
