@@ -1037,8 +1037,9 @@ model Sale {
 
   @@unique([tenantId, invoiceNo])
   @@index([tenantId])
-  @@index([createdAt])
+  @@index([tenantId, createdAt])
   @@index([shiftId])
+  @@index([invoiceNo])
 }
 
 model SaleItem {
@@ -1166,6 +1167,7 @@ model Customer {
   @@index([name])
   @@index([email])
   @@index([phone])
+  @@index([createdAt])
 }
 
 model Supplier {

@@ -55,13 +55,32 @@ export async function listSales(params: {
 export async function getSaleById(params: { tenantId: string; id: string }) {
   const sale = await prisma.sale.findFirst({
     where: { tenantId: params.tenantId, id: params.id },
-    include: { items: true, payments: true },
+    select: {
+      id: true,
+      invoiceNo: true,
+      cashierId: true,
+      shiftId: true,
+      subtotal: true,
+      tax: true,
+      discount: true,
+      total: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      items: {
+        select: { id: true, productId: true, name: true, sku: true, price: true, qty: true, lineTotal: true },
+      },
+      payments: {
+        select: { id: true, method: true, amount: true, receivedAmount: true, changeAmount: true, reference: true, createdAt: true },
+      },
+    },
   });
   if (!sale) throw Errors.notFound("Transaksi tidak ditemukan.");
   return sale;
 }
 
 export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
+  console.time("createSale.validate");
   if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
   if (params.cashierId) {
     const ok = await prisma.cashierShift.findFirst({
@@ -70,7 +89,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     });
     if (!ok) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
   }
+  console.timeEnd("createSale.validate");
 
+  console.time("createSale.products");
   const productIds = params.input.items.map((i) => i.productId);
   const productMap = await getCachedProducts(params.tenantId, productIds);
 
@@ -84,7 +105,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     const lineTotal = price * i.qty;
     return { productId: p.id, name: p.name, sku: p.sku, price, qty: i.qty, lineTotal };
   });
+  console.timeEnd("createSale.products");
 
+  console.time("createSale.calc");
   const subtotal = lines.reduce((acc, l) => acc + l.lineTotal, 0);
   const discount = params.input.discount ?? 0;
   const tax = Math.max(0, (subtotal - discount) * ((params.input.taxRate ?? 0) / 100));
@@ -93,9 +116,11 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
   const changeAmount = Math.max(0, params.input.payment.changeAmount ?? receivedAmount - total);
 
   if (params.input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
+  console.timeEnd("createSale.calc");
 
   const invoiceNo = inv("TRX");
 
+  console.time("createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
@@ -154,7 +179,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
 
     return sale;
   });
+  console.timeEnd("createSale.transaction");
 
+  console.time("createSale.cacheReceipt");
   void cacheReceiptData(created.id, params.tenantId, {
     sale: {
       id: created.id,
@@ -186,6 +213,7 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     },
     printer: {},
   });
+  console.timeEnd("createSale.cacheReceipt");
 
   return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }

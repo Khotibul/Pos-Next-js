@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createSaleAction } from "@/modules/transactions/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
-import { QrScannerDialog } from "@/components/pos/qr-scanner-dialog";
-import { OpenShiftDialog } from "@/components/shifts/open-shift-dialog";
+import dynamic from "next/dynamic";
 import { ScanLine } from "lucide-react";
+import { useDebounce } from "@/hooks/use-debounce";
+
+const PrintReceiptDialog = dynamic(() => import("@/modules/transactions/components/print-receipt-dialog").then((m) => ({ default: m.PrintReceiptDialog })), { ssr: false });
+const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
+const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 type Product = {
@@ -31,9 +33,74 @@ function rupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 }
 
+const ProductCard = memo(function ProductCard({
+  product,
+  onInc,
+  showStock,
+}: {
+  product: Product;
+  onInc: (id: string) => void;
+  showStock: boolean;
+}) {
+  return (
+    <button
+      className="rounded-2xl border bg-background p-4 text-left transition-colors hover:bg-muted/30"
+      onClick={() => onInc(product.id)}
+      type="button"
+    >
+      <div className="text-sm font-semibold">{product.name}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{product.sku}</div>
+      <div className="mt-3 text-lg font-semibold text-primary">{rupiah(product.price)}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>Klik untuk tambah</span>
+        {showStock ? <Badge variant="secondary">Stok {Number(product.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+      </div>
+    </button>
+  );
+});
+
+const CartLineItem = memo(function CartLineItem({
+  item,
+  product,
+  onInc,
+  onDec,
+  showSku,
+  showStock,
+}: {
+  item: { productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number };
+  product: Product | undefined;
+  onInc: (id: string) => void;
+  onDec: (id: string) => void;
+  showSku: boolean;
+  showStock: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{item.name}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span>{rupiah(item.price)} / unit</span>
+          {showSku ? <span>• {item.sku}</span> : null}
+          {showStock ? <Badge variant="secondary">Stok {Number(product?.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => onDec(item.productId)}>
+          -
+        </Button>
+        <div className="w-6 text-center text-sm font-medium">{item.qty}</div>
+        <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => onInc(item.productId)}>
+          +
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
   const router = useRouter();
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounce(q, 200);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [cashPaid, setCashPaid] = useState<number>(0);
@@ -111,7 +178,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   }, [products, extraProducts]);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
+    const s = debouncedQ.trim().toLowerCase();
     if (!s) return allProducts;
     return allProducts.filter((p) => {
       if (p.name.toLowerCase().includes(s)) return true;
@@ -120,7 +187,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       const qr = p.qrCode?.toLowerCase() ?? "";
       return (barcode && barcode.includes(s)) || (qr && qr.includes(s));
     });
-  }, [allProducts, q]);
+  }, [allProducts, debouncedQ]);
 
   const productByCode = useMemo(() => {
     const map = new Map<string, Product>();
@@ -166,12 +233,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     setNotice(`Ditambahkan: ${product.name}`);
   }, []);
 
-  function inc(id: string) {
+  const inc = useCallback((id: string) => {
     setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
-  }
-  function dec(id: string) {
+  }, []);
+  const dec = useCallback((id: string) => {
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
-  }
+  }, []);
 
   const addByCode = useCallback(async (code: string, options?: { throwOnFail?: boolean; clearQuery?: boolean }) => {
     const clean = code.trim();
@@ -301,20 +368,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((p) => (
-            <button
-              key={p.id}
-              className="rounded-2xl border bg-background p-4 text-left transition-colors hover:bg-muted/30"
-              onClick={() => inc(p.id)}
-              type="button"
-            >
-              <div className="text-sm font-semibold">{p.name}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{p.sku}</div>
-              <div className="mt-3 text-lg font-semibold text-primary">{rupiah(p.price)}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>Klik untuk tambah</span>
-                {settings.cartShowStock ? <Badge variant="secondary">Stok {Number(p.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
-              </div>
-            </button>
+            <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
           ))}
         </div>
       </div>
@@ -336,25 +390,15 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">Belum ada item.</div>
             ) : (
               lines.map((l) => (
-                <div key={l.productId} className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{l.name}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <span>{rupiah(l.price)} / unit</span>
-                      {settings.cartShowSku ? <span>• {l.sku}</span> : null}
-                      {settings.cartShowStock ? <Badge variant="secondary">Stok {Number(allProducts.find((p) => p.id === l.productId)?.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => dec(l.productId)}>
-                      -
-                    </Button>
-                    <div className="w-6 text-center text-sm font-medium">{l.qty}</div>
-                    <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => inc(l.productId)}>
-                      +
-                    </Button>
-                  </div>
-                </div>
+                <CartLineItem
+                  key={l.productId}
+                  item={l}
+                  product={allProducts.find((p) => p.id === l.productId)}
+                  onInc={inc}
+                  onDec={dec}
+                  showSku={settings.cartShowSku}
+                  showStock={settings.cartShowStock}
+                />
               ))
             )}
             </div>

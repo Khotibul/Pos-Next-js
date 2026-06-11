@@ -248,7 +248,7 @@ export default async function ProductsPage({
             categoryName: p.category?.name ?? "-",
             sellingPrice: Number(p.sellingPrice),
             isActive: p.isActive,
-            updatedAt: p.updatedAt.toISOString(),
+            updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : p.updatedAt.toISOString(),
           }))}
           query={{
             q: result.q ?? "",

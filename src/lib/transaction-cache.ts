@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getCache, setCache, deleteCache } from "@/lib/redis";
+import { getCache, setCache, deleteCache, getRedisClient, isRedisEnabled } from "@/lib/redis";
 
 type CachedProduct = {
   id: string;
@@ -14,24 +14,47 @@ export async function getCachedProducts(
   productIds: string[],
 ): Promise<Map<string, CachedProduct>> {
   const result = new Map<string, CachedProduct>();
+  if (productIds.length === 0) return result;
+
   const uncachedIds: string[] = [];
 
-  for (const id of productIds) {
-    const cached = await getCache<CachedProduct>(`tx:product:${tenantId}:${id}`);
-    if (cached) {
-      result.set(id, cached);
-    } else {
-      uncachedIds.push(id);
+  const redis = isRedisEnabled() ? getRedisClient() : null;
+  if (redis) {
+    console.time("tx.cache.mget");
+    const keys = productIds.map((id) => `tx:product:${tenantId}:${id}`);
+    const cachedValues = await redis.mget<Array<{ value: CachedProduct } | null>>(...keys);
+    console.timeEnd("tx.cache.mget");
+
+    for (let i = 0; i < productIds.length; i++) {
+      const val = cachedValues?.[i]?.value ?? null;
+      if (val) {
+        result.set(productIds[i], val);
+      } else {
+        uncachedIds.push(productIds[i]);
+      }
+    }
+  } else {
+    for (const id of productIds) {
+      const cached = await getCache<CachedProduct>(`tx:product:${tenantId}:${id}`);
+      if (cached) {
+        result.set(id, cached);
+      } else {
+        uncachedIds.push(id);
+      }
     }
   }
 
   if (uncachedIds.length > 0) {
+    console.time("tx.cache.dbFetch");
     const { prisma } = await import("@/lib/prisma");
     const products = await prisma.product.findMany({
       where: { tenantId, id: { in: uncachedIds }, isActive: true },
       select: { id: true, name: true, sku: true, sellingPrice: true },
     });
+    console.timeEnd("tx.cache.dbFetch");
 
+    console.time("tx.cache.setBatch");
+    const cacheEntries: Array<{ key: string; value: CachedProduct; ttl: number }> = [];
     for (const p of products) {
       const cached: CachedProduct = {
         id: p.id,
@@ -40,8 +63,20 @@ export async function getCachedProducts(
         sellingPrice: Number(p.sellingPrice),
       };
       result.set(p.id, cached);
-      await setCache(`tx:product:${tenantId}:${p.id}`, cached, 300);
+      cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 300 });
     }
+    if (redis && cacheEntries.length > 0) {
+      const pipeline = redis.pipeline();
+      for (const entry of cacheEntries) {
+        pipeline.set(entry.key, { value: entry.value, storedAt: new Date().toISOString() }, { ex: entry.ttl });
+      }
+      await pipeline.exec();
+    } else {
+      for (const entry of cacheEntries) {
+        await setCache(entry.key, entry.value, entry.ttl);
+      }
+    }
+    console.timeEnd("tx.cache.setBatch");
   }
 
   return result;
