@@ -120,7 +120,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   if (sale.payments && sale.payments.length > 0) {
     text += sepFull + "\n";
     for (const p of sale.payments) {
-      addTotalLine(`Bayar (${p.method})`, p.amount);
+      addTotalLine(`Bayar (${p.method})`, p.receivedAmount || p.amount);
       if (p.changeAmount > 0) {
         addTotalLine("Kembali", p.changeAmount);
       }
