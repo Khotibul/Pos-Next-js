@@ -69,7 +69,6 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   if (printer.headerSubtitle) {
     text += centerText(printer.headerSubtitle);
   }
-  text += "\n";
 
   text += "\x1B\x61\x00";
   text += `${padRight("No:", 15)} ${sale.invoiceNo}\n`;
@@ -132,7 +131,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   if (printer.footerNote) {
     text += centerText(printer.footerNote);
   }
-  text += "\n\n\n";
+  text += "\n";
 
   return text;
 }
@@ -347,7 +346,7 @@ export async function printViaBluetooth(text: string, deviceName?: string) {
   const encoder = new TextEncoder();
   const initCmd = new Uint8Array([0x1B, 0x40]);
   const cutCmd = new Uint8Array([0x1D, 0x56, 0x41, 0x00]);
-  const lf = new Uint8Array([0x0A, 0x0A, 0x0A]);
+  const lf = new Uint8Array([0x0A]);
   const textBytes = encoder.encode(text);
 
   try {
