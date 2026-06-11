@@ -18,6 +18,7 @@ type DiscoveryResult = {
 type BluetoothStatus = {
   connected: boolean;
   deviceName: string;
+  address?: string;
 };
 
 type CapPlugin = {
@@ -25,7 +26,7 @@ type CapPlugin = {
   startDiscovery: () => Promise<{ started: boolean }>;
   stopDiscovery: () => Promise<{ stopped: boolean }>;
   getDiscoveredDevices: () => Promise<DiscoveryResult>;
-  connect: (opts: { address: string }) => Promise<{ connected: boolean; deviceName: string }>;
+  connect: (opts: { address: string }) => Promise<{ connected: boolean; deviceName: string; address?: string }>;
   print: (opts: { data: string }) => Promise<{ success: boolean }>;
   printRaw: (opts: { data: number[] }) => Promise<{ success: boolean }>;
   disconnect: () => Promise<{ disconnected: boolean }>;
@@ -36,6 +37,8 @@ function getPlugin(): CapPlugin | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as Record<string, unknown>;
   const capacitor = w.Capacitor as { isPluginAvailable?: (name: string) => boolean; Plugins?: Record<string, unknown> } | undefined;
+  const plugin = capacitor?.Plugins?.BluetoothPrinter as CapPlugin | undefined;
+  if (plugin) return plugin;
   if (!capacitor?.isPluginAvailable?.("BluetoothPrinter")) return null;
   return (capacitor.Plugins?.BluetoothPrinter as CapPlugin) ?? null;
 }
@@ -81,9 +84,17 @@ async function ensureConnected(p: CapPlugin, deviceName?: string): Promise<void>
   try {
     const status = await p.getStatus();
     const currentName = status.deviceName;
+    const currentAddress = status.address;
     const isConnected = status.connected;
+    const normalizedTarget = deviceName.trim().toLowerCase();
 
-    if (isConnected && currentName?.toLowerCase() === deviceName.toLowerCase()) {
+    if (
+      isConnected &&
+      (
+        currentName?.toLowerCase() === normalizedTarget ||
+        currentAddress?.toLowerCase() === normalizedTarget
+      )
+    ) {
       return;
     }
 

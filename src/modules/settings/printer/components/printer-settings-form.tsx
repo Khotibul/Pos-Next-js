@@ -41,8 +41,12 @@ export function PrinterSettingsForm({
 
   useEffect(() => {
     const refresh = async () => {
-      const status = await getBluetoothStatus();
-      setBtStatus(status);
+      try {
+        const status = await getBluetoothStatus();
+        setBtStatus(status);
+      } catch {
+        setBtStatus({ connected: false, deviceName: null });
+      }
     };
     refresh();
     const interval = setInterval(refresh, 5000);
@@ -91,10 +95,10 @@ export function PrinterSettingsForm({
     try {
       await connectBluetooth(address);
       const input = document.getElementById("bluetoothDeviceName") as HTMLInputElement;
-      if (input) input.value = name;
+      if (input) input.value = address;
       const status = await getBluetoothStatus();
       setBtStatus(status);
-      alert(`Berhasil terhubung ke "${name}".`);
+      alert(`Berhasil terhubung ke "${name}". Alamat printer disimpan agar cetak berikutnya otomatis.`);
     } catch (err) {
       alert("Gagal: " + (err instanceof Error ? err.message : String(err)));
     } finally {

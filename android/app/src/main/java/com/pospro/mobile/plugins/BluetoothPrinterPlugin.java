@@ -1,5 +1,6 @@
 package com.pospro.mobile.plugins;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -7,14 +8,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.util.Log;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.IOException;
 import org.json.JSONException;
@@ -24,7 +29,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-@CapacitorPlugin(name = "BluetoothPrinter")
+@CapacitorPlugin(
+    name = "BluetoothPrinter",
+    permissions = {
+        @Permission(alias = "btConnect", strings = { Manifest.permission.BLUETOOTH_CONNECT }),
+        @Permission(alias = "btScan", strings = { Manifest.permission.BLUETOOTH_SCAN }),
+        @Permission(alias = "location", strings = { Manifest.permission.ACCESS_FINE_LOCATION })
+    }
+)
 public class BluetoothPrinterPlugin extends Plugin {
 
     private static final String TAG = "BluetoothPrinter";
@@ -33,6 +45,7 @@ public class BluetoothPrinterPlugin extends Plugin {
     private BluetoothSocket socket;
     private OutputStream outputStream;
     private String connectedDeviceName;
+    private String connectedDeviceAddress;
 
     private final List<JSObject> discoveredDevices = new ArrayList<>();
     private BroadcastReceiver discoveryReceiver;
@@ -40,6 +53,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void getPairedDevices(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, false)) {
+            return;
+        }
         try {
             BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
             if (adapter == null) {
@@ -75,6 +91,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void startDiscovery(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, true)) {
+            return;
+        }
         try {
             BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
             if (adapter == null) {
@@ -122,7 +141,11 @@ public class BluetoothPrinterPlugin extends Plugin {
             IntentFilter filter = new IntentFilter();
             filter.addAction(BluetoothDevice.ACTION_FOUND);
             filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-            getActivity().registerReceiver(discoveryReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getActivity().registerReceiver(discoveryReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getActivity().registerReceiver(discoveryReceiver, filter);
+            }
 
             adapter.cancelDiscovery();
             adapter.startDiscovery();
@@ -139,6 +162,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void stopDiscovery(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, true)) {
+            return;
+        }
         try {
             BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
             if (adapter != null) {
@@ -170,6 +196,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void connect(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, false)) {
+            return;
+        }
         String address = call.getString("address");
         if (address == null || address.isEmpty()) {
             call.reject("Alamat Bluetooth tidak valid.");
@@ -252,10 +281,12 @@ public class BluetoothPrinterPlugin extends Plugin {
 
             outputStream = socket.getOutputStream();
             connectedDeviceName = device.getName();
+            connectedDeviceAddress = device.getAddress();
 
             JSObject ret = new JSObject();
             ret.put("connected", true);
             ret.put("deviceName", device.getName());
+            ret.put("address", device.getAddress());
             call.resolve(ret);
         } catch (IOException e) {
             Log.e(TAG, "Gagal koneksi Bluetooth: " + e.getMessage(), e);
@@ -270,6 +301,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void print(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, false)) {
+            return;
+        }
         String data = call.getString("data");
         if (data == null || data.isEmpty()) {
             call.reject("Data cetak tidak boleh kosong.");
@@ -308,6 +342,9 @@ public class BluetoothPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void printRaw(PluginCall call) {
+        if (!ensureBluetoothPermissions(call, false)) {
+            return;
+        }
         JSArray dataArray = call.getArray("data");
         if (dataArray == null || dataArray.length() == 0) {
             call.reject("Data cetak tidak boleh kosong.");
@@ -350,6 +387,7 @@ public class BluetoothPrinterPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("connected", outputStream != null && socket != null && socket.isConnected());
         ret.put("deviceName", connectedDeviceName != null ? connectedDeviceName : "");
+        ret.put("address", connectedDeviceAddress != null ? connectedDeviceAddress : "");
         call.resolve(ret);
     }
 
@@ -413,5 +451,62 @@ public class BluetoothPrinterPlugin extends Plugin {
         outputStream = null;
         socket = null;
         connectedDeviceName = null;
+        connectedDeviceAddress = null;
+    }
+
+    private boolean ensureBluetoothPermissions(PluginCall call, boolean forDiscovery) {
+        if (hasBluetoothPermissions(forDiscovery)) {
+            return true;
+        }
+        requestPermissionForAliases(getRequiredPermissionAliases(forDiscovery), call, "bluetoothPermissionCallback");
+        return false;
+    }
+
+    private boolean hasBluetoothPermissions(boolean forDiscovery) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            boolean connectGranted = getPermissionState("btConnect") == PermissionState.GRANTED;
+            boolean scanGranted = !forDiscovery || getPermissionState("btScan") == PermissionState.GRANTED;
+            return connectGranted && scanGranted;
+        }
+        return !forDiscovery || getPermissionState("location") == PermissionState.GRANTED;
+    }
+
+    private String[] getRequiredPermissionAliases(boolean forDiscovery) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return forDiscovery ? new String[]{ "btConnect", "btScan" } : new String[]{ "btConnect" };
+        }
+        return forDiscovery ? new String[]{ "location" } : new String[]{};
+    }
+
+    @PermissionCallback
+    private void bluetoothPermissionCallback(PluginCall call) {
+        if (call == null) {
+            return;
+        }
+
+        String method = call.getMethodName();
+        boolean forDiscovery = "startDiscovery".equals(method) || "stopDiscovery".equals(method);
+        if (!hasBluetoothPermissions(forDiscovery)) {
+            call.reject("Izin Bluetooth belum diberikan. Aktifkan izin Nearby devices/Bluetooth dari pengaturan aplikasi.");
+            return;
+        }
+
+        if ("getPairedDevices".equals(method)) {
+            getPairedDevices(call);
+        } else if ("startDiscovery".equals(method)) {
+            startDiscovery(call);
+        } else if ("stopDiscovery".equals(method)) {
+            stopDiscovery(call);
+        } else if ("connect".equals(method)) {
+            connect(call);
+        } else if ("print".equals(method)) {
+            print(call);
+        } else if ("printRaw".equals(method)) {
+            printRaw(call);
+        } else if ("getStatus".equals(method)) {
+            getStatus(call);
+        } else {
+            call.reject("Aksi Bluetooth tidak dikenal.");
+        }
     }
 }
