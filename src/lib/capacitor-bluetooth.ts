@@ -37,15 +37,42 @@ type CapPlugin = {
 function getPlugin(): CapPlugin | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as Record<string, unknown>;
-  const capacitor = w.Capacitor as { isPluginAvailable?: (name: string) => boolean; Plugins?: Record<string, unknown> } | undefined;
-  const plugin = capacitor?.Plugins?.BluetoothPrinter as CapPlugin | undefined;
-  if (plugin) return plugin;
-  if (!capacitor?.isPluginAvailable?.("BluetoothPrinter")) return null;
-  return (capacitor.Plugins?.BluetoothPrinter as CapPlugin) ?? null;
+  const capacitor = w.Capacitor as { getPlatform?: () => string; isPluginAvailable?: (name: string) => boolean; Plugins?: Record<string, unknown> } | undefined;
+
+  if (!capacitor) {
+    console.warn("[BluetoothPrinter] window.Capacitor tidak ditemukan. Pastikan Capacitor bridge terload.");
+    return null;
+  }
+
+  const plugin = capacitor.Plugins?.BluetoothPrinter as CapPlugin | undefined;
+  if (plugin?.getStatus) return plugin;
+
+  if (capacitor.isPluginAvailable?.("BluetoothPrinter")) {
+    const loaded = capacitor.Plugins?.BluetoothPrinter as CapPlugin | undefined;
+    if (loaded?.getStatus) return loaded;
+  }
+
+  return null;
 }
 
 export function isCapacitorBluetoothAvailable(): boolean {
   return getPlugin() !== null;
+}
+
+export function getCapacitorBridgeStatus(): {
+  capacitorExists: boolean;
+  pluginExists: boolean;
+  platform: string | null;
+} {
+  if (typeof window === "undefined") return { capacitorExists: false, pluginExists: false, platform: null };
+  const capacitor = (window as unknown as Record<string, unknown>).Capacitor as
+    | { getPlatform?: () => string; isPluginAvailable?: (name: string) => boolean; Plugins?: Record<string, unknown> }
+    | undefined;
+  return {
+    capacitorExists: !!capacitor,
+    pluginExists: !!capacitor?.Plugins?.BluetoothPrinter,
+    platform: capacitor?.getPlatform?.() ?? null,
+  };
 }
 
 export async function requestBluetoothPermissions(forDiscovery = true): Promise<boolean> {

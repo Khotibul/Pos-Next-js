@@ -9,7 +9,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+    }
+
+    @Override
+    protected void load() {
         registerPlugin(BluetoothPrinterPlugin.class);
+        super.load();
     }
 }
 

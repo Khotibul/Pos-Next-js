@@ -479,7 +479,9 @@ export async function getDiscoveredDevices(): Promise<{ devices: Array<{ name: s
 }
 
 export function isAndroidApp(): boolean {
-  return capIsAndroidApp();
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return capIsAndroidApp() || /android/i.test(ua);
 }
 
-export { isCapacitorBluetoothAvailable };
+export { isCapacitorBluetoothAvailable, getCapacitorBridgeStatus } from "@/lib/capacitor-bluetooth";
