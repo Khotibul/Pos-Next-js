@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
-import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, connectBluetooth, startDiscovery, stopDiscovery, getDiscoveredDevices } from "@/modules/settings/printer/bluetooth";
+import { pairWithPrinter, disconnectBluetooth, getBluetoothStatus, isAndroidApp, isCapacitorBluetoothAvailable, connectBluetooth, startDiscovery, stopDiscovery, getDiscoveredDevices } from "@/modules/settings/printer/bluetooth";
 
 function FieldError({ msg }: { msg?: string }) {
   if (!msg) return null;
@@ -32,6 +32,7 @@ export function PrinterSettingsForm({
   const [pairedDevices, setPairedDevices] = useState<Array<{ name: string; address: string; paired: boolean }>>([]);
   const [isScanning, setIsScanning] = useState(false);
   const isAndroid = isAndroidApp();
+  const hasCapacitorBt = isAndroid && isCapacitorBluetoothAvailable();
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.posDesktop?.printer) {
@@ -55,7 +56,7 @@ export function PrinterSettingsForm({
 
   // Poll discovered devices while scanning
   useEffect(() => {
-    if (!isAndroid || !isScanning) return;
+    if (!hasCapacitorBt || !isScanning) return;
     const poll = async () => {
       try {
         const result = await getDiscoveredDevices();
@@ -215,7 +216,7 @@ export function PrinterSettingsForm({
 
       <div className="grid gap-2">
         <Label htmlFor="bluetoothDeviceName">Nama Perangkat Bluetooth</Label>
-        {isAndroid ? (
+        {hasCapacitorBt ? (
           <div className="grid gap-2">
             <div className="flex items-center gap-2">
               <Input id="bluetoothDeviceName" name="bluetoothDeviceName" defaultValue={initial.bluetoothDeviceName} placeholder="Nama atau alamat MAC" className="flex-1" />

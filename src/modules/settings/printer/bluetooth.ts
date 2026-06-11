@@ -399,10 +399,85 @@ export async function getBluetoothStatus(): Promise<{ connected: boolean; device
   return { connected: false, deviceName: null };
 }
 
+export async function getPairedDevices(): Promise<Array<{ name: string; address: string; paired: boolean }>> {
+  if (isCapacitorBluetoothAvailable()) {
+    const devices = await capGetPairedDevices();
+    return devices.map(d => ({ ...d, paired: d.paired ?? true }));
+  }
+  try {
+    const nav = navigator as NavigatorWithBluetooth;
+    if (nav.bluetooth) {
+      const devices = await nav.bluetooth.getDevices();
+      return devices.filter(d => d.name).map(d => ({ name: d.name!, address: d.id, paired: true }));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+export async function connectBluetooth(address: string): Promise<{ deviceName: string }> {
+  if (isCapacitorBluetoothAvailable()) {
+    return capConnectBluetooth(address);
+  }
+  const nav = navigator as NavigatorWithBluetooth;
+  if (!nav.bluetooth) throw new Error("Web Bluetooth API tidak tersedia.");
+
+  const ok = await tryReconnect(address);
+  if (ok && cachedDevice?.name) {
+    return { deviceName: cachedDevice.name };
+  }
+
+  const device = await nav.bluetooth.requestDevice({
+    filters: [{ name: address }],
+    optionalServices: SERVICE_UUIDS,
+  }).catch(() => {
+    return nav.bluetooth!.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: SERVICE_UUIDS,
+    });
+  });
+
+  if (!device.name) throw new Error("Perangkat Bluetooth tidak memiliki nama.");
+  const server = await device.gatt!.connect();
+  const characteristic = await findWritableCharacteristic(server);
+  cachedDevice = device;
+  cachedServer = server;
+  cachedCharacteristic = characteristic;
+  setupDisconnectHandler(device);
+  return { deviceName: device.name };
+}
+
+export async function startDiscovery(): Promise<void> {
+  if (isCapacitorBluetoothAvailable()) {
+    await capStartDiscovery();
+    return;
+  }
+}
+
+export async function stopDiscovery(): Promise<void> {
+  if (isCapacitorBluetoothAvailable()) {
+    await capStopDiscovery();
+  }
+}
+
+export async function getDiscoveredDevices(): Promise<{ devices: Array<{ name: string; address: string; paired: boolean }>; isDiscovering: boolean }> {
+  if (isCapacitorBluetoothAvailable()) {
+    return capGetDiscoveredDevices();
+  }
+  try {
+    const nav = navigator as NavigatorWithBluetooth;
+    if (nav.bluetooth) {
+      const devices = await nav.bluetooth.getDevices();
+      return {
+        devices: devices.filter(d => d.name).map(d => ({ name: d.name!, address: d.id, paired: true })),
+        isDiscovering: false,
+      };
+    }
+  } catch { /* ignore */ }
+  return { devices: [], isDiscovering: false };
+}
+
+export function isAndroidApp(): boolean {
+  return capIsAndroidApp();
+}
+
 export { isCapacitorBluetoothAvailable };
-export const getPairedDevices = capGetPairedDevices;
-export const connectBluetooth = capConnectBluetooth;
-export const isAndroidApp = capIsAndroidApp;
-export const startDiscovery = capStartDiscovery;
-export const stopDiscovery = capStopDiscovery;
-export const getDiscoveredDevices = capGetDiscoveredDevices;
