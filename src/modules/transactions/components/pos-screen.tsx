@@ -380,8 +380,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
           style={{ maxHeight: "calc(100vh - 280px)" }}
         >
           <div
-            className="relative"
-            style={{ height: `${gridVirtualizer.getTotalSize()}px` }}
+            style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
           >
             {gridVirtualizer.getVirtualItems().map((virtualRow) => {
               const start = virtualRow.index * COL_COUNT;
@@ -389,15 +388,19 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               return (
                 <div
                   key={virtualRow.key}
-                  className="absolute left-0 right-0 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
                   style={{
+                    position: "absolute",
+                    top: `${virtualRow.start}px`,
+                    left: 0,
+                    right: 0,
                     height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {rowProducts.map((p) => (
-                    <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
-                  ))}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                    {rowProducts.map((p) => (
+                      <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+                    ))}
+                  </div>
                 </div>
               );
             })}
