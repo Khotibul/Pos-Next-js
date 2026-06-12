@@ -26,9 +26,9 @@ export const PAPER_PROFILES: Record<"48mm" | "58mm" | "80mm", PaperProfile> = {
 };
 
 export const RECEIPT_DENSITY: Record<"compact" | "standard" | "detailed", ReceiptDensity> = {
-  compact: { key: "compact", paddingMm: 2, sectionGapPx: 3, itemGapPx: 1, lineHeight: 1.18, footerFeedLines: 4 },
-  standard: { key: "standard", paddingMm: 3, sectionGapPx: 4, itemGapPx: 2, lineHeight: 1.25, footerFeedLines: 5 },
-  detailed: { key: "detailed", paddingMm: 4, sectionGapPx: 4, itemGapPx: 3, lineHeight: 1.32, footerFeedLines: 6 },
+  compact: { key: "compact", paddingMm: 2, sectionGapPx: 3, itemGapPx: 1, lineHeight: 1.18, footerFeedLines: 2 },
+  standard: { key: "standard", paddingMm: 3, sectionGapPx: 4, itemGapPx: 2, lineHeight: 1.25, footerFeedLines: 3 },
+  detailed: { key: "detailed", paddingMm: 4, sectionGapPx: 4, itemGapPx: 3, lineHeight: 1.32, footerFeedLines: 4 },
 };
 
 export const FONT_SCALE: Record<"small" | "medium" | "large", number> = {

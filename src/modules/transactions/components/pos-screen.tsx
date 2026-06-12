@@ -221,12 +221,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const cashChange = Math.max(0, cashPaid - total);
   const cashShortage = Math.max(0, total - cashPaid);
 
-  useEffect(() => {
-    if (method !== "CASH") return;
-    if (cashPaidTouched) return;
-    setCashPaid(total);
-  }, [method, total, cashPaidTouched]);
-
   const addProductToCart = useCallback((product: Product) => {
     setExtraProducts((prev) => (prev.some((item) => item.id === product.id) ? prev : [...prev, product]));
     setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + 1 }));
@@ -461,16 +455,11 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                 <button
                   key={m.k}
                   type="button"
-                  onClick={() => {
-                    setMethod(m.k);
-                    if (m.k === "CASH") {
-                      setCashPaidTouched(false);
-                      setCashPaid(total);
-                    } else {
-                      setCashPaidTouched(false);
-                      setCashPaid(0);
-                    }
-                  }}
+                   onClick={() => {
+                     setMethod(m.k);
+                     setCashPaidTouched(false);
+                     setCashPaid(0);
+                   }}
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     method === m.k ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:bg-muted/30"
                   }`}
@@ -489,7 +478,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   type="number"
                   inputMode="numeric"
                   className="h-10 w-44 rounded-xl border bg-background px-3 text-right text-sm"
-                  value={Number.isFinite(cashPaid) ? cashPaid : 0}
+                  value={Number.isFinite(cashPaid) && cashPaid > 0 ? cashPaid : ""}
                   min={0}
                   onChange={(e) => {
                     setCashPaidTouched(true);

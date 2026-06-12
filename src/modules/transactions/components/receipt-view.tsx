@@ -227,7 +227,7 @@ export const ReceiptView = memo(function ReceiptView({
         }
         .receipt-footer-feed {
           white-space: pre-line;
-          height: ${Math.max(4, density.footerFeedLines * 1)}px;
+          height: ${Math.max(4, density.footerFeedLines * 5)}px;
         }
         @media print {
           ${pageSizeCss}
