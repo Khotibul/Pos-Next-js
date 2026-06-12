@@ -87,6 +87,16 @@ export function truncateText(input: string, maxLength: number) {
   return `${text.slice(0, maxLength - 3)}...`;
 }
 
+export function splitLongWord(word: string, maxLength: number) {
+  const chunks: string[] = [];
+
+  for (let i = 0; i < word.length; i += maxLength) {
+    chunks.push(word.slice(i, i + maxLength));
+  }
+
+  return chunks;
+}
+
 export function wrapText(input: string, maxLength: number) {
   const text = sanitizeReceiptText(input);
   if (!text) return [];
@@ -96,16 +106,24 @@ export function wrapText(input: string, maxLength: number) {
   let current = "";
 
   for (const word of words) {
+    if (word.length > maxLength) {
+      if (current) {
+        lines.push(current);
+        current = "";
+      }
+
+      lines.push(...splitLongWord(word, maxLength));
+      continue;
+    }
+
     const next = current ? `${current} ${word}` : word;
 
     if (next.length <= maxLength) {
       current = next;
-      continue;
+    } else {
+      if (current) lines.push(current);
+      current = word;
     }
-
-    if (current) lines.push(current);
-
-    current = word.length > maxLength ? truncateText(word, maxLength) : word;
   }
 
   if (current) lines.push(current);
@@ -114,14 +132,13 @@ export function wrapText(input: string, maxLength: number) {
 }
 
 export function centerText(input: string, width: number) {
-  const text = truncateText(input, width);
+  const text = sanitizeReceiptText(input);
 
-  if (text.length >= width) return text;
+  if (text.length >= width) return text.slice(0, width);
 
   const left = Math.floor((width - text.length) / 2);
-  const right = Math.max(0, width - text.length - left);
 
-  return `${" ".repeat(Math.max(0, left))}${text}${" ".repeat(right)}`;
+  return `${" ".repeat(Math.max(0, left))}${text}`;
 }
 
 export function centerWrappedText(input: string | null | undefined, width: number) {
@@ -133,11 +150,22 @@ export function centerWrappedText(input: string | null | undefined, width: numbe
 }
 
 export function leftRightText(leftText: string, rightText: string, width: number) {
-  const left = truncateText(leftText, Math.floor(width * 0.6));
-  const right = truncateText(rightText, Math.floor(width * 0.4));
-  const space = Math.max(1, width - left.length - right.length);
+  const leftMax = Math.floor(width * 0.58);
+  const rightMax = width - leftMax - 1;
 
-  return `${left}${" ".repeat(space)}${right}`;
+  const leftLines = wrapText(leftText, leftMax);
+  const right = truncateText(rightText, rightMax);
+
+  const firstLeft = leftLines[0] ?? "";
+  const space = Math.max(1, width - firstLeft.length - right.length);
+
+  const lines = [`${firstLeft}${" ".repeat(space)}${right}`];
+
+  for (const line of leftLines.slice(1)) {
+    lines.push(line);
+  }
+
+  return lines.join("\n");
 }
 
 export function separator(width: number, char = "-") {
