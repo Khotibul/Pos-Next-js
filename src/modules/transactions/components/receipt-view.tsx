@@ -159,6 +159,7 @@ export const ReceiptView = memo(function ReceiptView({
         .receipt-small { font-size: var(--receipt-small-font); }
         .receipt-bold { font-weight: 800; }
         .receipt-section { margin: var(--receipt-gap) 0; }
+        .receipt-header-section { margin: calc(var(--receipt-gap) / 2) 0; }
         .receipt-separator {
           height: 1px;
           margin: var(--receipt-gap) 0;
@@ -226,7 +227,7 @@ export const ReceiptView = memo(function ReceiptView({
         }
         .receipt-footer-feed {
           white-space: pre-line;
-          height: ${density.footerFeedLines * 3}px;
+          height: ${Math.max(4, density.footerFeedLines * 1)}px;
         }
         @media print {
           ${pageSizeCss}
@@ -261,7 +262,7 @@ export const ReceiptView = memo(function ReceiptView({
 
       <div className="receipt-print-root">
         <div className="receipt-wrap rounded-xl border shadow-sm">
-          <div className="receipt-center receipt-section">
+          <div className="receipt-center receipt-header-section">
             {printer.showLogo ? (
               <Image src="/posqu-pro.png" alt="Logo toko" width={profile.logoMaxWidthPx} height={42} className="receipt-logo" priority={false} />
             ) : null}
