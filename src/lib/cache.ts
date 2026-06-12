@@ -32,6 +32,8 @@ export async function invalidateTenantCache(tenantId: string) {
 export async function invalidateProductCache(tenantId: string) {
   await Promise.all([
     deleteCacheByPattern(`product:*:${tenantId}:*`),
+    deleteCacheByPattern(`tx:product:${tenantId}:*`),
+    deleteCacheByPattern(`stock:${tenantId}:*`),
     deleteCache(`product:overview:${tenantId}`),
     deleteCacheByPattern(`dashboard:tenant:${tenantId}:*`),
   ]);

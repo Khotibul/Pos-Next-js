@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node scripts/clean-next.cjs && next dev",
     "dev:desktop": "concurrently -k -n NEXT,ELECTRON -c blue,green \"next dev\" \"wait-on http://localhost:3000 && cross-env ELECTRON_RENDERER_URL=http://localhost:3000 npm run electron:build-and-run\"",
-    "build": "npm run prisma:generate && next build",
+    "build": "node scripts/clean-next.cjs && npm run prisma:generate && next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import type { CreateSaleInput } from "@/modules/transactions/validators";
 import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
+import { createDevTimer } from "@/lib/perf";
 
 function inv(prefix = "TRX") {
   const d = new Date();
@@ -80,7 +81,7 @@ export async function getSaleById(params: { tenantId: string; id: string }) {
 }
 
 export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
-  console.time("createSale.validate");
+  const endValidate = createDevTimer("pos.createSale.validate");
   if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
   if (params.cashierId) {
     const ok = await prisma.cashierShift.findFirst({
@@ -89,9 +90,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     });
     if (!ok) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
   }
-  console.timeEnd("createSale.validate");
+  endValidate();
 
-  console.time("createSale.products");
+  const endProducts = createDevTimer("pos.createSale.products");
   const productIds = params.input.items.map((i) => i.productId);
   const productMap = await getCachedProducts(params.tenantId, productIds);
 
@@ -105,9 +106,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     const lineTotal = price * i.qty;
     return { productId: p.id, name: p.name, sku: p.sku, price, qty: i.qty, lineTotal };
   });
-  console.timeEnd("createSale.products");
+  endProducts();
 
-  console.time("createSale.calc");
+  const endCalc = createDevTimer("pos.createSale.calc");
   const subtotal = lines.reduce((acc, l) => acc + l.lineTotal, 0);
   const discount = params.input.discount ?? 0;
   const tax = Math.max(0, (subtotal - discount) * ((params.input.taxRate ?? 0) / 100));
@@ -116,11 +117,11 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
   const changeAmount = Math.max(0, params.input.payment.changeAmount ?? receivedAmount - total);
 
   if (params.input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
-  console.timeEnd("createSale.calc");
+  endCalc();
 
   const invoiceNo = inv("TRX");
 
-  console.time("createSale.transaction");
+  const endTransaction = createDevTimer("pos.createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
@@ -179,9 +180,9 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
 
     return sale;
   });
-  console.timeEnd("createSale.transaction");
+  endTransaction();
 
-  console.time("createSale.cacheReceipt");
+  const endReceiptCache = createDevTimer("pos.createSale.cacheReceipt");
   void cacheReceiptData(created.id, params.tenantId, {
     sale: {
       id: created.id,
@@ -213,7 +214,7 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     },
     printer: {},
   });
-  console.timeEnd("createSale.cacheReceipt");
+  endReceiptCache();
 
   return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }

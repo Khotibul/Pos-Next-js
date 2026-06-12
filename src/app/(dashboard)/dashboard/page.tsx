@@ -19,10 +19,10 @@ export default async function DashboardHome() {
   const ctx = await requirePermission(PERMISSIONS.dashboard_read);
   const locale = await getRequestLocale();
   const copy = dashboardCopy[locale];
-  const overview = await getProductOverview({ tenantId: ctx.tenantId });
   const range = resolvePresetRange("7d");
 
-  const [kpis, series, topProducts, recent] = await Promise.all([
+  const [overview, kpis, series, topProducts, recent] = await Promise.all([
+    getProductOverview({ tenantId: ctx.tenantId }),
     getSalesKpis({ tenantId: ctx.tenantId, from: range.from, to: range.to }),
     getSalesSeries({ tenantId: ctx.tenantId, from: range.from, to: range.to }),
     getTopProducts({ tenantId: ctx.tenantId, from: range.from, to: range.to, take: 4 }),

@@ -5,6 +5,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { findProductByCode } from "@/modules/products/service";
 import { prisma } from "@/lib/prisma";
 import { getCache, setCache } from "@/lib/redis";
+import { createDevTimer } from "@/lib/perf";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  console.time("findByCode.total");
+  const endTotal = createDevTimer("product.barcodeLookup.total");
   const ctx = await getTenantContext();
   const allowed =
     ctx.isSuperAdmin ||
@@ -21,28 +22,28 @@ export async function GET(req: Request) {
     ctx.permissions.includes(PERMISSIONS.products_read) ||
     ctx.permissions.includes(PERMISSIONS.products_barcode_read);
   if (!allowed) {
-    console.timeEnd("findByCode.total");
+    endTotal();
     return NextResponse.json({ ok: false, message: "Anda tidak punya izin." }, { status: 403 });
   }
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ code: url.searchParams.get("code") ?? "" });
   if (!parsed.success) {
-    console.timeEnd("findByCode.total");
+    endTotal();
     return NextResponse.json({ ok: false, message: "Kode tidak valid." }, { status: 400 });
   }
 
-  console.time("findByCode.product");
+  const endProduct = createDevTimer("product.barcodeLookup.product");
   const product = await findProductByCode({ tenantId: ctx.tenantId, branchId: ctx.branchId, code: parsed.data.code });
-  console.timeEnd("findByCode.product");
+  endProduct();
   if (!product) {
-    console.timeEnd("findByCode.total");
+    endTotal();
     return NextResponse.json({ ok: false, message: "Produk tidak ditemukan." }, { status: 404 });
   }
 
-  console.time("findByCode.stock");
+  const endStock = createDevTimer("product.barcodeLookup.stock");
   const stock = await prismaSafeStock(ctx.tenantId, product.id);
-  console.timeEnd("findByCode.stock");
-  console.timeEnd("findByCode.total");
+  endStock();
+  endTotal();
 
   return NextResponse.json({
     ok: true,

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ActionResult } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
@@ -13,58 +12,62 @@ import { createSaleSchema } from "@/modules/transactions/validators";
 import { createSale, deleteSale } from "@/modules/transactions/service";
 import { getOpenShift } from "@/modules/shifts/service";
 import { checkIdempotencyKey, releaseIdempotencyKey } from "@/lib/transaction-cache";
+import { createDevTimer } from "@/lib/perf";
 
 export async function createSaleAction(payload: unknown): Promise<ActionResult<{ id: string; invoiceNo: string }>> {
-  console.time("createSaleAction.total");
+  const endTotal = createDevTimer("pos.createSaleAction.total");
+  let idempotencyRelease: { tenantId: string; key: string } | null = null;
   try {
-    console.time("createSaleAction.auth");
+    const endAuth = createDevTimer("pos.createSaleAction.auth");
     await requirePermission(PERMISSIONS.sales_write);
     const ctx = await requireActiveTenant();
-    console.timeEnd("createSaleAction.auth");
+    endAuth();
 
-    console.time("createSaleAction.validate");
+    const endValidate = createDevTimer("pos.createSaleAction.validate");
     const parsed = createSaleSchema.safeParse(payload);
     if (!parsed.success) return { ok: false, message: "Validasi gagal." };
-    console.timeEnd("createSaleAction.validate");
+    endValidate();
 
-    console.time("createSaleAction.idempotency");
+    const endIdempotency = createDevTimer("pos.createSaleAction.idempotency");
     const idempotencyRaw = parsed.data.payment.reference || `${ctx.userId}-${Date.now()}`;
     const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
+    idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
     const allowed = await checkIdempotencyKey(ctx.tenantId, idempotencyKey);
     if (!allowed) return { ok: false, message: "Transaksi sedang diproses. Harap tunggu." };
-    console.timeEnd("createSaleAction.idempotency");
+    endIdempotency();
 
-    console.time("createSaleAction.shiftCheck");
+    const endShiftCheck = createDevTimer("pos.createSaleAction.shiftCheck");
     const openShift = await getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId });
     if (!openShift) {
       await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
       return { ok: false, message: "Shift belum dibuka. Silakan buka shift terlebih dahulu." };
     }
-    console.timeEnd("createSaleAction.shiftCheck");
+    endShiftCheck();
 
     const created = await createSale({ tenantId: ctx.tenantId, cashierId: ctx.userId, shiftId: openShift.id, input: parsed.data });
 
-    console.time("createSaleAction.cleanup");
-    await writeAuditLog({
-      tenantId: ctx.tenantId,
-      userId: ctx.userId,
-      action: "CREATE",
-      entity: "Sale",
-      entityId: created.id,
-      metadata: { invoiceNo: created.invoiceNo, total: created.total },
-    });
-    await invalidateDashboardCache(ctx.tenantId);
+    void Promise.allSettled([
+      writeAuditLog({
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "CREATE",
+        entity: "Sale",
+        entityId: created.id,
+        metadata: { invoiceNo: created.invoiceNo, total: created.total },
+      }),
+      invalidateDashboardCache(ctx.tenantId),
+    ]);
     await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
-    console.timeEnd("createSaleAction.cleanup");
 
-    revalidatePath("/pos");
-    revalidatePath("/pos/history");
     return { ok: true, data: { id: created.id, invoiceNo: created.invoiceNo } };
   } catch (err) {
+    if (idempotencyRelease) {
+      await releaseIdempotencyKey(idempotencyRelease.tenantId, idempotencyRelease.key).catch(() => {});
+    }
     if (isAppError(err)) return { ok: false, message: err.message };
     return { ok: false, message: "Terjadi kesalahan saat membuat transaksi." };
   } finally {
-    console.timeEnd("createSaleAction.total");
+    endTotal();
   }
 }
 
@@ -81,8 +84,6 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
     });
     await invalidateDashboardCache(ctx.tenantId);
 
-    revalidatePath("/pos");
-    revalidatePath("/pos/history");
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };

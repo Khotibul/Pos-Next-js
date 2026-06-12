@@ -9,15 +9,16 @@ import { requireCanTransact } from "@/lib/guards/require-can-transact";
 import { prisma } from "@/lib/prisma";
 import { PosScreen } from "@/modules/transactions/components/pos-screen";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
+import { createDevTimer } from "@/lib/perf";
 
 export default async function PosPage() {
-  console.time("posPage.total");
-  console.time("posPage.auth");
+  const endTotal = createDevTimer("posPage.total");
+  const endAuth = createDevTimer("posPage.auth");
   const ctx = await requirePermission(PERMISSIONS.sales_write);
   await requireCanTransact({ tenantId: ctx.tenantId, userId: ctx.userId });
-  console.timeEnd("posPage.auth");
+  endAuth();
 
-  console.time("posPage.data");
+  const endData = createDevTimer("posPage.data");
   const [products, printerSettings] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: ctx.tenantId, isActive: true },
@@ -36,8 +37,8 @@ export default async function PosPage() {
           _sum: { qty: true },
         });
   const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.qty ?? 0)]));
-  console.timeEnd("posPage.data");
-  console.timeEnd("posPage.total");
+  endData();
+  endTotal();
 
   return (
     <div className="grid gap-4">

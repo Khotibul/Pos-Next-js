@@ -68,7 +68,7 @@ export function PrinterSettingsForm({
     };
     const interval = setInterval(poll, 1500);
     return () => clearInterval(interval);
-  }, [isAndroid, isScanning]);
+  }, [hasCapacitorBt, isScanning]);
 
   const handlePairBluetooth = async () => {
     setBtPairing(true);

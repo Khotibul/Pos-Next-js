@@ -9,6 +9,7 @@ import { Errors } from "@/lib/errors";
 import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
 import { getCache, setCache } from "@/lib/redis";
 import { getCachedTenantContext, setCachedTenantContext, type CachedLayoutContext } from "@/lib/tenant-context-cache";
+import { createDevTimer } from "@/lib/perf";
 export type TenantContext = {
   userId: string;
   userName: string | null;
@@ -87,9 +88,9 @@ async function resolvePermissionCache(params: { tenantId: string; userId: string
   const key = cacheKeys.permissions(params.tenantId, params.userId);
   const cached = await getCache<string[]>(key);
   if (cached) return cached;
-  console.time("auth.permission.cache.miss");
+  const end = createDevTimer("auth.permission.cache.miss");
   await setCache(key, params.fallback, CACHE_TTL.permissions);
-  console.timeEnd("auth.permission.cache.miss");
+  end();
   return params.fallback;
 }
 
@@ -101,13 +102,13 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   const cookieStore = await cookies();
   const cookieTenantId = cookieStore.get("active_tenant_id")?.value ?? null;
   if (cookieTenantId) {
-    console.time("auth.tenantContext.cache");
+    const endCache = createDevTimer("auth.tenantContext.cache");
     const cached = await getCachedTenantContext(userId, cookieTenantId);
-    console.timeEnd("auth.tenantContext.cache");
+    endCache();
     if (cached) return hydrateContext(cached);
   }
 
-  console.time("auth.tenantContext.db");
+  const endDb = createDevTimer("auth.tenantContext.db");
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -136,7 +137,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       },
     },
   });
-  console.timeEnd("auth.tenantContext.db");
+  endDb();
 
   if (!user) throw Errors.unauthorized("User not found.");
   if (!user.isActive) throw Errors.forbidden("Akun ini sedang dinonaktifkan.");

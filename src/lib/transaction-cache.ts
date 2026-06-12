@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getCache, setCache, deleteCache, getRedisClient, isRedisEnabled } from "@/lib/redis";
+import { createDevTimer } from "@/lib/perf";
 
 type CachedProduct = {
   id: string;
@@ -20,10 +21,10 @@ export async function getCachedProducts(
 
   const redis = isRedisEnabled() ? getRedisClient() : null;
   if (redis) {
-    console.time("tx.cache.mget");
+    const endMget = createDevTimer("tx.productCache.mget");
     const keys = productIds.map((id) => `tx:product:${tenantId}:${id}`);
     const cachedValues = await redis.mget<Array<{ value: CachedProduct } | null>>(...keys);
-    console.timeEnd("tx.cache.mget");
+    endMget();
 
     for (let i = 0; i < productIds.length; i++) {
       const val = cachedValues?.[i]?.value ?? null;
@@ -45,15 +46,15 @@ export async function getCachedProducts(
   }
 
   if (uncachedIds.length > 0) {
-    console.time("tx.cache.dbFetch");
+    const endDbFetch = createDevTimer("tx.productCache.dbFetch");
     const { prisma } = await import("@/lib/prisma");
     const products = await prisma.product.findMany({
       where: { tenantId, id: { in: uncachedIds }, isActive: true },
       select: { id: true, name: true, sku: true, sellingPrice: true },
     });
-    console.timeEnd("tx.cache.dbFetch");
+    endDbFetch();
 
-    console.time("tx.cache.setBatch");
+    const endSetBatch = createDevTimer("tx.productCache.setBatch");
     const cacheEntries: Array<{ key: string; value: CachedProduct; ttl: number }> = [];
     for (const p of products) {
       const cached: CachedProduct = {
@@ -76,7 +77,7 @@ export async function getCachedProducts(
         await setCache(entry.key, entry.value, entry.ttl);
       }
     }
-    console.timeEnd("tx.cache.setBatch");
+    endSetBatch();
   }
 
   return result;
@@ -95,6 +96,15 @@ const IDEMPOTENCY_TTL = 10;
 
 export async function checkIdempotencyKey(tenantId: string, key: string): Promise<boolean> {
   const cacheKey = `tx:idempotency:${tenantId}:${key}`;
+  const redis = isRedisEnabled() ? getRedisClient() : null;
+  if (redis) {
+    try {
+      const result = await redis.set(cacheKey, { value: "1", storedAt: new Date().toISOString() }, { ex: IDEMPOTENCY_TTL, nx: true });
+      return result === "OK";
+    } catch {
+      // Fallback to regular cache flow below.
+    }
+  }
   const existing = await getCache<string>(cacheKey);
   if (existing) return false;
   await setCache(cacheKey, "1", IDEMPOTENCY_TTL);

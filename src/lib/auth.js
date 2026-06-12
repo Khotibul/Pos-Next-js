@@ -11,6 +11,7 @@ import { consumeOauthRegistration } from "@/modules/auth/oauth-registration/serv
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 import { setCachedEmailVerified } from "@/lib/cache/user-cache";
 import { getCachedAuthUser, setCachedAuthUser } from "@/lib/auth-cache";
+import { createDevTimer } from "@/lib/perf";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -54,7 +55,7 @@ export const {
         const loginLimit = await checkRateLimit("login", `login:email:${email}:${ip}`);
         if (!loginLimit.success) throw new Error("RATE_LIMITED");
 
-      console.time("auth.credentials.queryUser");
+        const endQueryUser = createDevTimer("auth.credentials.queryUser");
         const user = await prisma.user.findUnique({
           where: { email },
           select: {
@@ -68,7 +69,7 @@ export const {
             isActive: true,
           },
         });
-        console.timeEnd("auth.credentials.queryUser");
+        endQueryUser();
         if (!user?.passwordHash) return null;
         if (!user.isActive) throw new Error("USER_DISABLED");
         if (!user.emailVerified) {
@@ -76,9 +77,9 @@ export const {
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
-        console.time("auth.credentials.bcrypt");
+        const endBcrypt = createDevTimer("auth.credentials.bcrypt");
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
-        console.timeEnd("auth.credentials.bcrypt");
+        endBcrypt();
         if (!ok) return null;
 
         await setCachedEmailVerified(user.id, true);
@@ -200,7 +201,7 @@ export const {
       return token;
     },
     session: async ({ session, token }) => {
-      console.time("auth.session.callback");
+      const endSession = createDevTimer("auth.session.callback");
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.user.email = typeof token.email === "string" ? token.email : session.user.email;
@@ -208,7 +209,7 @@ export const {
         session.user.image = typeof token.picture === "string" ? token.picture : session.user.image;
         session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
       }
-      console.timeEnd("auth.session.callback");
+      endSession();
       return session;
     },
   },
