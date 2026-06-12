@@ -349,7 +349,7 @@ export async function printViaBluetooth(text: string, deviceName?: string) {
 
   const encoder = new TextEncoder();
   const initCmd = new Uint8Array([0x1B, 0x40]);
-  const cutCmd = new Uint8Array([0x1B, 0x18, 0x00]);
+  const cutCmd = new Uint8Array([0x1B, 0x38, 0x00]);
   const textBytes = encoder.encode(text);
 
   try {
