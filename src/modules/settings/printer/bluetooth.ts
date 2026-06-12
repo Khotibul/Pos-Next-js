@@ -2,6 +2,13 @@
 
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import {
+  formatReceiptAmount,
+  getPaperProfile,
+  getReceiptDensity,
+  truncateText,
+  wrapText,
+} from "@/modules/settings/printer/print-engine";
+import {
   isCapacitorBluetoothAvailable,
   requestBluetoothPermissions as capRequestBluetoothPermissions,
   getPairedDevices as capGetPairedDevices,
@@ -30,9 +37,8 @@ type ReceiptSale = {
 
 function formatRupiah(amount: number): string {
   const neg = amount < 0;
-  const abs = Math.abs(amount);
-  const s = abs.toLocaleString("id-ID");
-  return neg ? `-Rp${s}` : `Rp${s}`;
+  const s = `Rp ${formatReceiptAmount(Math.abs(amount))}`;
+  return neg ? `-${s}` : s;
 }
 
 function padRight(str: string, length: number) {
@@ -40,21 +46,11 @@ function padRight(str: string, length: number) {
   return str + " ".repeat(length - str.length);
 }
 
-function truncateMid(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  if (maxLen <= 3) return str.substring(0, maxLen);
-  return str.substring(0, maxLen - 2) + "..";
-}
-
-function getCharsPerLine(printer: PrinterSettings): number {
-  if (printer.paper === "48mm") return 24;
-  if (printer.paper === "58mm") return 32;
-  if (printer.paper === "80mm") return 48;
-  return Math.max(16, Math.round((printer.customWidthMm ?? 58) * 0.55));
-}
-
 export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings) {
-  const width = getCharsPerLine(printer);
+  const profile = getPaperProfile(printer);
+  const density = getReceiptDensity(printer);
+  const width = profile.charsPerLine;
+  const compact = density.key === "compact";
   let text = "";
 
   const centerText = (str: string) => {
@@ -66,29 +62,33 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   const sepFull = "=".repeat(width);
 
   text += "\x1B\x61\x01";
+  if (printer.showLogo) {
+    text += centerText("[LOGO]");
+  }
   text += centerText(printer.headerTitle);
   if (printer.headerSubtitle) {
-    text += centerText(printer.headerSubtitle);
+    for (const line of wrapText(printer.headerSubtitle, width)) {
+      text += centerText(line);
+    }
   }
 
   text += "\x1B\x61\x00";
-  text += `${padRight("No:", 15)} ${sale.invoiceNo}\n`;
-  text += `${padRight("Tgl:", 15)} ${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
+  text += `${padRight("No:", 8)}${sale.invoiceNo}\n`;
+  text += `${padRight("Tgl:", 8)}${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
+  text += `${padRight("Status:", 8)}${sale.status}\n`;
   text += sepFull + "\n";
 
-  const priceColWidth = 14;
+  const priceColWidth = width >= 48 ? 16 : 12;
   const nameColWidth = width - priceColWidth - 1;
 
   for (const item of sale.items) {
-    const name = truncateMid(item.name, nameColWidth);
+    const name = truncateText(item.name, nameColWidth);
     const totalStr = formatRupiah(item.lineTotal);
-    const paddedTotal = padRight(totalStr, priceColWidth);
+    const paddedTotal = totalStr.length >= priceColWidth ? totalStr.slice(0, priceColWidth) : totalStr.padStart(priceColWidth, " ");
     text += padRight(name, nameColWidth) + " " + paddedTotal + "\n";
     const details: string[] = [];
-    if (printer.showUnitPriceOnReceipt) {
+    if (!compact || printer.showUnitPriceOnReceipt) {
       details.push(`${item.qty} x ${formatRupiah(item.price)}`);
-    } else {
-      details.push(`${item.qty} item`);
     }
     if (printer.showSkuOnReceipt && item.sku) {
       details.push(`SKU: ${item.sku}`);
@@ -124,6 +124,9 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
       if (p.changeAmount > 0) {
         addTotalLine("Kembali", p.changeAmount);
       }
+      if (density.key === "detailed" && p.reference) {
+        text += `${padRight("Ref", 8)}${p.reference}\n`;
+      }
     }
   }
 
@@ -132,7 +135,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   if (printer.footerNote) {
     text += centerText(printer.footerNote);
   }
-  text += "\n";
+  text += "\n".repeat(density.footerFeedLines);
 
   return text;
 }

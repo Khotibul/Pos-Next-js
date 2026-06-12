@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const PrinterPaperSchema = z.enum(["48mm", "58mm", "80mm", "custom"]);
 export const PrinterConnectionTypeSchema = z.enum(["browser", "bluetooth"]);
+export const ReceiptModeSchema = z.enum(["compact", "standard", "detailed"]);
 
 export const PrinterSettingsSchema = z.object({
   connectionType: PrinterConnectionTypeSchema.default("browser"),
@@ -10,6 +11,8 @@ export const PrinterSettingsSchema = z.object({
   paper: PrinterPaperSchema.default("80mm"),
   customWidthMm: z.number().min(10).max(200).optional().default(58),
   customHeightMm: z.number().min(10).max(500).optional().default(150),
+  printWidthAdjustmentPx: z.number().min(-120).max(120).optional().default(0),
+  receiptMode: ReceiptModeSchema.default("standard"),
   autoPrintAfterPayment: z.boolean().default(false),
   showLogo: z.boolean().default(false),
   headerTitle: z.string().trim().min(1).max(60).default("POS Pro"),
@@ -42,6 +45,12 @@ export const UpdatePrinterSettingsFormSchema = z.object({
     .optional()
     .transform((v) => (v === undefined || v === "" ? undefined : typeof v === "number" ? v : Number(v)))
     .pipe(z.number().min(10).max(500).optional()),
+  printWidthAdjustmentPx: z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? undefined : typeof v === "number" ? v : Number(v)))
+    .pipe(z.number().min(-120).max(120).optional()),
+  receiptMode: ReceiptModeSchema.optional().default("standard"),
   autoPrintAfterPayment: z
     .union([z.boolean(), z.string()])
     .optional()

@@ -36,11 +36,14 @@ function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
     });
   } else {
     if (typeof window !== "undefined" && window.posDesktop?.printer && printer.defaultBrowserPrinter) {
-      window.posDesktop.printer.print({ deviceName: printer.defaultBrowserPrinter, silent: true }).catch((e) => {
-        console.error(e);
-        document.body.classList.add("print-receipt");
-        window.print();
-      });
+      document.body.classList.add("print-receipt");
+      window.posDesktop.printer
+        .print({ deviceName: printer.defaultBrowserPrinter, silent: true })
+        .catch((e) => {
+          console.error(e);
+          window.print();
+        })
+        .finally(() => window.setTimeout(() => document.body.classList.remove("print-receipt"), 800));
     } else {
       document.body.classList.add("print-receipt");
       window.print();
