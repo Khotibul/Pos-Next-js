@@ -30,6 +30,9 @@ export type ProductExportRow = {
   marginPct: number;
   stock: number;
   minimumStock: number;
+  wholesalePrice: number;
+  wholesaleDiscountPercent: number;
+  wholesaleMinQty: number;
   batchNumber: string | null;
   expiredDate: string | null;
   status: string;
@@ -58,6 +61,9 @@ export async function getProductsForExport(filter: ProductExportFilter): Promise
       sellingPrice: true,
       marginPct: true,
       minStock: true,
+      wholesalePrice: true,
+      wholesaleDiscountPercent: true,
+      wholesaleMinQty: true,
       isActive: true,
       updatedAt: true,
       category: { select: { name: true } },
@@ -135,6 +141,9 @@ export async function getProductsForExport(filter: ProductExportFilter): Promise
       marginPct: numberOrZero(p.marginPct),
       stock,
       minimumStock: min,
+      wholesalePrice: numberOrZero(p.wholesalePrice),
+      wholesaleDiscountPercent: numberOrZero(p.wholesaleDiscountPercent),
+      wholesaleMinQty: numberOrZero(p.wholesaleMinQty),
       batchNumber: batch.batchNumber,
       expiredDate: batch.expiredDate,
       status: p.isActive ? "Active" : "Inactive",

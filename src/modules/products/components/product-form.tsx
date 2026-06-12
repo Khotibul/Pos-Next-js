@@ -39,6 +39,11 @@ type Initial = {
   volume?: number | string;
   minStock?: number | string;
   reorderPoint?: number | string;
+  wholesalePrice?: number | string;
+  wholesaleDiscountPercent?: number | string;
+  wholesaleMinQty?: number | string;
+  initialStock?: number | string;
+  totalStock?: number;
   isActive?: boolean;
   isFeatured?: boolean;
   isConsignment?: boolean;
@@ -303,6 +308,42 @@ export function ProductForm({
                 <Label htmlFor="taxRate">Pajak (%)</Label>
                 <Input id="taxRate" name="taxRate" type="number" step="0.01" defaultValue={String(initial?.taxRate ?? 0)} />
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/30 p-4">
+              <div className="mb-2 text-sm font-semibold text-orange-800">Harga Grosir</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="wholesalePrice">Harga Grosir</Label>
+                  <Input id="wholesalePrice" name="wholesalePrice" type="number" step="0.01" defaultValue={String(initial?.wholesalePrice ?? 0)} placeholder="0" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="wholesaleDiscountPercent">Diskon Grosir (%)</Label>
+                  <Input id="wholesaleDiscountPercent" name="wholesaleDiscountPercent" type="number" step="0.01" min="0" max="100" defaultValue={String(initial?.wholesaleDiscountPercent ?? 0)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Potongan persen dari harga jual</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="wholesaleMinQty">Min. Pembelian Grosir</Label>
+                  <Input id="wholesaleMinQty" name="wholesaleMinQty" type="number" step="1" min="0" defaultValue={String(initial?.wholesaleMinQty ?? 0)} placeholder="0" />
+                  <p className="text-xs text-muted-foreground">Minimal qty untuk harga grosir</p>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                {initial?.totalStock !== undefined ? `Stok saat ini: ${initial.totalStock}` : "Isi harga grosir & minimal pembelian untuk penjualan grosir otomatis."}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="initialStock">{initial?.id ? "Atur Stok" : "Stok Awal"}</Label>
+                <Input id="initialStock" name="initialStock" type="number" step="1" min="0" defaultValue={String(initial?.initialStock ?? (initial?.totalStock ?? 0))} placeholder="0" />
+                {initial?.id ? (
+                  <p className="text-xs text-muted-foreground">Stok saat ini: {initial.totalStock ?? 0}. Ubah untuk menyesuaikan stok.</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Stok awal saat membuat produk baru.</p>
+                )}
+              </div>
+              <div />
             </div>
 
             <div className="grid gap-3 rounded-2xl border bg-muted/10 p-4 sm:grid-cols-2">

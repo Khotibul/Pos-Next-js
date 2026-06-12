@@ -26,6 +26,9 @@ type Product = {
   barcode?: string | null;
   qrCode?: string | null;
   stock?: number;
+  wholesalePrice?: number;
+  wholesaleDiscountPercent?: number;
+  wholesaleMinQty?: number;
 };
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
@@ -55,6 +58,7 @@ const ProductCard = memo(function ProductCard({
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>Klik untuk tambah</span>
         {showStock ? <Badge variant="secondary">Stok {Number(product.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+        {product.wholesaleMinQty && product.wholesaleMinQty > 0 ? <Badge variant="outline" className="border-orange-300 text-orange-700">Grosir {product.wholesaleMinQty}+</Badge> : null}
       </div>
     </button>
   );
@@ -68,7 +72,7 @@ const CartLineItem = memo(function CartLineItem({
   showSku,
   showStock,
 }: {
-  item: { productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number };
+  item: { productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number; isWholesale?: boolean };
   product: Product | undefined;
   onInc: (id: string) => void;
   onDec: (id: string) => void;
@@ -80,9 +84,14 @@ const CartLineItem = memo(function CartLineItem({
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{item.name}</div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{rupiah(item.price)} / unit</span>
+          {item.isWholesale && product && product.price !== item.price ? (
+            <span><span className="line-through">{rupiah(product.price)}</span> {rupiah(item.price)} / unit</span>
+          ) : (
+            <span>{rupiah(item.price)} / unit</span>
+          )}
           {showSku ? <span>• {item.sku}</span> : null}
           {showStock ? <Badge variant="secondary">Stok {Number(product?.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
+          {item.isWholesale ? <Badge variant="outline" className="border-orange-300 text-orange-700">Grosir</Badge> : null}
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -221,10 +230,20 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       .map(([productId, qty]) => {
         const p = productMap.get(productId);
         if (!p) return null;
-        const lineTotal = p.price * qty;
-        return { productId, name: p.name, sku: p.sku, price: p.price, qty, lineTotal };
+        const minQty = p.wholesaleMinQty ?? 0;
+        const isWholesale = minQty > 0 && qty >= minQty;
+        let unitPrice = p.price;
+        if (isWholesale) {
+          if (p.wholesalePrice && p.wholesalePrice > 0) {
+            unitPrice = p.wholesalePrice;
+          } else if (p.wholesaleDiscountPercent && p.wholesaleDiscountPercent > 0) {
+            unitPrice = p.price * (1 - p.wholesaleDiscountPercent / 100);
+          }
+        }
+        const lineTotal = unitPrice * qty;
+        return { productId, name: p.name, sku: p.sku, price: unitPrice, qty, lineTotal, isWholesale };
       })
-      .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
+      .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number; isWholesale?: boolean }>;
   }, [cart, productMap]);
 
   const effectiveDiscount = settings.cartShowDiscount ? discount : 0;

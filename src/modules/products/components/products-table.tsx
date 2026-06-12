@@ -20,6 +20,7 @@ type Item = {
   barcode: string | null;
   categoryName: string;
   sellingPrice: unknown;
+  stock: number;
   isActive: boolean;
   updatedAt: string;
 };
@@ -151,6 +152,7 @@ export function ProductsTable({
                 <TableHead>Barcode</TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Harga</TableHead>
+                <TableHead className="text-right">Stok</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -158,7 +160,7 @@ export function ProductsTable({
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     Tidak ada data.
                   </TableCell>
                 </TableRow>
@@ -181,6 +183,7 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell>{p.categoryName}</TableCell>
                     <TableCell>{formatRupiah(p.sellingPrice)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number.isFinite(p.stock) ? p.stock.toLocaleString("id-ID") : "-"}</TableCell>
                     <TableCell>
                       {p.isActive ? (
                         <Badge className="border-emerald-200 bg-emerald-100 text-emerald-900">Active</Badge>

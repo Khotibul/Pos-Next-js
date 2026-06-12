@@ -192,6 +192,7 @@ export default async function ProductsPage({
               name: p.name,
               categoryName: p.category?.name ?? "-",
               sellingPrice: Number(p.sellingPrice),
+              stock: p.stock,
               isActive: p.isActive,
             }))}
           />
@@ -247,6 +248,7 @@ export default async function ProductsPage({
             barcode: p.barcode,
             categoryName: p.category?.name ?? "-",
             sellingPrice: Number(p.sellingPrice),
+            stock: p.stock,
             isActive: p.isActive,
             updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : p.updatedAt.toISOString(),
           }))}

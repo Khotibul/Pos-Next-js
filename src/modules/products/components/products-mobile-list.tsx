@@ -8,6 +8,7 @@ export type ProductMobileRow = {
   sku: string;
   categoryName: string;
   sellingPrice: unknown;
+  stock: number;
   isActive: boolean;
 };
 
@@ -43,7 +44,8 @@ export function ProductsMobileList({ items }: { items: ProductMobileRow[] }) {
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-primary">{rupiah(p.sellingPrice)}</div>
-                <div className="mt-1 inline-flex items-center gap-2 text-xs">
+                <div className="mt-1 text-xs tabular-nums text-muted-foreground">Stok: {Number.isFinite(p.stock) ? p.stock.toLocaleString("id-ID") : "-"}</div>
+                <div className="mt-0.5 inline-flex items-center gap-2 text-xs">
                   <span className={`h-2 w-2 rounded-full ${p.isActive ? "bg-emerald-500" : "bg-red-500"}`} />
                   <span className={p.isActive ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}>
                     {p.isActive ? "Aktif" : "Nonaktif"}

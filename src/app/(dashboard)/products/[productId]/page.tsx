@@ -122,6 +122,21 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <span>Featured</span>
                 <span className="text-foreground">{product.isFeatured ? "Ya" : "Tidak"}</span>
               </div>
+              <div className="border-t pt-2 mt-2">
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-orange-600">Harga Grosir</div>
+                <div className="flex items-center justify-between">
+                  <span>Harga Grosir</span>
+                  <span className="text-foreground">{Number(product.wholesalePrice) > 0 ? rupiah(Number(product.wholesalePrice)) : "-"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Diskon Grosir</span>
+                  <span className="text-foreground">{Number(product.wholesaleDiscountPercent) > 0 ? `${Number(product.wholesaleDiscountPercent)}%` : "-"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Min. Pembelian</span>
+                  <span className="text-foreground">{Number(product.wholesaleMinQty) > 0 ? Number(product.wholesaleMinQty).toLocaleString("id-ID") : "-"}</span>
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <span>Konsinyasi</span>
                 <span className="text-foreground">{product.isConsignment ? "Ya" : "Tidak"}</span>

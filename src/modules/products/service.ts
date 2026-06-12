@@ -74,13 +74,30 @@ export async function listProducts(params: {
             category: { select: { id: true, name: true } },
             costPrice: true,
             sellingPrice: true,
+            wholesalePrice: true,
+            wholesaleDiscountPercent: true,
+            wholesaleMinQty: true,
             isActive: true,
             updatedAt: true,
           },
         }),
       ]);
 
-      return { items, total, page, pageSize, q, categoryId, status };
+      const productIds = items.map((p) => p.id);
+      const stockAgg = productIds.length
+        ? await prisma.productWarehouseStock.groupBy({
+            by: ["productId"],
+            where: { tenantId: params.tenantId, productId: { in: productIds } },
+            _sum: { qty: true },
+          })
+        : [];
+      const stockMap = new Map(stockAgg.map((s) => [s.productId, Number(s._sum?.qty ?? 0)]));
+      const itemsWithStock = items.map((p) => ({
+        ...p,
+        stock: stockMap.get(p.id) ?? 0,
+      }));
+
+      return { items: itemsWithStock, total, page, pageSize, q, categoryId, status };
     },
   });
 }
@@ -110,7 +127,30 @@ export async function getProductById(params: { tenantId: string; id: string }) {
     }),
   });
   if (!product) throw Errors.notFound("Produk tidak ditemukan.");
-  return product;
+
+  const stockAgg = await prisma.productWarehouseStock.groupBy({
+    by: ["productId"],
+    where: { tenantId: params.tenantId, productId: product.id },
+    _sum: { qty: true },
+  });
+  const totalStock = stockAgg.length ? Number(stockAgg[0]._sum?.qty ?? 0) : 0;
+
+  return { ...product, totalStock };
+}
+
+async function ensureDefaultWarehouse(tenantId: string) {
+  const existing = await prisma.warehouse.findFirst({
+    where: { tenantId, isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const created = await prisma.warehouse.create({
+    data: { tenantId, name: "Main Warehouse", type: "BRANCH", isActive: true },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 export async function createProduct(params: { tenantId: string; input: CreateProductInput }) {
@@ -122,34 +162,58 @@ export async function createProduct(params: { tenantId: string; input: CreatePro
   for (let attempt = 0; attempt < 3; attempt++) {
     const sku = desiredSku || genSku();
     try {
-      const created = await prisma.product.create({
-        data: {
-          tenantId: params.tenantId,
-          sku,
-          name: params.input.name,
-          slug: desiredSlug ? slugify(desiredSlug) : null,
-          description: params.input.description?.trim() || null,
-          barcode: params.input.barcode || null,
-          qrCode: params.input.qrCode || null,
-          categoryId: params.input.categoryId || null,
-          brandId: params.input.brandId || null,
-          supplierId: params.input.supplierId || null,
-          unitId: params.input.unitId || null,
-          costPrice: params.input.costPrice,
-          sellingPrice: params.input.sellingPrice,
-          marginPct,
-          taxRate: params.input.taxRate ?? 0,
-          weight: params.input.weight ?? 0,
-          volume: params.input.volume ?? 0,
-          minStock: params.input.minStock ?? 0,
-          reorderPoint: params.input.reorderPoint ?? 0,
-          isActive: params.input.isActive ?? true,
-          isFeatured: params.input.isFeatured ?? false,
-          isConsignment: params.input.isConsignment ?? false,
-          type: params.input.type ?? "SINGLE",
-        },
-        select: { id: true },
+      const created = await prisma.$transaction(async (tx) => {
+        const product = await tx.product.create({
+          data: {
+            tenantId: params.tenantId,
+            sku,
+            name: params.input.name,
+            slug: desiredSlug ? slugify(desiredSlug) : null,
+            description: params.input.description?.trim() || null,
+            barcode: params.input.barcode || null,
+            qrCode: params.input.qrCode || null,
+            categoryId: params.input.categoryId || null,
+            brandId: params.input.brandId || null,
+            supplierId: params.input.supplierId || null,
+            unitId: params.input.unitId || null,
+            costPrice: params.input.costPrice,
+            sellingPrice: params.input.sellingPrice,
+            marginPct,
+            taxRate: params.input.taxRate ?? 0,
+            weight: params.input.weight ?? 0,
+            volume: params.input.volume ?? 0,
+            minStock: params.input.minStock ?? 0,
+            reorderPoint: params.input.reorderPoint ?? 0,
+            wholesalePrice: params.input.wholesalePrice ?? 0,
+            wholesaleDiscountPercent: params.input.wholesaleDiscountPercent ?? 0,
+            wholesaleMinQty: params.input.wholesaleMinQty ?? 0,
+            isActive: params.input.isActive ?? true,
+            isFeatured: params.input.isFeatured ?? false,
+            isConsignment: params.input.isConsignment ?? false,
+            type: params.input.type ?? "SINGLE",
+          },
+          select: { id: true },
+        });
+
+        const initialStock = params.input.initialStock ?? 0;
+        if (initialStock > 0) {
+          const warehouseId = await ensureDefaultWarehouse(params.tenantId);
+          await tx.productWarehouseStock.create({
+            data: {
+              tenantId: params.tenantId,
+              warehouseId,
+              productId: product.id,
+              variantId: null,
+              batchId: null,
+              qty: initialStock,
+            },
+            select: { id: true },
+          });
+        }
+
+        return product;
       });
+
       await invalidateProductCache(params.tenantId);
       return created;
     } catch (e: unknown) {
@@ -170,33 +234,60 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
   });
   if (!exists) throw Errors.notFound("Produk tidak ditemukan.");
 
-  const updated = await prisma.product.update({
-    where: { id: params.id },
-    data: {
-      sku: params.input.sku?.trim() || undefined,
-      name: params.input.name,
-      slug: params.input.slug === "" ? null : params.input.slug ? slugify(params.input.slug) : undefined,
-      description: params.input.description === "" ? null : params.input.description,
-      barcode: params.input.barcode === "" ? null : params.input.barcode,
-      qrCode: params.input.qrCode === "" ? null : params.input.qrCode,
-      categoryId: params.input.categoryId === "" ? null : params.input.categoryId,
-      brandId: params.input.brandId === "" ? null : params.input.brandId,
-      supplierId: params.input.supplierId === "" ? null : params.input.supplierId,
-      unitId: params.input.unitId === "" ? null : params.input.unitId,
-      costPrice: params.input.costPrice,
-      sellingPrice: params.input.sellingPrice,
-      marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
-      taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
-      weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
-      volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
-      minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
-      reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
-      isActive: typeof params.input.isActive === "boolean" ? params.input.isActive : undefined,
-      isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
-      isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
-      type: params.input.type ?? undefined,
-    },
-    select: { id: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.update({
+      where: { id: params.id },
+      data: {
+        sku: params.input.sku?.trim() || undefined,
+        name: params.input.name,
+        slug: params.input.slug === "" ? null : params.input.slug ? slugify(params.input.slug) : undefined,
+        description: params.input.description === "" ? null : params.input.description,
+        barcode: params.input.barcode === "" ? null : params.input.barcode,
+        qrCode: params.input.qrCode === "" ? null : params.input.qrCode,
+        categoryId: params.input.categoryId === "" ? null : params.input.categoryId,
+        brandId: params.input.brandId === "" ? null : params.input.brandId,
+        supplierId: params.input.supplierId === "" ? null : params.input.supplierId,
+        unitId: params.input.unitId === "" ? null : params.input.unitId,
+        costPrice: params.input.costPrice,
+        sellingPrice: params.input.sellingPrice,
+        marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
+        taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
+        weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
+        volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
+        minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
+        reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
+        wholesalePrice: typeof params.input.wholesalePrice === "number" ? params.input.wholesalePrice : undefined,
+        wholesaleDiscountPercent: typeof params.input.wholesaleDiscountPercent === "number" ? params.input.wholesaleDiscountPercent : undefined,
+        wholesaleMinQty: typeof params.input.wholesaleMinQty === "number" ? params.input.wholesaleMinQty : undefined,
+        isActive: typeof params.input.isActive === "boolean" ? params.input.isActive : undefined,
+        isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
+        isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
+        type: params.input.type ?? undefined,
+      },
+      select: { id: true },
+    });
+
+    const initialStock = params.input.initialStock;
+    if (typeof initialStock === "number" && initialStock >= 0) {
+      const warehouseId = await ensureDefaultWarehouse(params.tenantId);
+      const existingStock = await tx.productWarehouseStock.findFirst({
+        where: { tenantId: params.tenantId, warehouseId, productId: product.id, variantId: null, batchId: null },
+        select: { id: true },
+      });
+      if (existingStock) {
+        await tx.productWarehouseStock.update({
+          where: { id: existingStock.id },
+          data: { qty: initialStock },
+        });
+      } else if (initialStock > 0) {
+        await tx.productWarehouseStock.create({
+          data: { tenantId: params.tenantId, warehouseId, productId: product.id, variantId: null, batchId: null, qty: initialStock },
+          select: { id: true },
+        });
+      }
+    }
+
+    return product;
   });
 
   await invalidateProductCache(params.tenantId);
@@ -254,7 +345,7 @@ export async function findProductByCode(params: { tenantId: string; branchId?: s
           isActive: true,
           OR: [{ sku: code }, { barcode: code }, { qrCode: code }],
         },
-        select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
+        select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true, wholesalePrice: true, wholesaleDiscountPercent: true, wholesaleMinQty: true },
       });
       if (!product) return null;
 
@@ -284,7 +375,13 @@ export async function findProductByCode(params: { tenantId: string; branchId?: s
         }
       }
 
-      return { ...product, sellingPrice: override == null ? Number(product.sellingPrice) : override };
+      return {
+        ...product,
+        sellingPrice: override == null ? Number(product.sellingPrice) : override,
+        wholesalePrice: Number(product.wholesalePrice),
+        wholesaleDiscountPercent: Number(product.wholesaleDiscountPercent),
+        wholesaleMinQty: product.wholesaleMinQty,
+      };
     },
   });
 }

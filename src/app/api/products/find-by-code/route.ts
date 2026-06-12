@@ -56,6 +56,9 @@ export async function GET(req: Request) {
         qrCode: product.qrCode,
         price: Number(product.sellingPrice),
         stock,
+        wholesalePrice: Number(product.wholesalePrice ?? 0),
+        wholesaleDiscountPercent: Number(product.wholesaleDiscountPercent ?? 0),
+        wholesaleMinQty: product.wholesaleMinQty ?? 0,
       },
     },
   });

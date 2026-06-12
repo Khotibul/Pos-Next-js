@@ -24,7 +24,7 @@ export default async function PosPage() {
       where: { tenantId: ctx.tenantId, isActive: true },
       orderBy: { updatedAt: "desc" },
       take: 60,
-      select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
+      select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true, wholesalePrice: true, wholesaleDiscountPercent: true, wholesaleMinQty: true },
     }),
     getPrinterSettings({ tenantId: ctx.tenantId }),
   ]);
@@ -77,6 +77,9 @@ export default async function PosPage() {
             qrCode: p.qrCode,
             price: Number(p.sellingPrice),
             stock: stockByProductId.get(p.id) ?? 0,
+            wholesalePrice: Number(p.wholesalePrice ?? 0),
+            wholesaleDiscountPercent: Number(p.wholesaleDiscountPercent ?? 0),
+            wholesaleMinQty: Number(p.wholesaleMinQty ?? 0),
           }))}
         />
       )}
