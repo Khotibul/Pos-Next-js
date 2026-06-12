@@ -104,7 +104,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [cashPaid, setCashPaid] = useState<number>(0);
-  const [cashPaidTouched, setCashPaidTouched] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [taxRate, setTaxRate] = useState(11);
   const [error, setError] = useState<string | null>(null);
@@ -220,12 +219,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const total = Math.max(0, subtotal - effectiveDiscount + tax);
   const cashChange = Math.max(0, cashPaid - total);
   const cashShortage = Math.max(0, total - cashPaid);
-
-  useEffect(() => {
-    if (method !== "CASH") return;
-    if (cashPaidTouched) return;
-    setCashPaid(total);
-  }, [method, total, cashPaidTouched]);
 
   const addProductToCart = useCallback((product: Product) => {
     setExtraProducts((prev) => (prev.some((item) => item.id === product.id) ? prev : [...prev, product]));
@@ -463,13 +456,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   type="button"
                   onClick={() => {
                     setMethod(m.k);
-                    if (m.k === "CASH") {
-                      setCashPaidTouched(false);
-                      setCashPaid(total);
-                    } else {
-                      setCashPaidTouched(false);
-                      setCashPaid(0);
-                    }
+                    setCashPaid(0);
                   }}
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     method === m.k ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:bg-muted/30"
@@ -492,7 +479,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   value={Number.isFinite(cashPaid) ? cashPaid : 0}
                   min={0}
                   onChange={(e) => {
-                    setCashPaidTouched(true);
                     setCashPaid(Number(e.target.value || 0));
                   }}
                 />
@@ -543,7 +529,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   // Show receipt preview popup in-place (no new tab).
                   setPrintPayload({ saleId: res.data.id, auto: Boolean(settings.autoPrintAfterPayment) });
                   setCart({});
-                  setCashPaidTouched(false);
                   setCashPaid(0);
                   router.refresh();
                 });
