@@ -1,4 +1,5 @@
 import "server-only";
+import crypto from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
@@ -12,7 +13,7 @@ function inv(prefix = "TRX") {
   const y = d.getFullYear().toString().slice(-2);
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  const rand = crypto.randomUUID().slice(0, 8).toUpperCase();
   return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
@@ -82,6 +83,19 @@ export async function getSaleById(params: { tenantId: string; id: string }) {
 }
 
 export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await doCreateSale(params);
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err?.code === "P2002" && attempt < 2) continue;
+      throw e;
+    }
+  }
+  throw Errors.badRequest("Gagal membuat transaksi. Silakan coba lagi.");
+}
+
+async function doCreateSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
   const transTimer = startTimer();
   const endValidate = createDevTimer("pos.createSale.validate");
   if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
@@ -121,8 +135,6 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
   if (params.input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
   endCalc();
 
-  const invoiceNo = inv("TRX");
-
   const endTransaction = createDevTimer("pos.createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
     const shift = await tx.cashierShift.findFirst({
@@ -135,6 +147,8 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
       select: { id: true, branchId: true },
     });
     if (!shift) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
+
+    const invoiceNo = inv("TRX");
 
     const requestedQtyByProduct = new Map<string, number>();
     for (const line of lines) {
@@ -216,8 +230,8 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     const totalTransfer = params.input.payment.method === "TRANSFER" ? total : 0;
     const totalEwallet = params.input.payment.method === "EWALLET" ? total : 0;
 
-    await tx.cashierShift.update({
-      where: { id: params.shiftId },
+    const updatedShift = await tx.cashierShift.updateMany({
+      where: { id: params.shiftId, status: "OPEN" },
       data: {
         totalSales: { increment: total },
         transactionCount: { increment: 1 },
@@ -227,8 +241,10 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
         totalTransfer: { increment: totalTransfer },
         totalEwallet: { increment: totalEwallet },
       },
-      select: { id: true },
     });
+    if (updatedShift.count !== 1) {
+      throw Errors.badRequest("Shift sudah ditutup. Tidak dapat memproses transaksi.");
+    }
 
     return sale;
   });

@@ -4,6 +4,15 @@ export const productIdSchema = z.string().min(1);
 
 export const productTypeSchema = z.enum(["SINGLE", "VARIANT", "BUNDLE", "SERVICE", "DIGITAL", "ASSEMBLY"]);
 
+const booleanFromForm = z.preprocess(
+  (v) => {
+    if (v === "true" || v === "on" || v === true) return true;
+    if (v === "false" || v === "off" || v === false) return false;
+    return undefined;
+  },
+  z.boolean().optional()
+);
+
 export const createProductSchema = z.object({
   sku: z.string().max(50).optional().or(z.literal("")),
   name: z.string().min(2).max(200),
@@ -23,9 +32,9 @@ export const createProductSchema = z.object({
   volume: z.coerce.number().min(0).optional(),
   minStock: z.coerce.number().min(0).optional(),
   reorderPoint: z.coerce.number().min(0).optional(),
-  isActive: z.coerce.boolean().optional().default(true),
-  isFeatured: z.coerce.boolean().optional().default(false),
-  isConsignment: z.coerce.boolean().optional().default(false),
+  isActive: booleanFromForm.default(true),
+  isFeatured: booleanFromForm.default(false),
+  isConsignment: booleanFromForm.default(false),
   type: productTypeSchema.optional().default("SINGLE"),
 });
 

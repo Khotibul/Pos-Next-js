@@ -191,7 +191,7 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
       volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
       minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
       reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
-      isActive: params.input.isActive,
+      isActive: typeof params.input.isActive === "boolean" ? params.input.isActive : undefined,
       isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
       isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
       type: params.input.type ?? undefined,

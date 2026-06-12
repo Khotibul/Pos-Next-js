@@ -45,7 +45,7 @@ const ProductCard = memo(function ProductCard({
 }) {
   return (
     <button
-      className="rounded-2xl border bg-background p-4 text-left transition-colors hover:bg-muted/30"
+      className="rounded-2xl border bg-background p-4 text-left shadow-sm transition-shadow hover:shadow-md active:shadow active:scale-[0.98]"
       onClick={() => onInc(product.id)}
       type="button"
     >
@@ -390,10 +390,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   key={virtualRow.key}
                   style={{
                     position: "absolute",
-                    top: `${virtualRow.start}px`,
+                    top: 0,
                     left: 0,
                     right: 0,
                     height: `${virtualRow.size}px`,
+                    willChange: "transform",
+                    transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">

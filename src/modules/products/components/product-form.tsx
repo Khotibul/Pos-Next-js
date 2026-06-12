@@ -307,15 +307,18 @@ export function ProductForm({
 
             <div className="grid gap-3 rounded-2xl border bg-muted/10 p-4 sm:grid-cols-2">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="isActive" defaultChecked={initial?.isActive ?? true} />
+                <input type="hidden" name="isActive" value="false" />
+                <input type="checkbox" name="isActive" value="true" defaultChecked={initial?.isActive ?? true} />
                 Aktif
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="isFeatured" defaultChecked={initial?.isFeatured ?? false} />
+                <input type="hidden" name="isFeatured" value="false" />
+                <input type="checkbox" name="isFeatured" value="true" defaultChecked={initial?.isFeatured ?? false} />
                 Featured
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="isConsignment" defaultChecked={initial?.isConsignment ?? false} />
+                <input type="hidden" name="isConsignment" value="false" />
+                <input type="checkbox" name="isConsignment" value="true" defaultChecked={initial?.isConsignment ?? false} />
                 Konsinyasi
               </label>
             </div>
@@ -323,7 +326,7 @@ export function ProductForm({
             <div className="grid gap-3 sm:grid-cols-4">
               <div className="grid gap-2">
                 <Label htmlFor="minStock">Minimum Stok</Label>
-                <Input id="minStock" name="minStock" type="number" step="0.01" defaultValue={String(initial?.minStock ?? 0)} />
+                <Input id="minStock" name="minStock" type="number" step="1" defaultValue={String(initial?.minStock ?? 0)} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="reorderPoint">Reorder Point</Label>
@@ -331,7 +334,7 @@ export function ProductForm({
                   id="reorderPoint"
                   name="reorderPoint"
                   type="number"
-                  step="0.01"
+                  step="1"
                   defaultValue={String(initial?.reorderPoint ?? 0)}
                 />
               </div>

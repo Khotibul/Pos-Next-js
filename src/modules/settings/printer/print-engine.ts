@@ -32,9 +32,9 @@ export const PAPER_PROFILES: Record<"48mm" | "58mm" | "80mm", PaperProfile> = {
 };
 
 export const RECEIPT_DENSITY: Record<"compact" | "standard" | "detailed", ReceiptDensity> = {
-  compact: { key: "compact", paddingMm: 1, sectionGapPx: 2, itemGapPx: 0, lineHeight: 1.1, footerFeedLines: 0 },
-  standard: { key: "standard", paddingMm: 2, sectionGapPx: 3, itemGapPx: 1, lineHeight: 1, footerFeedLines: 0 },
-  detailed: { key: "detailed", paddingMm: 2, sectionGapPx: 2, itemGapPx: 1, lineHeight: 1, footerFeedLines: 0 },
+  compact: { key: "compact", paddingMm: 1, sectionGapPx: 2, itemGapPx: 0, lineHeight: 1.15, footerFeedLines: 0 },
+  standard: { key: "standard", paddingMm: 2, sectionGapPx: 3, itemGapPx: 1, lineHeight: 1.2, footerFeedLines: 0 },
+  detailed: { key: "detailed", paddingMm: 2, sectionGapPx: 3, itemGapPx: 1, lineHeight: 1.25, footerFeedLines: 0 },
 };
 
 export const FONT_SCALE: Record<"small" | "medium" | "large", number> = {

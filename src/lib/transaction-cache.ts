@@ -92,7 +92,7 @@ export async function invalidateAllCachedProducts(tenantId: string) {
   await deleteCacheByPattern(`tx:product:${tenantId}:*`);
 }
 
-const IDEMPOTENCY_TTL = 10;
+const IDEMPOTENCY_TTL = 60;
 
 export async function checkIdempotencyKey(tenantId: string, key: string): Promise<boolean> {
   const cacheKey = `tx:idempotency:${tenantId}:${key}`;
