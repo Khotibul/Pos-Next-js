@@ -13,6 +13,20 @@ type RateLimitResult = {
 };
 
 const localBuckets = new Map<string, { count: number; resetAt: number }>();
+let lastLocalCleanupAt = 0;
+const LOCAL_CLEANUP_INTERVAL_MS = 60_000;
+const LOCAL_BUCKET_MAX_SIZE = 5_000;
+
+function cleanupLocalBuckets(now: number) {
+  if (now - lastLocalCleanupAt < LOCAL_CLEANUP_INTERVAL_MS && localBuckets.size <= LOCAL_BUCKET_MAX_SIZE) return;
+  lastLocalCleanupAt = now;
+
+  for (const [key, bucket] of localBuckets.entries()) {
+    if (bucket.resetAt <= now || localBuckets.size > LOCAL_BUCKET_MAX_SIZE) {
+      localBuckets.delete(key);
+    }
+  }
+}
 
 function windowMs(kind: RateLimitKind) {
   if (kind === "login") return 60_000;
@@ -32,6 +46,7 @@ function maxRequests(kind: RateLimitKind) {
 function localLimit(kind: RateLimitKind, identifier: string): RateLimitResult {
   const key = `${kind}:${identifier}`;
   const now = Date.now();
+  cleanupLocalBuckets(now);
   const resetAt = now + windowMs(kind);
   const current = localBuckets.get(key);
 

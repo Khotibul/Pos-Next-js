@@ -45,8 +45,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Data tidak valid." }, { status: 400 });
   }
 
-  const { tenantName, ownerName, email, phone, password, planSlug } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const { tenantName, ownerName, phone, password, planSlug } = parsed.data;
+  const email = parsed.data.email.trim().toLowerCase();
+  const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } });
   if (existing) {
     return NextResponse.json({ message: "Email sudah terdaftar." }, { status: 409 });
   }

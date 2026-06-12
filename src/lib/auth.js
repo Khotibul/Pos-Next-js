@@ -56,8 +56,8 @@ export const {
         if (!loginLimit.success) throw new Error("RATE_LIMITED");
 
         const endQueryUser = createDevTimer("auth.credentials.queryUser");
-        const user = await prisma.user.findUnique({
-          where: { email },
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
           select: {
             id: true,
             email: true,

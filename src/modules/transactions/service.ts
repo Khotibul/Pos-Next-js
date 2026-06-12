@@ -123,6 +123,56 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
 
   const endTransaction = createDevTimer("pos.createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
+    const shift = await tx.cashierShift.findFirst({
+      where: {
+        tenantId: params.tenantId,
+        id: params.shiftId,
+        status: "OPEN",
+        ...(params.cashierId ? { cashierId: params.cashierId } : {}),
+      },
+      select: { id: true, branchId: true },
+    });
+    if (!shift) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
+
+    const requestedQtyByProduct = new Map<string, number>();
+    for (const line of lines) {
+      requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
+    }
+
+    for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
+      const stocks = await tx.productWarehouseStock.findMany({
+        where: {
+          tenantId: params.tenantId,
+          productId,
+          warehouse: { tenantId: params.tenantId, branchId: shift.branchId, isActive: true },
+          qty: { gt: 0 },
+        },
+        orderBy: { updatedAt: "asc" },
+        select: { id: true, qty: true },
+      });
+
+      const availableQty = stocks.reduce((sum, stock) => sum + Number(stock.qty), 0);
+      if (availableQty < requestedQty) {
+        const productName = productMap.get(productId)?.name ?? "Produk";
+        throw Errors.badRequest(`Stok ${productName} tidak mencukupi. Tersedia ${availableQty}, diminta ${requestedQty}.`);
+      }
+
+      let remainingQty = requestedQty;
+      for (const stock of stocks) {
+        if (remainingQty <= 0) break;
+        const stockQty = Number(stock.qty);
+        const decrementQty = Math.min(stockQty, remainingQty);
+        const updated = await tx.productWarehouseStock.updateMany({
+          where: { id: stock.id, tenantId: params.tenantId, qty: { gte: decrementQty } },
+          data: { qty: { decrement: decrementQty } },
+        });
+        if (updated.count !== 1) {
+          throw Errors.badRequest("Stok berubah saat transaksi diproses. Silakan ulangi transaksi.");
+        }
+        remainingQty -= decrementQty;
+      }
+    }
+
     const sale = await tx.sale.create({
       data: {
         tenantId: params.tenantId,

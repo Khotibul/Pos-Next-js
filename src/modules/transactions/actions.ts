@@ -2,14 +2,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { ActionResult } from "@/lib/action";
-import { isAppError } from "@/lib/errors";
+import { Errors, isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
 import { invalidateDashboardCache } from "@/lib/cache";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { createSaleSchema } from "@/modules/transactions/validators";
-import { createSale, deleteSale } from "@/modules/transactions/service";
+import { createSale } from "@/modules/transactions/service";
 import { getOpenShift } from "@/modules/shifts/service";
 import { checkIdempotencyKey, releaseIdempotencyKey } from "@/lib/transaction-cache";
 import { createDevTimer } from "@/lib/perf";
@@ -77,12 +77,16 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
     const ctx = await requireActiveTenant();
 
     if (!id) return { ok: false, message: "ID tidak valid." };
-    await deleteSale({ tenantId: ctx.tenantId, id });
+    await prisma.$transaction(async (tx) => {
+      const exists = await tx.sale.findFirst({ where: { tenantId: ctx.tenantId, id }, select: { id: true } });
+      if (!exists) throw Errors.notFound("Transaksi tidak ditemukan.");
 
-    await prisma.auditLog.create({
-      data: { tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Sale", entityId: id },
+      await tx.sale.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: { tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Sale", entityId: id },
+      });
     });
-    await invalidateDashboardCache(ctx.tenantId);
+    void invalidateDashboardCache(ctx.tenantId);
 
     return { ok: true, data: { id } };
   } catch (err) {

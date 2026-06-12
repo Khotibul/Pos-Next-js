@@ -30,6 +30,14 @@ export type TenantContext = {
   memberships: Array<{ tenantId: string; tenantName: string; tenantSlug: string; tenantStatus: string }>;
 };
 
+type SuperAdminTenantCacheRow = {
+  id: string;
+  name: string;
+  slug: string;
+  status: "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED";
+  trialEndsAt: string | null;
+};
+
 function cacheContext(ctx: TenantContext): CachedLayoutContext {
   return {
     ...ctx,
@@ -144,11 +152,26 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
 
   // Super Admin can access all tenants.
   if (user.isSuperAdmin) {
-    const tenants = await prisma.tenant.findMany({
-      orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, slug: true, status: true, trialEndsAt: true },
-      take: 5000,
-    });
+    const superAdminTenantCacheKey = "tenant:super-admin:list";
+    const cachedTenants = await getCache<SuperAdminTenantCacheRow[]>(superAdminTenantCacheKey);
+    const tenants =
+      cachedTenants?.map((tenant) => ({
+        ...tenant,
+        trialEndsAt: tenant.trialEndsAt ? new Date(tenant.trialEndsAt) : null,
+      })) ??
+      (await prisma.tenant.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true, slug: true, status: true, trialEndsAt: true },
+        take: 5000,
+      }));
+
+    if (!cachedTenants) {
+      void setCache(
+        superAdminTenantCacheKey,
+        tenants.map((tenant) => ({ ...tenant, trialEndsAt: tenant.trialEndsAt?.toISOString() ?? null })),
+        120,
+      );
+    }
 
     const memberships = tenants.map((t) => ({
       tenantId: t.id,
