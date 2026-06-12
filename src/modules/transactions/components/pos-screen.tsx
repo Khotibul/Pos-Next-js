@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 const PrintReceiptDialog = dynamic(() => import("@/modules/transactions/components/print-receipt-dialog").then((m) => ({ default: m.PrintReceiptDialog })), { ssr: false });
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
@@ -100,7 +101,7 @@ const CartLineItem = memo(function CartLineItem({
 export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const debouncedQ = useDebounce(q, 200);
+  const debouncedQ = useDebounce(q, 300);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [cashPaid, setCashPaid] = useState<number>(0);
@@ -119,6 +120,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [forceOpenShift, setForceOpenShift] = useState(false);
   const [isPending, startTransition] = useTransition();
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
+  const gridParentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -188,6 +190,16 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     });
   }, [allProducts, debouncedQ]);
 
+  const CARD_HEIGHT = 130;
+  const COL_COUNT = 4;
+  const gridRowCount = Math.ceil(filtered.length / COL_COUNT);
+  const gridVirtualizer = useVirtualizer({
+    count: gridRowCount,
+    getScrollElement: () => gridParentRef.current,
+    estimateSize: () => CARD_HEIGHT,
+    overscan: 3,
+  });
+
   const productByCode = useMemo(() => {
     const map = new Map<string, Product>();
     for (const product of allProducts) {
@@ -199,18 +211,21 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     return map;
   }, [allProducts]);
 
+  const productMap = useMemo(() => {
+    return new Map(allProducts.map((p) => [p.id, p]));
+  }, [allProducts]);
+
   const lines = useMemo(() => {
-    const map = new Map(allProducts.map((p) => [p.id, p]));
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
       .map(([productId, qty]) => {
-        const p = map.get(productId);
+        const p = productMap.get(productId);
         if (!p) return null;
         const lineTotal = p.price * qty;
         return { productId, name: p.name, sku: p.sku, price: p.price, qty, lineTotal };
       })
       .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-  }, [cart, allProducts]);
+  }, [cart, productMap]);
 
   const effectiveDiscount = settings.cartShowDiscount ? discount : 0;
   const effectiveTaxRate = settings.cartShowTax ? taxRate : 0;
@@ -359,10 +374,34 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
             </Button>
           </form>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
-          ))}
+        <div
+          ref={gridParentRef}
+          className="overflow-auto"
+          style={{ maxHeight: "calc(100vh - 280px)" }}
+        >
+          <div
+            className="relative"
+            style={{ height: `${gridVirtualizer.getTotalSize()}px` }}
+          >
+            {gridVirtualizer.getVirtualItems().map((virtualRow) => {
+              const start = virtualRow.index * COL_COUNT;
+              const rowProducts = filtered.slice(start, start + COL_COUNT);
+              return (
+                <div
+                  key={virtualRow.key}
+                  className="absolute left-0 right-0 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {rowProducts.map((p) => (
+                    <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -386,7 +425,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                 <CartLineItem
                   key={l.productId}
                   item={l}
-                  product={allProducts.find((p) => p.id === l.productId)}
+                  product={productMap.get(l.productId)}
                   onInc={inc}
                   onDec={dec}
                   showSku={settings.cartShowSku}

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Redis } from "@upstash/redis";
+import { recordCacheHit, recordCacheMiss } from "@/lib/perf-monitor";
 
 type CacheEnvelope<T> = {
   value: T;
@@ -34,8 +35,14 @@ export async function getCache<T>(key: string): Promise<T | null> {
 
   try {
     const cached = await redis.get<CacheEnvelope<T>>(key);
-    return cached?.value ?? null;
+    if (cached?.value !== undefined && cached?.value !== null) {
+      recordCacheHit();
+      return cached.value;
+    }
+    recordCacheMiss();
+    return null;
   } catch {
+    recordCacheMiss();
     return null;
   }
 }

@@ -5,6 +5,7 @@ import { Errors } from "@/lib/errors";
 import type { CreateSaleInput } from "@/modules/transactions/validators";
 import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
 import { createDevTimer } from "@/lib/perf";
+import { startTimer } from "@/lib/perf-monitor";
 
 function inv(prefix = "TRX") {
   const d = new Date();
@@ -81,6 +82,7 @@ export async function getSaleById(params: { tenantId: string; id: string }) {
 }
 
 export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
+  const transTimer = startTimer();
   const endValidate = createDevTimer("pos.createSale.validate");
   if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
   if (params.cashierId) {
@@ -265,6 +267,8 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
     printer: {},
   });
   endReceiptCache();
+
+  transTimer("transaction");
 
   return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }

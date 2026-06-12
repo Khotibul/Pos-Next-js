@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniBarChart } from "@/components/charts/mini-bar-chart";
 import { getSalesKpis, getSalesSeries, getTopProducts, resolvePresetRange } from "@/modules/reports/service";
 import { listSales } from "@/modules/transactions/service";
+import { rememberCache } from "@/lib/cache";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { dashboardCopy } from "@/lib/i18n";
@@ -26,7 +27,11 @@ export default async function DashboardHome() {
     getSalesKpis({ tenantId: ctx.tenantId, from: range.from, to: range.to }),
     getSalesSeries({ tenantId: ctx.tenantId, from: range.from, to: range.to }),
     getTopProducts({ tenantId: ctx.tenantId, from: range.from, to: range.to, take: 4 }),
-    listSales({ tenantId: ctx.tenantId, page: 1, pageSize: 5 }),
+    rememberCache({
+      key: `dashboard:tenant:${ctx.tenantId}:branch:all:recent-sales`,
+      ttl: 60,
+      fetcher: () => listSales({ tenantId: ctx.tenantId, page: 1, pageSize: 5 }),
+    }),
   ] as const);
 
   const chartData = series.slice(-7).map((d) => {

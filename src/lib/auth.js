@@ -12,6 +12,7 @@ import { createTenantForExistingUser } from "@/modules/tenants/service";
 import { setCachedEmailVerified } from "@/lib/cache/user-cache";
 import { getCachedAuthUser, setCachedAuthUser } from "@/lib/auth-cache";
 import { createDevTimer } from "@/lib/perf";
+import { startTimer } from "@/lib/perf-monitor";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -45,6 +46,7 @@ export const {
         password: { label: "Password", type: "password" },
       },
       authorize: async (raw, request) => {
+        const loginTimer = startTimer();
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
         const email = parsed.data.email.trim().toLowerCase();
@@ -91,6 +93,8 @@ export const {
           isSuperAdmin: user.isSuperAdmin,
           emailVerified: user.emailVerified.toISOString(),
         });
+
+        loginTimer("login");
 
         return {
           id: user.id,
