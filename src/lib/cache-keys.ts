@@ -14,6 +14,7 @@ export const CACHE_TTL = {
   tenantAccess: Number(process.env.REDIS_CACHE_TTL_TENANT_ACCESS ?? 300),
   tenantStatus: Number(process.env.REDIS_CACHE_TTL_TENANT_STATUS ?? 300),
   membership: Number(process.env.REDIS_CACHE_TTL_MEMBERSHIP ?? 300),
+  sales: Number(process.env.REDIS_CACHE_TTL_SALES ?? 120),
 };
 
 export function hashCachePart(input: unknown) {
@@ -38,4 +39,7 @@ export const cacheKeys = {
   permissions: (tenantId: string, userId: string) => `permissions:${tenantId}:${userId}`,
   tenantContext: (tenantId: string, userId: string) => `auth:tenant-context:${userId}:${tenantId}`,
   sidebar: (tenantId: string, userId: string) => `layout:sidebar:${userId}:${tenantId}`,
+  salesList: (tenantId: string, page: number, pageSize: number, q?: string | null, status?: string | null) =>
+    `sales:list:${tenantId}:p${page}:s${pageSize}:${q ?? "all"}:${status ?? "all"}`,
+  saleById: (tenantId: string, saleId: string) => `sale:detail:${tenantId}:${saleId}`,
 };

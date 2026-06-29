@@ -7,6 +7,8 @@ import type { CreateSaleInput } from "@/modules/transactions/validators";
 import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
 import { createDevTimer } from "@/lib/perf";
 import { startTimer } from "@/lib/perf-monitor";
+import { getCache, setCache, deleteCache } from "@/lib/redis";
+import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
 
 function inv(prefix = "TRX") {
   const d = new Date();
@@ -28,6 +30,13 @@ export async function listSales(params: {
   const pageSize = Math.min(50, Math.max(1, params.pageSize ?? 20));
   const q = params.q?.trim() || null;
   const status = params.status && (params.status === "PAID" || params.status === "VOID") ? params.status : null;
+
+  const cacheKey = cacheKeys.salesList(params.tenantId, page, pageSize, q, status ?? undefined);
+  
+  const cached = await getCache<{ items: unknown[]; total: number; page: number; pageSize: number; q: string | null; status: string | null }>(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
   const where = {
     tenantId: params.tenantId,
@@ -52,10 +61,29 @@ export async function listSales(params: {
     }),
   ]);
 
-  return { items, total, page, pageSize, q, status };
+  const result = { items, total, page, pageSize, q, status };
+  
+  void setCache(cacheKey, result, CACHE_TTL.sales);
+  
+  return result;
 }
 
 export async function getSaleById(params: { tenantId: string; id: string }) {
+  const cacheKey = cacheKeys.saleById(params.tenantId, params.id);
+  
+  const cached = await getCache<Awaited<ReturnType<typeof doGetSaleById>>>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const sale = await doGetSaleById(params);
+  
+  void setCache(cacheKey, sale, CACHE_TTL.sales);
+  
+  return sale;
+}
+
+async function doGetSaleById(params: { tenantId: string; id: string }) {
   const sale = await prisma.sale.findFirst({
     where: { tenantId: params.tenantId, id: params.id },
     select: {
@@ -80,6 +108,18 @@ export async function getSaleById(params: { tenantId: string; id: string }) {
   });
   if (!sale) throw Errors.notFound("Transaksi tidak ditemukan.");
   return sale;
+}
+
+export async function invalidateSaleCache(tenantId: string, saleId?: string) {
+  if (saleId) {
+    await deleteCache(cacheKeys.saleById(tenantId, saleId));
+  }
+  await deleteCacheByPattern(`sales:list:${tenantId}:*`);
+}
+
+async function deleteCacheByPattern(pattern: string) {
+  const { deleteCacheByPatternScan } = await import("@/lib/redis");
+  await deleteCacheByPatternScan(pattern);
 }
 
 export async function createSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
@@ -286,6 +326,8 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
 
   transTimer("transaction");
 
+  void invalidateSaleCache(params.tenantId, created.id);
+
   return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }
 
@@ -293,4 +335,5 @@ export async function deleteSale(params: { tenantId: string; id: string }) {
   const exists = await prisma.sale.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Transaksi tidak ditemukan.");
   await prisma.sale.delete({ where: { id: params.id } });
+  await invalidateSaleCache(params.tenantId, params.id);
 }
