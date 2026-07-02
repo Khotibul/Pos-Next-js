@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { approveShiftSchema, closeShiftSchema, openShiftSchema } from "@/modules/shifts/validators";
 import { approveShift, closeShift, openShift } from "@/modules/shifts/service";
 
@@ -35,6 +36,7 @@ export async function openShiftAction(_prev: unknown, formData: FormData): Promi
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat buka shift." };
   }
 }
@@ -65,6 +67,7 @@ export async function closeShiftAction(_prev: unknown, formData: FormData): Prom
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat tutup shift." };
   }
 }
@@ -82,6 +85,7 @@ export async function approveShiftAction(_prev: unknown, formData: FormData): Pr
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat approve shift." };
   }
 }

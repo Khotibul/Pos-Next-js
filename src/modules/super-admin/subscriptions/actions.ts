@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { writeAuditLog } from "@/lib/audit";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { formDataToRecord } from "@/modules/super-admin/shared";
 import { updateSubscriptionSchema } from "@/modules/super-admin/subscriptions/validators";
 import { updateSuperAdminSubscription } from "@/modules/super-admin/subscriptions/service";
@@ -28,6 +29,7 @@ export async function updateSubscriptionAction(_prev: unknown, formData: FormDat
     return { ok: true, data: result };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-subscriptions", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Gagal memperbarui subscription." };
   }
 }

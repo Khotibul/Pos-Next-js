@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertAdminSchema } from "@/modules/super-admin/admins/validators";
 import { revokeInternalAdmin, upsertInternalAdmin } from "@/modules/super-admin/admins/service";
 
@@ -26,6 +27,7 @@ export async function upsertInternalAdminAction(_prev: unknown, formData: FormDa
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-admins", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan admin internal." };
   }
 }
@@ -40,6 +42,7 @@ export async function revokeInternalAdminAction(userId: string): Promise<ActionR
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-admins", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat mencabut admin internal." };
   }
 }

@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertAnnouncementSchema } from "@/modules/super-admin/announcements/validators";
 import { deleteAnnouncement, upsertAnnouncement } from "@/modules/super-admin/announcements/service";
 
@@ -32,6 +33,7 @@ export async function upsertAnnouncementAction(_prev: unknown, formData: FormDat
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-announcements", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan pengumuman." };
   }
 }
@@ -46,6 +48,7 @@ export async function deleteAnnouncementAction(id: string): Promise<ActionResult
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-announcements", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus pengumuman." };
   }
 }

@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertProductUnitSchema } from "@/modules/product-units/validators";
 import { deleteProductUnit, upsertProductUnit } from "@/modules/product-units/service";
 
@@ -40,6 +41,7 @@ export async function upsertProductUnitAction(_prev: unknown, formData: FormData
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:product-units", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan satuan." };
   }
 }
@@ -59,6 +61,7 @@ export async function deleteProductUnitAction(id: string): Promise<ActionResult<
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:product-units", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus satuan." };
   }
 }

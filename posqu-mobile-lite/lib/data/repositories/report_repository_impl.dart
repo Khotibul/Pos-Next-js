@@ -1,0 +1,195 @@
+import 'package:dartz/dartz.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/errors/failures.dart';
+import '../../domain/entities/report.dart';
+import '../../domain/repositories/report_repository.dart';
+import '../datasources/local/database/app_database.dart';
+
+final reportRepositoryProvider = Provider<ReportRepository>((ref) {
+  return ReportRepositoryImpl(database: ref.read(appDatabaseProvider));
+});
+
+class ReportRepositoryImpl implements ReportRepository {
+  final AppDatabase database;
+
+  ReportRepositoryImpl({required this.database});
+
+  @override
+  Future<Either<Failure, DashboardData>> getDashboardData() async {
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+
+      final todaySales = await _getTotalSales(startOfDay, now);
+      final transactionCount = await _getTransactionCount(startOfDay, now);
+      final totalProducts = await database.productDao.getCount();
+      final lowStockProducts = (await database.productDao.getLowStock()).length;
+
+      return Right(DashboardData(
+        todaySales: todaySales,
+        todayTransactions: transactionCount,
+        totalProducts: totalProducts,
+        lowStockProducts: lowStockProducts,
+      ));
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat dashboard'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, DailyReport>> getDailyReport(DateTime date) async {
+    try {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      final sales = await database.saleDao.getAll(
+        startDate: startOfDay,
+        endDate: endOfDay,
+      );
+
+      double totalSales = 0;
+      double totalCash = 0;
+      double totalQris = 0;
+      double totalTransfer = 0;
+
+      for (final sale in sales) {
+        totalSales += sale.total;
+        switch (sale.paymentMethod) {
+          case 'cash':
+            totalCash += sale.total;
+            break;
+          case 'qris':
+            totalQris += sale.total;
+            break;
+          case 'transfer':
+            totalTransfer += sale.total;
+            break;
+        }
+      }
+
+      return Right(DailyReport(
+        date: date,
+        totalSales: totalSales,
+        transactionCount: sales.length,
+        totalCash: totalCash,
+        totalQris: totalQris,
+        totalTransfer: totalTransfer,
+      ));
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat laporan harian'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<DailyReport>>> getWeeklyReport(DateTime startDate) async {
+    try {
+      final reports = <DailyReport>[];
+      for (int i = 0; i < 7; i++) {
+        final date = startDate.add(Duration(days: i));
+        final result = await getDailyReport(date);
+        result.fold(
+          (failure) => reports.add(DailyReport(date: date)),
+          (report) => reports.add(report),
+        );
+      }
+      return Right(reports);
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat laporan mingguan'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, MonthlyReport>> getMonthlyReport(int month, int year) async {
+    try {
+      final startOfMonth = DateTime(year, month, 1);
+      final endOfMonth = DateTime(year, month + 1, 1);
+
+      final sales = await database.saleDao.getAll(
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+      );
+
+      double totalSales = 0;
+      for (final sale in sales) {
+        totalSales += sale.total;
+      }
+
+      return Right(MonthlyReport(
+        month: month,
+        year: year,
+        totalSales: totalSales,
+        transactionCount: sales.length,
+      ));
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat laporan bulanan'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<ProductReport>>> getTopProducts({
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 10,
+  }) async {
+    try {
+      final sales = await database.saleDao.getAll(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      final productMap = <int, double>{};
+      final productInfo = <int, String>{};
+      final productName = <int, String>{};
+
+      for (final sale in sales) {
+        final items = await database.saleDao.getItems(sale.id);
+        for (final item in items) {
+          productMap[item.productId] =
+              (productMap[item.productId] ?? 0) + item.quantity;
+          productInfo[item.productId] = '';
+          productName[item.productId] = '';
+        }
+      }
+
+      final sorted = productMap.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      final results = sorted.take(limit).map((e) => ProductReport(
+        productId: e.key,
+        productName: productName[e.key] ?? '',
+        productCode: productInfo[e.key] ?? '',
+        quantitySold: e.value,
+      )).toList();
+
+      return Right(results);
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat produk terlaris'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<ProductReport>>> getLowStockReport() async {
+    try {
+      final products = await database.productDao.getLowStock();
+      return Right(products.map((p) => ProductReport(
+        productId: p.id,
+        productName: p.name,
+        productCode: p.code,
+        stock: p.stock,
+      )).toList());
+    } catch (e) {
+      return const Left(DatabaseFailure(message: 'Gagal memuat laporan stok'));
+    }
+  }
+
+  Future<double> _getTotalSales(DateTime start, DateTime end) async {
+    final sales = await database.saleDao.getAll(startDate: start, endDate: end);
+    return sales.fold<double>(0, (sum, sale) => sum + sale.total);
+  }
+
+  Future<int> _getTransactionCount(DateTime start, DateTime end) async {
+    final sales = await database.saleDao.getAll(startDate: start, endDate: end);
+    return sales.length;
+  }
+}

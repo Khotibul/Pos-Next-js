@@ -1,0 +1,47 @@
+import 'package:drift/drift.dart';
+import '../app_database.dart';
+import '../tables/suppliers_table.dart';
+
+part 'supplier_dao.g.dart';
+
+@DriftAccessor(tables: [SuppliersTable])
+class SupplierDao extends DatabaseAccessor<AppDatabase> with _$SupplierDaoMixin {
+  SupplierDao(super.db);
+
+  Future<List<SuppliersTableData>> getAll({bool? activeOnly, String? search}) {
+    return (select(suppliersTable)
+          ..orderBy([(t) => OrderingTerm(expression: t.name)])
+          ..where((t) {
+            final exprs = <Expression<bool>>[];
+            if (activeOnly == true) {
+              exprs.add(t.isActive.equals(true));
+            }
+            if (search != null && search.isNotEmpty) {
+              exprs.add(
+                t.name.like('%$search%') | t.phone.like('%$search%'),
+              );
+            }
+            if (exprs.isNotEmpty) {
+              return exprs.reduce((a, b) => a & b);
+            }
+            return const Constant(true);
+          }))
+        .get();
+  }
+
+  Future<SuppliersTableData?> getById(int id) {
+    return (select(suppliersTable)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  Future<int> insertSupplier(SuppliersTableCompanion supplier) {
+    return into(suppliersTable).insert(supplier);
+  }
+
+  Future<bool> updateSupplier(SuppliersTableCompanion supplier) {
+    return update(suppliersTable).replace(supplier);
+  }
+
+  Future<int> deleteSupplier(int id) {
+    return (delete(suppliersTable)..where((t) => t.id.equals(id))).go();
+  }
+}

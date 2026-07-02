@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { logErrorAction } from "@/lib/monitoring/log-error-action";
 
 export default function DashboardError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
-    console.error(error);
+    logErrorAction({ source: "dashboard-error-boundary", message: error.message, stack: error.stack }).catch(() => {});
   }, [error]);
 
   return (

@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertStaffSchema } from "@/modules/staff/validators";
 import { deleteStaff, upsertStaff } from "@/modules/staff/service";
 
@@ -39,6 +40,7 @@ export async function upsertStaffAction(_prev: unknown, formData: FormData): Pro
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:staff", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan pegawai." };
   }
 }
@@ -57,6 +59,7 @@ export async function deleteStaffAction(id: string): Promise<ActionResult<{ id: 
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:staff", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus pegawai." };
   }
 }

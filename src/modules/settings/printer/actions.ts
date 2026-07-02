@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { UpdatePrinterSettingsFormSchema } from "@/modules/settings/printer/validators";
 import { updatePrinterSettings } from "@/modules/settings/printer/service";
 
@@ -29,6 +30,7 @@ export async function updatePrinterSettingsAction(_prev: unknown, formData: Form
     return { ok: true, data: { ok: true } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:printer", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan pengaturan printer." };
   }
 }

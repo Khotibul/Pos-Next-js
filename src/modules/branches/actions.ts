@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertBranchSchema } from "@/modules/branches/validators";
 import { deleteBranch, upsertBranch } from "@/modules/branches/service";
 
@@ -39,6 +40,7 @@ export async function upsertBranchAction(_prev: unknown, formData: FormData): Pr
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:branches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan cabang." };
   }
 }
@@ -57,6 +59,7 @@ export async function deleteBranchAction(id: string): Promise<ActionResult<{ id:
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:branches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus cabang." };
   }
 }

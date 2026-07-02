@@ -13,6 +13,7 @@ import { createSale } from "@/modules/transactions/service";
 import { getOpenShift } from "@/modules/shifts/service";
 import { checkIdempotencyKey, releaseIdempotencyKey } from "@/lib/transaction-cache";
 import { createDevTimer } from "@/lib/perf";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 
 export async function createSaleAction(payload: unknown): Promise<ActionResult<{ id: string; invoiceNo: string }>> {
   const endTotal = createDevTimer("pos.createSaleAction.total");
@@ -65,6 +66,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       await releaseIdempotencyKey(idempotencyRelease.tenantId, idempotencyRelease.key).catch(() => {});
     }
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:transactions", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat membuat transaksi." };
   } finally {
     endTotal();
@@ -91,6 +93,7 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:transactions", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus transaksi." };
   }
 }

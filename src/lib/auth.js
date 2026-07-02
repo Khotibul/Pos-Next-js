@@ -13,6 +13,7 @@ import { setCachedEmailVerified } from "@/lib/cache/user-cache";
 import { getCachedAuthUser, setCachedAuthUser } from "@/lib/auth-cache";
 import { createDevTimer } from "@/lib/perf";
 import { startTimer } from "@/lib/perf-monitor";
+import { writeAuthLog } from "@/lib/monitoring/log-service";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -54,8 +55,12 @@ export const {
           request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim() ||
           request?.headers?.get?.("x-real-ip") ||
           "unknown";
+        const ua = request?.headers?.get?.("user-agent") ?? undefined;
         const loginLimit = await checkRateLimit("login", `login:email:${email}:${ip}`);
-        if (!loginLimit.success) throw new Error("RATE_LIMITED");
+        if (!loginLimit.success) {
+          await writeAuthLog({ email, event: "RATE_LIMITED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          throw new Error("RATE_LIMITED");
+        }
 
         const endQueryUser = createDevTimer("auth.credentials.queryUser");
         const user = await prisma.user.findFirst({
@@ -72,18 +77,29 @@ export const {
           },
         });
         endQueryUser();
-        if (!user?.passwordHash) return null;
-        if (!user.isActive) throw new Error("USER_DISABLED");
+        if (!user?.passwordHash) {
+          await writeAuthLog({ email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          return null;
+        }
+        if (!user.isActive) {
+          await writeAuthLog({ userId: user.id, email, event: "USER_DISABLED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          throw new Error("USER_DISABLED");
+        }
         if (!user.emailVerified) {
           await setCachedEmailVerified(user.id, false);
+          await writeAuthLog({ userId: user.id, email, event: "EMAIL_NOT_VERIFIED", ipAddress: ip, userAgent: ua }).catch(() => {});
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
         const endBcrypt = createDevTimer("auth.credentials.bcrypt");
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         endBcrypt();
-        if (!ok) return null;
+        if (!ok) {
+          await writeAuthLog({ userId: user.id, email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          return null;
+        }
 
+        await writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }).catch(() => {});
         await setCachedEmailVerified(user.id, true);
         await setCachedAuthUser({
           id: user.id,
@@ -220,6 +236,13 @@ export const {
   events: {
     signIn: async ({ user, account, isNewUser }) => {
       if (account?.provider !== "google") return;
+
+      await writeAuthLog({
+        userId: user.id,
+        email: user.email ?? undefined,
+        event: isNewUser ? "SIGNUP_SUCCESS" : "LOGIN_SUCCESS",
+        provider: "google",
+      }).catch(() => {});
 
       // Mark email verified for Google accounts.
       await prisma.user

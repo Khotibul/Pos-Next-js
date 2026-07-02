@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertPlanSchema } from "@/modules/plans/validators";
 import { deletePlan, upsertPlan } from "@/modules/plans/service";
 
@@ -25,6 +26,7 @@ export async function upsertPlanAction(_prev: unknown, formData: FormData): Prom
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:plans", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan paket." };
   }
 }
@@ -39,6 +41,7 @@ export async function deletePlanAction(id: string): Promise<ActionResult<{ id: s
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:plans", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus paket." };
   }
 }

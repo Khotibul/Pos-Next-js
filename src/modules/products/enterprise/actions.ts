@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import {
   createAdjustmentSchema,
   createOpnameSchema,
@@ -46,6 +47,7 @@ export async function createWarehouseAction(_prev: unknown, formData: FormData):
     return { ok: true, data: created };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat membuat gudang." };
   }
 }
@@ -63,6 +65,7 @@ export async function updateWarehouseAction(_prev: unknown, formData: FormData):
     return { ok: true, data: updated };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat mengubah gudang." };
   }
 }
@@ -79,6 +82,7 @@ export async function deleteWarehouseAction(id: string): Promise<ActionResult<{ 
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus gudang." };
   }
 }
@@ -94,6 +98,7 @@ export async function createVariantAction(_prev: unknown, formData: FormData): P
     return { ok: true, data: created };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat membuat variant." };
   }
 }
@@ -109,6 +114,7 @@ export async function updateVariantAction(_prev: unknown, formData: FormData): P
     return { ok: true, data: updated };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat mengubah variant." };
   }
 }
@@ -123,6 +129,7 @@ export async function deleteVariantAction(productId: string, id: string): Promis
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus variant." };
   }
 }
@@ -139,6 +146,7 @@ export async function createAdjustmentAction(payload: unknown): Promise<ActionRe
     return { ok: true, data: { id: created.id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat melakukan penyesuaian stok." };
   }
 }
@@ -155,6 +163,7 @@ export async function createTransferAction(payload: unknown): Promise<ActionResu
     return { ok: true, data: { id: created.id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat transfer stok." };
   }
 }
@@ -171,6 +180,7 @@ export async function createOpnameAction(payload: unknown): Promise<ActionResult
     return { ok: true, data: { id: created.id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-enterprise", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat stock opname." };
   }
 }

@@ -1,6 +1,12 @@
 "use client";
 
-export default function Error({ reset }: { error: Error; reset: () => void }) {
+import { useEffect } from "react";
+import { logErrorAction } from "@/lib/monitoring/log-error-action";
+
+export default function Error({ error, reset }: { error: Error; reset: () => void }) {
+  useEffect(() => {
+    logErrorAction({ source: "root-error-boundary", message: error.message, stack: error.stack }).catch(() => {});
+  }, [error]);
   return (
     <main
       style={{

@@ -5,12 +5,14 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { writeAuditLog } from "@/lib/audit";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { formDataToRecord } from "@/modules/super-admin/shared";
 import { cloneRoleSchema, createRoleSchema, deleteRoleSchema } from "@/modules/super-admin/roles/validators";
 import { cloneSuperAdminRole, createSuperAdminRole, deleteSuperAdminRole } from "@/modules/super-admin/roles/service";
 
-function toError(err: unknown, fallback: string): ActionResult<{ id: string }> {
+async function toError(err: unknown, fallback: string): Promise<ActionResult<{ id: string }>> {
   if (isAppError(err)) return { ok: false, message: err.message };
+  await writeErrorLog({ source: "module:super-admin-roles", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
   return { ok: false, message: fallback };
 }
 
@@ -25,7 +27,7 @@ export async function createRoleAction(_prev: unknown, formData: FormData): Prom
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: { id: role.id } };
   } catch (err) {
-    return toError(err, "Gagal membuat role.");
+    return await toError(err, "Gagal membuat role.");
   }
 }
 
@@ -40,7 +42,7 @@ export async function cloneRoleAction(_prev: unknown, formData: FormData): Promi
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: { id: role.id } };
   } catch (err) {
-    return toError(err, "Gagal clone role.");
+    return await toError(err, "Gagal clone role.");
   }
 }
 
@@ -55,6 +57,6 @@ export async function deleteRoleAction(_prev: unknown, formData: FormData): Prom
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: result };
   } catch (err) {
-    return toError(err, "Gagal hapus role.");
+    return await toError(err, "Gagal hapus role.");
   }
 }

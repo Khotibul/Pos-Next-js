@@ -27,7 +27,7 @@ function allowedAudiences() {
     .filter((value): value is string => Boolean(value));
 }
 
-function signMobileToken(payload: { userId: string; email: string | null }) {
+export function signMobileToken(payload: { userId: string; email: string | null }) {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw Errors.badRequest("AUTH_SECRET belum dikonfigurasi.");
 

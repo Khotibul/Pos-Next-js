@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requireTenant } from "@/lib/tenant-guards";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { redeemLicenseSchema, generateLicenseSchema } from "@/modules/licenses/validators";
 import { redeemLicense, generateLicenses, revokeLicense } from "@/modules/licenses/service";
 
@@ -30,6 +31,7 @@ export async function redeemLicenseAction(_prev: unknown, formData: FormData): P
     return { ok: true, data: { ok: true } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Gagal mengaktifkan tenant." };
   }
 }
@@ -47,6 +49,7 @@ export async function generateLicenseKeysAction(_prev: unknown, formData: FormDa
     return { ok: true, data: { serials: created.map((c) => c.serial) } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Gagal membuat license key." };
   }
 }
@@ -59,6 +62,7 @@ export async function revokeLicenseKeyAction(id: string): Promise<ActionResult<{
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Gagal revoke lisensi." };
   }
 }

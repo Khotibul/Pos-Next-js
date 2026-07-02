@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { writeAuditLog } from "@/lib/audit";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { formDataToRecord } from "@/modules/super-admin/shared";
 import {
   assignTenantSchema,
@@ -23,8 +24,9 @@ import {
   verifySuperAdminUserEmail,
 } from "@/modules/super-admin/users/service";
 
-function responseError(err: unknown, fallback: string): ActionResult<{ id: string }> {
+async function responseError(err: unknown, fallback: string): Promise<ActionResult<{ id: string }>> {
   if (isAppError(err)) return { ok: false, message: err.message };
+  await writeErrorLog({ source: "module:super-admin-users", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
   return { ok: false, message: fallback };
 }
 
@@ -38,7 +40,7 @@ export async function createUserAction(_prev: unknown, formData: FormData): Prom
     revalidatePath("/super-admin/users");
     return { ok: true, data: result };
   } catch (err) {
-    return responseError(err, "Gagal membuat user.");
+    return await responseError(err, "Gagal membuat user.");
   }
 }
 
@@ -53,7 +55,7 @@ export async function updateUserAction(_prev: unknown, formData: FormData): Prom
     revalidatePath(`/super-admin/users/${result.id}`);
     return { ok: true, data: result };
   } catch (err) {
-    return responseError(err, "Gagal memperbarui user.");
+    return await responseError(err, "Gagal memperbarui user.");
   }
 }
 
@@ -67,7 +69,7 @@ export async function resetUserPasswordAction(_prev: unknown, formData: FormData
     revalidatePath("/super-admin/users");
     return { ok: true, data: result };
   } catch (err) {
-    return responseError(err, "Gagal reset password.");
+    return await responseError(err, "Gagal reset password.");
   }
 }
 
@@ -82,7 +84,7 @@ export async function verifyUserEmailAction(_prev: unknown, formData: FormData):
     revalidatePath(`/super-admin/users/${result.id}`);
     return { ok: true, data: result };
   } catch (err) {
-    return responseError(err, "Gagal verifikasi email.");
+    return await responseError(err, "Gagal verifikasi email.");
   }
 }
 
@@ -104,7 +106,7 @@ export async function assignUserToTenantAction(_prev: unknown, formData: FormDat
     revalidatePath(`/super-admin/users/${result.userId}`);
     return { ok: true, data: { id: result.id } };
   } catch (err) {
-    return responseError(err, "Gagal assign tenant.");
+    return await responseError(err, "Gagal assign tenant.");
   }
 }
 
@@ -119,6 +121,6 @@ export async function removeUserFromTenantAction(_prev: unknown, formData: FormD
     revalidatePath(`/super-admin/users/${parsed.data.userId}`);
     return { ok: true, data: result };
   } catch (err) {
-    return responseError(err, "Gagal menghapus membership.");
+    return await responseError(err, "Gagal menghapus membership.");
   }
 }

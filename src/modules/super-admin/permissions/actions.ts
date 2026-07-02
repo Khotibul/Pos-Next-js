@@ -5,6 +5,7 @@ import { ActionResult } from "@/lib/action";
 import { writeAuditLog } from "@/lib/audit";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { updatePermissionMatrix } from "@/modules/super-admin/permissions/service";
 
 export async function updatePermissionMatrixAction(_prev: unknown, formData: FormData): Promise<ActionResult<{ id: string }>> {
@@ -23,6 +24,7 @@ export async function updatePermissionMatrixAction(_prev: unknown, formData: For
     return { ok: true, data: result };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-permissions", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Gagal menyimpan permission matrix." };
   }
 }

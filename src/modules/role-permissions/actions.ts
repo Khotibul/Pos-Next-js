@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { updateRolePermissionsSchema } from "@/modules/role-permissions/validators";
 import { updateRolePermissions } from "@/modules/role-permissions/service";
 
@@ -41,6 +42,7 @@ export async function updateRolePermissionsAction(_prev: unknown, formData: Form
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:role-permissions", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan permission role." };
   }
 }

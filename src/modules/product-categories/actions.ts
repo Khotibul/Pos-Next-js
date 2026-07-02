@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertProductCategorySchema } from "@/modules/product-categories/validators";
 import { deleteProductCategory, upsertProductCategory } from "@/modules/product-categories/service";
 
@@ -40,6 +41,7 @@ export async function upsertProductCategoryAction(_prev: unknown, formData: Form
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:product-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan kategori." };
   }
 }
@@ -59,6 +61,7 @@ export async function deleteProductCategoryAction(id: string): Promise<ActionRes
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:product-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus kategori." };
   }
 }

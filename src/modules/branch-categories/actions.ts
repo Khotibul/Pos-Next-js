@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertBranchCategorySchema } from "@/modules/branch-categories/validators";
 import { deleteBranchCategory, upsertBranchCategory } from "@/modules/branch-categories/service";
 
@@ -40,6 +41,7 @@ export async function upsertBranchCategoryAction(_prev: unknown, formData: FormD
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:branch-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan kategori cabang." };
   }
 }
@@ -59,6 +61,7 @@ export async function deleteBranchCategoryAction(id: string): Promise<ActionResu
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:branch-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus kategori cabang." };
   }
 }

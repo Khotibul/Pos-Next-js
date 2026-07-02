@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { createProductSchema, updateProductSchema } from "@/modules/products/validators";
 import { createProduct, deleteProduct, updateProduct } from "@/modules/products/service";
 import { z } from "zod";
@@ -34,6 +35,7 @@ export async function createProductAction(_prev: unknown, formData: FormData): P
     return { ok: true, data: created };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat membuat produk." };
   }
 }
@@ -55,6 +57,7 @@ export async function updateProductAction(_prev: unknown, formData: FormData): P
     return { ok: true, data: updated };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat mengubah produk." };
   }
 }
@@ -73,6 +76,7 @@ export async function deleteProductAction(id: string): Promise<ActionResult<{ id
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus produk." };
   }
 }
@@ -103,6 +107,7 @@ export async function deleteManyProductsAction(ids: string[]): Promise<ActionRes
     return { ok: true, data: { deletedCount: result.count } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus produk." };
   }
 }

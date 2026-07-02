@@ -1,0 +1,54 @@
+import 'package:drift/drift.dart';
+import '../app_database.dart';
+import '../tables/cashier_shifts_table.dart';
+
+part 'cash_transaction_dao.g.dart';
+
+@DriftAccessor(tables: [CashTransactionsTable])
+class CashTransactionDao extends DatabaseAccessor<AppDatabase>
+    with _$CashTransactionDaoMixin {
+  CashTransactionDao(super.db);
+
+  Future<List<CashTransactionsTableData>> getAll({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? type,
+  }) {
+    return (select(cashTransactionsTable)
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.transactionDate, mode: OrderingMode.desc)
+          ])
+          ..where((t) {
+            final exprs = <Expression<bool>>[];
+            if (startDate != null) {
+              exprs.add(t.transactionDate.isBiggerThanValue(startDate));
+            }
+            if (endDate != null) {
+              exprs.add(t.transactionDate.isSmallerThanValue(endDate));
+            }
+            if (type != null) {
+              exprs.add(t.type.equals(type));
+            }
+            if (exprs.isNotEmpty) {
+              return exprs.reduce((a, b) => a & b);
+            }
+            return const Constant(true);
+          }))
+        .get();
+  }
+
+  Future<int> insertTransaction(CashTransactionsTableCompanion transaction) {
+    return into(cashTransactionsTable).insert(transaction);
+  }
+
+  Future<double> getBalance() {
+    return Future.wait([
+      (select(cashTransactionsTable)..where((t) => t.type.equals('income')))
+          .get()
+          .then((rows) => rows.fold<double>(0, (sum, t) => sum + t.amount)),
+      (select(cashTransactionsTable)..where((t) => t.type.equals('expense')))
+          .get()
+          .then((rows) => rows.fold<double>(0, (sum, t) => sum + t.amount)),
+    ]).then((values) => values[0] - values[1]);
+  }
+}

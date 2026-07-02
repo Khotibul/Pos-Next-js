@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertProductDiscountSchema } from "@/modules/products/discounts/validators";
 import { deleteProductDiscount, upsertProductDiscount } from "@/modules/products/discounts/service";
 
@@ -40,6 +41,7 @@ export async function upsertProductDiscountAction(_prev: unknown, formData: Form
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-discounts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan rule diskon." };
   }
 }
@@ -57,6 +59,7 @@ export async function deleteProductDiscountAction(id: string): Promise<ActionRes
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-discounts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus rule diskon." };
   }
 }

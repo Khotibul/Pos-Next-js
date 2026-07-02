@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertCustomerSchema } from "@/modules/customers/validators";
 import { deleteCustomer, upsertCustomer } from "@/modules/customers/service";
 
@@ -39,6 +40,7 @@ export async function upsertCustomerAction(_prev: unknown, formData: FormData): 
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:customers", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan pelanggan." };
   }
 }
@@ -55,6 +57,7 @@ export async function deleteCustomerAction(id: string): Promise<ActionResult<{ i
     return { ok: true, data: { id } };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:customers", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus pelanggan." };
   }
 }

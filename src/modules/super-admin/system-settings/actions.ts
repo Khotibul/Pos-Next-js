@@ -5,6 +5,7 @@ import { ActionResult, fieldErrorsFromZod } from "@/lib/action";
 import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertGlobalSettingSchema } from "@/modules/super-admin/system-settings/validators";
 import { deleteGlobalSetting, upsertGlobalSetting } from "@/modules/super-admin/system-settings/service";
 
@@ -33,6 +34,7 @@ export async function upsertGlobalSettingAction(_prev: unknown, formData: FormDa
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-system-settings", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan global setting." };
   }
 }
@@ -47,6 +49,7 @@ export async function deleteGlobalSettingAction(id: string): Promise<ActionResul
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-system-settings", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus global setting." };
   }
 }

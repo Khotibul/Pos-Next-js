@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
 import { writeAuditLog } from "@/lib/audit";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertProductBatchSchema } from "@/modules/products/batches/validators";
 import { deleteProductBatch, upsertProductBatch } from "@/modules/products/batches/service";
 
@@ -40,6 +41,7 @@ export async function upsertProductBatchAction(_prev: unknown, formData: FormDat
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-batches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan batch." };
   }
 }
@@ -58,6 +60,7 @@ export async function deleteProductBatchAction(id: string): Promise<ActionResult
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:products-batches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus batch." };
   }
 }

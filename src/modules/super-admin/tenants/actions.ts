@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeAuditLog } from "@/lib/audit";
 import { invalidateTenantCache } from "@/lib/cache";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertTenantSchema } from "@/modules/super-admin/tenants/validators";
 import { upsertTenant } from "@/modules/super-admin/tenants/service";
 
@@ -37,6 +38,7 @@ export async function upsertTenantAction(_prev: unknown, formData: FormData): Pr
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:super-admin-tenants", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan tenant." };
   }
 }

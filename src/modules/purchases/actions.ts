@@ -6,6 +6,7 @@ import { isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions-keys";
+import { writeErrorLog } from "@/lib/monitoring/log-service";
 import { upsertPurchaseOrderSchema } from "@/modules/purchases/validators";
 import { deletePurchaseOrder, upsertPurchaseOrder } from "@/modules/purchases/service";
 
@@ -35,6 +36,7 @@ export async function upsertPurchaseOrderAction(_prev: unknown, formData: FormDa
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:purchases", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menyimpan PO." };
   }
 }
@@ -49,6 +51,7 @@ export async function deletePurchaseOrderAction(id: string): Promise<ActionResul
     return { ok: true, data: res };
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
+    await writeErrorLog({ source: "module:purchases", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return { ok: false, message: "Terjadi kesalahan saat menghapus PO." };
   }
 }
