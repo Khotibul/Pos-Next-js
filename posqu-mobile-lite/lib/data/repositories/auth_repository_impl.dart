@@ -43,7 +43,10 @@ class AuthRepositoryImpl implements AuthRepository {
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message, statusCode: e.statusCode));
     } on DioException catch (e) {
-      return Left(ServerFailure(message: e.message ?? 'Login gagal'));
+      final message = e.response?.data?['message'] as String? ??
+          e.message ??
+          'Login gagal';
+      return Left(ServerFailure(message: message));
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }

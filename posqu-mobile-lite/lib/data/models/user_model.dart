@@ -4,6 +4,13 @@ import '../../domain/entities/user.dart';
 
 part 'user_model.g.dart';
 
+DateTime _parseDateTime(Object? json) {
+  if (json is String) return DateTime.parse(json);
+  return DateTime.now();
+}
+
+Object? _dateTimeToJson(DateTime dt) => dt.toIso8601String();
+
 @JsonSerializable()
 class UserModel {
   final String id;
@@ -14,9 +21,9 @@ class UserModel {
   final String role;
   @JsonKey(name: 'is_active')
   final bool isActive;
-  @JsonKey(name: 'created_at')
+  @JsonKey(name: 'created_at', fromJson: _parseDateTime, toJson: _dateTimeToJson)
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
+  @JsonKey(name: 'updated_at', fromJson: _parseDateTime, toJson: _dateTimeToJson)
   final DateTime updatedAt;
 
   const UserModel({
