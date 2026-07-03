@@ -27,7 +27,7 @@ export function SidebarShell({
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-screen border-r border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.28),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.96))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-slate-950/10 transition-[width] duration-200 md:flex md:flex-col",
+        "sticky top-0 hidden h-screen border-r border-white/10 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.28),transparent_34%),linear-gradient(180deg,hsl(var(--sidebar)),hsl(var(--sidebar)/0.96))] text-[hsl(var(--sidebar-foreground))] shadow-2xl shadow-slate-950/10 transition-[width] duration-200 lg:flex lg:flex-col",
         collapsed ? "w-[68px]" : "w-60"
       )}
     >

@@ -27,13 +27,13 @@ export function Topbar({ locale, ctx }: { locale: Locale; ctx: TenantContext }) 
           locale={locale}
           tenantOptions={tenantOptions}
         />
-        <AppLogo href="/dashboard" className="md:hidden" imageClassName="h-7 sm:h-8" />
-        <div className="hidden md:flex">
+          <AppLogo href="/dashboard" className="lg:hidden" imageClassName="h-7 sm:h-8" />
+        <div className="hidden lg:flex">
           <TenantSwitcher currentTenantId={ctx.tenantId} options={tenantOptions} />
         </div>
       </div>
 
-      <div className="hidden flex-1 px-3 md:block">
+      <div className="hidden flex-1 px-3 lg:block">
         <div className="relative max-w-xl">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -47,7 +47,7 @@ export function Topbar({ locale, ctx }: { locale: Locale; ctx: TenantContext }) 
         <Button variant="ghost" size="sm" className="hidden h-8 w-8 rounded-xl p-0 hover:bg-muted sm:inline-flex sm:h-9 sm:w-9" aria-label="Notifications">
           <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </Button>
-        <Button variant="ghost" size="sm" className="hidden h-8 w-8 rounded-xl p-0 hover:bg-muted md:inline-flex md:h-9 md:w-9" aria-label="Apps">
+        <Button variant="ghost" size="sm" className="hidden h-8 w-8 rounded-xl p-0 hover:bg-muted lg:inline-flex lg:h-9 lg:w-9" aria-label="Apps">
           <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </Button>
         <div className="hidden sm:block">

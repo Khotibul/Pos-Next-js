@@ -200,8 +200,22 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   }, [allProducts, debouncedQ]);
 
   const CARD_HEIGHT = 130;
-  const COL_COUNT = 4;
-  const gridRowCount = Math.ceil(filtered.length / COL_COUNT);
+  const [colCount, setColCount] = useState(4);
+
+  useEffect(() => {
+    const calc = () => {
+      const w = window.innerWidth;
+      if (w < 640) setColCount(1);
+      else if (w < 1024) setColCount(2);
+      else if (w < 1536) setColCount(3);
+      else setColCount(4);
+    };
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+
+  const gridRowCount = Math.ceil(filtered.length / colCount);
   const gridVirtualizer = useVirtualizer({
     count: gridRowCount,
     getScrollElement: () => gridParentRef.current,
@@ -402,8 +416,8 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
             style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
           >
             {gridVirtualizer.getVirtualItems().map((virtualRow) => {
-              const start = virtualRow.index * COL_COUNT;
-              const rowProducts = filtered.slice(start, start + COL_COUNT);
+              const start = virtualRow.index * colCount;
+              const rowProducts = filtered.slice(start, start + colCount);
               return (
                 <div
                   key={virtualRow.key}
@@ -417,7 +431,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                     {rowProducts.map((p) => (
                       <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
                     ))}

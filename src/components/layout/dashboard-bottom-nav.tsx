@@ -57,7 +57,7 @@ export function DashboardBottomNav({
   return (
     <nav
       aria-label="Navigasi mobile"
-      className="fixed inset-x-0 bottom-0 z-40 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 lg:hidden"
     >
       <div className="relative bg-background/95 border-t border-border/80 backdrop-blur-2xl shadow-[0_-8px_30px_rgba(15,23,42,0.08)]">
         {canScrollLeft && (
