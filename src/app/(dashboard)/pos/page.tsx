@@ -19,7 +19,7 @@ export default async function PosPage() {
   endAuth();
 
   const endData = createDevTimer("posPage.data");
-  const [products, printerSettings] = await Promise.all([
+  const [products, printerSettings, branchWarehouses] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: ctx.tenantId, isActive: true },
       orderBy: { updatedAt: "desc" },
@@ -27,15 +27,25 @@ export default async function PosPage() {
       select: { id: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true, wholesalePrice: true, wholesaleDiscountPercent: true, wholesaleMinQty: true },
     }),
     getPrinterSettings({ tenantId: ctx.tenantId }),
+    prisma.warehouse.findMany({
+      where: { tenantId: ctx.tenantId, isActive: true, OR: [{ branchId: ctx.branchId }, { branchId: null }] },
+      select: { id: true },
+    }),
   ]);
-  const stockRows =
-    products.length === 0
-      ? []
-      : await prisma.productWarehouseStock.groupBy({
-          by: ["productId"],
-          where: { tenantId: ctx.tenantId, productId: { in: products.map((p) => p.id) } },
-          _sum: { qty: true },
-        });
+
+  const warehouseIds = branchWarehouses.map((w) => w.id);
+  const stockRows = products.length > 0 && warehouseIds.length > 0
+    ? await prisma.productWarehouseStock.groupBy({
+        by: ["productId"],
+        where: {
+          tenantId: ctx.tenantId,
+          productId: { in: products.map((p) => p.id) },
+          warehouseId: { in: warehouseIds },
+        },
+        _sum: { qty: true },
+      })
+    : [];
+
   const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.qty ?? 0)]));
   endData();
   endTotal();

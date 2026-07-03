@@ -160,7 +160,7 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
         where: {
           tenantId: params.tenantId,
           productId,
-          warehouse: { tenantId: params.tenantId, branchId: shift.branchId, isActive: true },
+          warehouse: { tenantId: params.tenantId, isActive: true, OR: [{ branchId: shift.branchId }, { branchId: null }] },
           qty: { gt: 0 },
         },
         orderBy: { updatedAt: "asc" },

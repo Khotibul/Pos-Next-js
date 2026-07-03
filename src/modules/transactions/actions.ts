@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionResult } from "@/lib/action";
 import { Errors, isAppError } from "@/lib/errors";
 import { writeAuditLog } from "@/lib/audit";
-import { invalidateDashboardCache } from "@/lib/cache";
+import { invalidateDashboardCache, invalidateProductCache } from "@/lib/cache";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
@@ -57,6 +57,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
         metadata: { invoiceNo: created.invoiceNo, total: created.total },
       }),
       invalidateDashboardCache(ctx.tenantId),
+      invalidateProductCache(ctx.tenantId),
     ]);
     await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
 
