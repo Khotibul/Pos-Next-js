@@ -16,8 +16,8 @@ const items = [
 export function MarketingBottomNav() {
   const pathname = usePathname() ?? "";
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/88 shadow-[0_-18px_50px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:hidden">
-      <div className="mx-auto grid max-w-6xl grid-cols-5 px-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/88 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-2xl md:hidden">
+      <div className="mx-auto flex max-w-lg items-center justify-around px-2 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5">
         {items.map((it) => {
           const active = it.href === "/" ? pathname === "/" : pathname === it.href || pathname.startsWith(`${it.href}/`);
           const Icon = it.icon;
@@ -26,19 +26,19 @@ export function MarketingBottomNav() {
               key={it.href}
               href={it.href}
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 text-[11px] font-bold tracking-[-0.01em]",
+                "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-2.5 py-1 text-[10px] font-semibold leading-tight tracking-[-0.015em] transition-colors",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <span
                 className={cn(
-                  "grid h-9 w-9 place-items-center rounded-2xl transition",
-                  active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "bg-transparent"
+                  "grid place-items-center rounded-xl transition-colors h-8 w-8",
+                  active ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" : "bg-transparent"
                 )}
               >
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-[16px] w-[16px]" />
               </span>
-              <span className="truncate">{it.label}</span>
+              <span className="w-full truncate text-center">{it.label}</span>
             </Link>
           );
         })}

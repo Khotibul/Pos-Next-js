@@ -12,21 +12,24 @@ const googleCsp = [
 ].join("; ");
 
 const nextConfig = {
+  poweredByHeader: false,
+  compress: true,
   reactStrictMode: true,
   // Use a dedicated build directory for desktop builds to avoid collisions with `next dev`
   // (and Windows AV/file lock issues) that can corrupt `.next` during packaging.
   distDir: isDesktopBuild ? ".next-desktop" : ".next",
   ...(isDesktopBuild ? { output: "standalone" } : {}),
-  webpack: (config, { dev }) => {
-    // On some Windows setups (locked-down dirs / antivirus), webpack filesystem cache
-    // can intermittently fail (ENOENT rename), causing missing chunks/manifests.
-    // Disable persistent cache for stability in web + desktop builds.
-    // Desktop builds frequently run in environments where antivirus/file locks
-    // can corrupt webpack filesystem cache writes (ENOENT rename), causing missing chunks.
-    config.cache = false;
+  webpack: (config) => {
+    // Keep the default Next.js cache for normal web builds; disabling it makes builds
+    // slower and can leave incomplete manifests on Windows. Desktop builds can still
+    // opt out because packaging often runs under antivirus/file-lock pressure.
+    if (isDesktopBuild || process.env.NEXT_DISABLE_WEBPACK_CACHE === "1") {
+      config.cache = false;
+    }
     return config;
   },
   experimental: {
+    optimizePackageImports: ["lucide-react", "@radix-ui/react-avatar", "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-tooltip"],
     serverActions: {
       bodySizeLimit: "2mb",
     },

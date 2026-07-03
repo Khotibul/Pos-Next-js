@@ -1,37 +1,33 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
+const PROTECTED_PATHS = new Set([
+  "/dashboard", "/pos", "/sales", "/shifts", "/products",
+  "/inventory", "/customers", "/suppliers", "/purchases",
+  "/reports", "/settings", "/billing", "/super-admin", "/cashier",
+]);
+
 function isProtectedPath(pathname: string) {
-  const protectedPrefixes = [
-    "/dashboard",
-    "/pos",
-    "/sales",
-    "/shifts",
-    "/products",
-    "/inventory",
-    "/customers",
-    "/suppliers",
-    "/purchases",
-    "/reports",
-    "/settings",
-    "/billing",
-    "/super-admin",
-  ];
-  return protectedPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (PROTECTED_PATHS.has(pathname)) return true;
+  for (const prefix of PROTECTED_PATHS) {
+    if (pathname.startsWith(`${prefix}/`)) return true;
+  }
+  return false;
 }
 
 export default auth(async (req) => {
   const pathname = req.nextUrl.pathname;
+
   if (req.headers.get("next-router-prefetch") === "1" || req.headers.get("purpose") === "prefetch") {
     return NextResponse.next();
   }
 
-  const isProtected = isProtectedPath(pathname);
-
-  if (!req.auth && isProtected) {
-    const url = new URL("/login", req.nextUrl.origin);
-    url.searchParams.set("callbackUrl", req.nextUrl.pathname);
-    return NextResponse.redirect(url);
+  if (isProtectedPath(pathname)) {
+    if (!req.auth) {
+      const url = new URL("/login", req.nextUrl.origin);
+      url.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();
@@ -39,20 +35,6 @@ export default auth(async (req) => {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
-    "/pos/:path*",
-    "/sales/:path*",
-    "/shifts/:path*",
-    "/products/:path*",
-    "/inventory/:path*",
-    "/customers/:path*",
-    "/suppliers/:path*",
-    "/purchases/:path*",
-    "/reports/:path*",
-    "/settings/:path*",
-    "/billing/:path*",
-    "/super-admin/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png|apple-touch-icon.png|site.webmanifest|api/auth|api/public).*)",
   ],
 };
-
-export const runtime = "nodejs";

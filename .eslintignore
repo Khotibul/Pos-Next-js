@@ -5,3 +5,8 @@ android/build/**
 dist-electron/**
 .next/**
 next-env.d.ts
+dist-desktop/**
+dist-desktop-build/**
+posqu-mobile-lite/build/**
+posqu-mobile-lite/.dart_tool/**
+.next-desktop/**

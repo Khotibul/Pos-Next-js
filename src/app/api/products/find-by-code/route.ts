@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { withApiHandler, apiOk } from "@/lib/api-response";
 import { z } from "zod";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { getTenantContext } from "@/lib/tenant-context";
 import { findProductByCode } from "@/modules/products/service";
+import { Errors } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { getCache, setCache } from "@/lib/redis";
-import { createDevTimer } from "@/lib/perf";
 
 export const runtime = "nodejs";
 
@@ -13,69 +13,42 @@ const QuerySchema = z.object({
   code: z.string().trim().min(1).max(200),
 });
 
-export async function GET(req: Request) {
-  const endTotal = createDevTimer("product.barcodeLookup.total");
+export const GET = withApiHandler(async (req: Request) => {
   const ctx = await getTenantContext();
   const allowed =
     ctx.isSuperAdmin ||
     ctx.permissions.includes(PERMISSIONS.sales_write) ||
     ctx.permissions.includes(PERMISSIONS.products_read) ||
     ctx.permissions.includes(PERMISSIONS.products_barcode_read);
-  if (!allowed) {
-    endTotal();
-    return NextResponse.json({ ok: false, message: "Anda tidak punya izin." }, { status: 403 });
-  }
+  if (!allowed) throw Errors.forbidden("Anda tidak punya izin.");
+
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ code: url.searchParams.get("code") ?? "" });
-  if (!parsed.success) {
-    endTotal();
-    return NextResponse.json({ ok: false, message: "Kode tidak valid." }, { status: 400 });
-  }
+  if (!parsed.success) throw Errors.badRequest("Kode tidak valid.");
 
-  const endProduct = createDevTimer("product.barcodeLookup.product");
   const product = await findProductByCode({ tenantId: ctx.tenantId, branchId: ctx.branchId, code: parsed.data.code });
-  endProduct();
-  if (!product) {
-    endTotal();
-    return NextResponse.json({ ok: false, message: "Produk tidak ditemukan." }, { status: 404 });
-  }
+  if (!product) throw Errors.notFound("Produk tidak ditemukan.");
 
-  const endStock = createDevTimer("product.barcodeLookup.stock");
-  const stock = await prismaSafeStock(ctx.tenantId, product.id);
-  endStock();
-  endTotal();
+  const cacheKey = `stock:${ctx.tenantId}:${product.id}`;
+  const cached = await getCache<number>(cacheKey);
+  const stock = cached ?? await prisma.productWarehouseStock
+    .aggregate({ where: { tenantId: ctx.tenantId, productId: product.id }, _sum: { qty: true } })
+    .then((r) => Number(r._sum.qty ?? 0))
+    .catch(() => 0);
+  if (cached === null) void setCache(cacheKey, stock, 30);
 
-  return NextResponse.json({
-    ok: true,
-    data: {
-      product: {
-        id: product.id,
-        name: product.name,
-        sku: product.sku,
-        barcode: product.barcode,
-        qrCode: product.qrCode,
-        price: Number(product.sellingPrice),
-        stock,
-        wholesalePrice: Number(product.wholesalePrice ?? 0),
-        wholesaleDiscountPercent: Number(product.wholesaleDiscountPercent ?? 0),
-        wholesaleMinQty: product.wholesaleMinQty ?? 0,
-      },
+  return apiOk({
+    product: {
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode,
+      qrCode: product.qrCode,
+      price: Number(product.sellingPrice),
+      stock,
+      wholesalePrice: Number(product.wholesalePrice ?? 0),
+      wholesaleDiscountPercent: Number(product.wholesaleDiscountPercent ?? 0),
+      wholesaleMinQty: product.wholesaleMinQty ?? 0,
     },
   });
-}
-
-async function prismaSafeStock(tenantId: string, productId: string) {
-  const cacheKey = `stock:${tenantId}:${productId}`;
-  const cached = await getCache<number>(cacheKey);
-  if (cached !== null) return cached;
-
-  const stock = await prisma.productWarehouseStock
-    .aggregate({
-      where: { tenantId, productId },
-      _sum: { qty: true },
-    })
-    .catch(() => null);
-  const result = Number(stock?._sum.qty ?? 0);
-  await setCache(cacheKey, result, 30).catch(() => {});
-  return result;
-}
+});

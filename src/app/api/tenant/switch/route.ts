@@ -1,35 +1,36 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Errors } from "@/lib/errors";
+import { apiMessage, withApiHandler } from "@/lib/api-response";
 
 const schema = z.object({ tenantId: z.string().min(1) });
 
-export async function POST(req: Request) {
+export const POST = withApiHandler(async (req: Request) => {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  if (!session?.user?.id) throw Errors.unauthorized("Unauthorized");
 
   const json = await req.json().catch(() => null);
   const parsed = schema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ message: "Invalid payload" }, { status: 400 });
+  if (!parsed.success) throw Errors.badRequest("Invalid payload");
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { isSuperAdmin: true, memberships: { select: { tenantId: true } } },
   });
 
-  if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  if (!user) throw Errors.unauthorized("Unauthorized");
 
   const allowed = user.isSuperAdmin || user.memberships.some((m) => m.tenantId === parsed.data.tenantId);
-  if (!allowed) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!allowed) throw Errors.forbidden("Forbidden");
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: parsed.data.tenantId },
     select: { id: true },
   });
-  if (!tenant) return NextResponse.json({ message: "Tenant not found" }, { status: 404 });
+  if (!tenant) throw Errors.notFound("Tenant not found");
 
-  const res = NextResponse.json({ ok: true });
+  const res = apiMessage("Tenant switched");
   res.cookies.set("active_tenant_id", parsed.data.tenantId, {
     httpOnly: true,
     sameSite: "lax",
@@ -37,4 +38,4 @@ export async function POST(req: Request) {
     path: "/",
   });
   return res;
-}
+});
