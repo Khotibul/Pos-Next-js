@@ -14,7 +14,7 @@ import {
   truncateText,
 } from "@/modules/settings/printer/print-engine";
 
-type ReceiptSale = {
+export type ReceiptSale = {
   id: string;
   invoiceNo: string;
   status: string;
@@ -39,7 +39,7 @@ function printBrowserReceipt() {
   window.setTimeout(cleanup, 1600);
 }
 
-function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
+export function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
   if (printer.connectionType === "bluetooth" || isAndroidApp()) {
     const text = generateReceiptText(sale, printer);
     printViaBluetooth(text, printer.bluetoothDeviceName).catch((e) => {

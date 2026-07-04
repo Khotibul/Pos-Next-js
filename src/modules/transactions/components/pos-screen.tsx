@@ -14,8 +14,9 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { VoiceInputButton } from "@/components/pos/voice-input-button";
 import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
+import { requestPrint } from "@/modules/transactions/components/receipt-view";
+import type { ReceiptSale } from "@/modules/transactions/components/receipt-view";
 
-const PrintReceiptDialog = dynamic(() => import("@/modules/transactions/components/print-receipt-dialog").then((m) => ({ default: m.PrintReceiptDialog })), { ssr: false });
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
@@ -122,7 +123,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [notice, setNotice] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
-  const [printPayload, setPrintPayload] = useState<{ saleId: string; auto: boolean } | null>(null);
+  const [printing, setPrinting] = useState(false);
   const [settings, setSettings] = useState<PrinterSettings>(initialSettings);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [extraProducts, setExtraProducts] = useState<Product[]>([]);
@@ -130,7 +131,17 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [shiftCheckDone, setShiftCheckDone] = useState(false);
   const [forceOpenShift, setForceOpenShift] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [successDialog, setSuccessDialog] = useState<{ invoiceNo: string; total: number; itemCount: number } | null>(null);
+  const [successDialog, setSuccessDialog] = useState<{
+    invoiceNo: string;
+    total: number;
+    subtotal: number;
+    discount: number;
+    tax: number;
+    paymentMethod: string;
+    receivedAmount: number;
+    changeAmount: number;
+    items: Array<{ name: string; price: number; qty: number; lineTotal: number }>;
+  } | null>(null);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
   const gridParentRef = useRef<HTMLDivElement>(null);
 
@@ -622,7 +633,13 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   setSuccessDialog({
                     invoiceNo: res.data.invoiceNo,
                     total,
-                    itemCount: lines.length,
+                    subtotal,
+                    discount: effectiveDiscount,
+                    tax,
+                    paymentMethod: method,
+                    receivedAmount: method === "CASH" ? cashPaid : total,
+                    changeAmount: cashChange,
+                    items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
                   });
                   router.refresh();
                 });
@@ -630,24 +647,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
             >
               {isPending ? "Memproses..." : shiftCheckDone && !openShiftId ? "Buka Shift dulu" : "Bayar Sekarang"}
             </Button>
-            {saleId ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl"
-                onClick={() => setPrintPayload({ saleId, auto: false })}
-              >
-                Cetak Struk
-              </Button>
-            ) : null}
             <Button type="button" variant="secondary" disabled={isPending} onClick={() => setCart({})}>
               Batalkan
             </Button>
           </div>
         </CardContent>
       </Card>
-
-      {printPayload ? <PosReceiptPopup saleId={printPayload.saleId} auto={printPayload.auto} onDone={() => setPrintPayload(null)} /> : null}
 
       {successDialog ? (
         <TransactionSuccessDialog
@@ -657,10 +662,28 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
           }}
           invoiceNo={successDialog.invoiceNo}
           total={successDialog.total}
-          itemCount={successDialog.itemCount}
+          subtotal={successDialog.subtotal}
+          discount={successDialog.discount}
+          tax={successDialog.tax}
+          paymentMethod={successDialog.paymentMethod}
+          receivedAmount={successDialog.receivedAmount}
+          changeAmount={successDialog.changeAmount}
+          items={successDialog.items}
+          printing={printing}
           onPrint={() => {
-            if (saleId) setPrintPayload({ saleId, auto: true });
-            setSuccessDialog(null);
+            setPrinting(true);
+            fetch(`/api/pos/receipt/${saleId}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((json) => {
+                if (json?.ok) {
+                  requestPrint(json.data.printer as PrinterSettings, json.data.sale as ReceiptSale);
+                }
+              })
+              .catch(console.error)
+              .finally(() => {
+                setPrinting(false);
+                setSuccessDialog(null);
+              });
           }}
         />
       ) : null}
@@ -686,69 +709,5 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         }}
       />
     </div>
-  );
-}
-
-type ReceiptApiResponse = {
-  ok: true;
-  data: {
-    sale: {
-      id: string;
-      invoiceNo: string;
-      status: string;
-      createdAt: string;
-      subtotal: number;
-      discount: number;
-      tax: number;
-      total: number;
-      items: Array<{ id: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
-      payments: Array<{ id: string; method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null }>;
-    };
-    printer: import("@/modules/settings/printer/validators").PrinterSettings;
-  };
-};
-
-function PosReceiptPopup({ saleId, auto, onDone }: { saleId: string; auto: boolean; onDone: () => void }) {
-  const [data, setData] = useState<ReceiptApiResponse["data"] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let ignore = false;
-    setLoading(true);
-    setErr(null);
-    fetch(`/api/pos/receipt/${saleId}`)
-      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(new Error(j?.message || "Gagal memuat struk")))))
-      .then((json: ReceiptApiResponse) => {
-        if (ignore) return;
-        setData(json?.data ?? null);
-      })
-      .catch((e) => {
-        if (ignore) return;
-        setErr(e?.message || "Gagal memuat struk");
-      })
-      .finally(() => {
-        if (ignore) return;
-        setLoading(false);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [saleId]);
-
-  if (loading) return null;
-  if (err || !data) return null;
-
-  return (
-    <PrintReceiptDialog
-      sale={data.sale}
-      printer={data.printer}
-      triggerLabel={null}
-      defaultOpen
-      autoPrintOnOpen={auto}
-      onOpenChange={(v) => {
-        if (!v) onDone();
-      }}
-    />
   );
 }
