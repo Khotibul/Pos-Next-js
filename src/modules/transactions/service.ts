@@ -6,7 +6,6 @@ import { Errors } from "@/lib/errors";
 import type { CreateSaleInput } from "@/modules/transactions/validators";
 import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
 import { createDevTimer } from "@/lib/perf";
-import { startTimer } from "@/lib/perf-monitor";
 
 function inv(prefix = "TRX") {
   const d = new Date();
@@ -96,17 +95,7 @@ export async function createSale(params: { tenantId: string; shiftId: string; ca
 }
 
 async function doCreateSale(params: { tenantId: string; shiftId: string; cashierId?: string | null; input: CreateSaleInput }) {
-  const transTimer = startTimer();
-  const endValidate = createDevTimer("pos.createSale.validate");
   if (!params.shiftId) throw Errors.badRequest("Shift belum dibuka.");
-  if (params.cashierId) {
-    const ok = await prisma.cashierShift.findFirst({
-      where: { tenantId: params.tenantId, id: params.shiftId, status: "OPEN", cashierId: params.cashierId },
-      select: { id: true },
-    });
-    if (!ok) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
-  }
-  endValidate();
 
   const endProducts = createDevTimer("pos.createSale.products");
   const productIds = params.input.items.map((i) => i.productId);
@@ -155,19 +144,27 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
       requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
     }
 
-    for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
-      const stocks = await tx.productWarehouseStock.findMany({
-        where: {
-          tenantId: params.tenantId,
-          productId,
-          warehouse: { tenantId: params.tenantId, isActive: true, OR: [{ branchId: shift.branchId }, { branchId: null }] },
-          qty: { gt: 0 },
-        },
-        orderBy: { updatedAt: "asc" },
-        select: { id: true, qty: true },
-      });
+    const allStockRows = await tx.productWarehouseStock.findMany({
+      where: {
+        tenantId: params.tenantId,
+        productId: { in: Array.from(requestedQtyByProduct.keys()) },
+        warehouse: { tenantId: params.tenantId, isActive: true, OR: [{ branchId: shift.branchId }, { branchId: null }] },
+        qty: { gt: 0 },
+      },
+      orderBy: [{ productId: "asc" }, { updatedAt: "asc" }],
+      select: { id: true, productId: true, qty: true },
+    });
 
-      const availableQty = stocks.reduce((sum, stock) => sum + Number(stock.qty), 0);
+    const stockByProduct = new Map<string, Array<{ id: string; qty: number }>>();
+    for (const row of allStockRows) {
+      const arr = stockByProduct.get(row.productId) ?? [];
+      arr.push({ id: row.id, qty: Number(row.qty) });
+      stockByProduct.set(row.productId, arr);
+    }
+
+    for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
+      const stocks = stockByProduct.get(productId) ?? [];
+      const availableQty = stocks.reduce((sum, s) => sum + Number(s.qty), 0);
       if (availableQty < requestedQty) {
         const productName = productMap.get(productId)?.name ?? "Produk";
         throw Errors.badRequest(`Stok ${productName} tidak mencukupi. Tersedia ${availableQty}, diminta ${requestedQty}.`);
@@ -283,8 +280,6 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
     printer: {},
   });
   endReceiptCache();
-
-  transTimer("transaction");
 
   return { id: created.id, invoiceNo: created.invoiceNo, total: Number(created.total) };
 }

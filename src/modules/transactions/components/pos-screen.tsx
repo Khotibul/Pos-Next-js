@@ -12,6 +12,8 @@ import dynamic from "next/dynamic";
 import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { VoiceInputButton } from "@/components/pos/voice-input-button";
+import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
 
 const PrintReceiptDialog = dynamic(() => import("@/modules/transactions/components/print-receipt-dialog").then((m) => ({ default: m.PrintReceiptDialog })), { ssr: false });
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
@@ -128,6 +130,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [shiftCheckDone, setShiftCheckDone] = useState(false);
   const [forceOpenShift, setForceOpenShift] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [successDialog, setSuccessDialog] = useState<{ invoiceNo: string; total: number; itemCount: number } | null>(null);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
   const gridParentRef = useRef<HTMLDivElement>(null);
 
@@ -281,6 +284,16 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }, []);
 
+  const handleVoiceProduct = useCallback(async (productName: string, qty: number): Promise<boolean> => {
+    const lower = productName.toLowerCase();
+    const found = allProducts.find((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()));
+    if (!found) return false;
+    setExtraProducts((prev) => (prev.some((item) => item.id === found.id) ? prev : [...prev, found]));
+    setCart((prev) => ({ ...prev, [found.id]: (prev[found.id] ?? 0) + qty }));
+    setNotice(`Suara: ${found.name} x${qty}`);
+    return true;
+  }, [allProducts]);
+
   const addByCode = useCallback(async (code: string, options?: { throwOnFail?: boolean; clearQuery?: boolean }) => {
     const clean = code.trim();
     if (!clean) return false;
@@ -395,6 +408,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
             >
               Tambah
             </Button>
+            <VoiceInputButton onProductDetected={handleVoiceProduct} />
             <Button
               type="button"
               variant="outline"
@@ -603,10 +617,13 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   }
                   setInvoice(res.data.invoiceNo);
                   setSaleId(res.data.id);
-                  // Show receipt preview popup in-place (no new tab).
-                  setPrintPayload({ saleId: res.data.id, auto: Boolean(settings.autoPrintAfterPayment) });
                   setCart({});
                   setCashPaid(0);
+                  setSuccessDialog({
+                    invoiceNo: res.data.invoiceNo,
+                    total,
+                    itemCount: lines.length,
+                  });
                   router.refresh();
                 });
               }}
@@ -631,6 +648,22 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       </Card>
 
       {printPayload ? <PosReceiptPopup saleId={printPayload.saleId} auto={printPayload.auto} onDone={() => setPrintPayload(null)} /> : null}
+
+      {successDialog ? (
+        <TransactionSuccessDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setSuccessDialog(null);
+          }}
+          invoiceNo={successDialog.invoiceNo}
+          total={successDialog.total}
+          itemCount={successDialog.itemCount}
+          onPrint={() => {
+            if (saleId) setPrintPayload({ saleId, auto: true });
+            setSuccessDialog(null);
+          }}
+        />
+      ) : null}
 
       <QrScannerDialog
         open={scannerOpen}
