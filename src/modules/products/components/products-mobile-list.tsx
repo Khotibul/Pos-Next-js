@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { MoreVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export type ProductMobileRow = {
   id: string;
@@ -20,44 +18,47 @@ function rupiah(value: unknown) {
 
 export function ProductsMobileList({ items }: { items: ProductMobileRow[] }) {
   if (items.length === 0) {
-    return <div className="rounded-2xl border bg-background p-4 text-sm text-muted-foreground">Tidak ada data.</div>;
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-background p-10 text-sm text-muted-foreground">
+        <svg className="mb-3 h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+        <span>Belum ada produk</span>
+      </div>
+    );
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-2.5">
       {items.map((p) => (
         <Link
           key={p.id}
           href={`/products/${p.id}/edit`}
-          className="group flex items-center gap-4 rounded-3xl border bg-background p-4 shadow-sm transition hover:bg-muted/10"
+          className="flex items-center gap-3 rounded-2xl border bg-background p-3.5 shadow-xs transition hover:bg-muted/20 active:scale-[0.99]"
         >
-          <div className="grid h-14 w-14 place-items-center rounded-2xl border bg-muted/20 text-sm font-semibold text-muted-foreground">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-muted/20 text-sm font-bold text-muted-foreground">
             {p.name.slice(0, 1).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{p.name}</div>
                 <div className="mt-0.5 truncate text-xs text-muted-foreground">
                   SKU: <span className="font-mono">{p.sku}</span>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-semibold text-primary">{rupiah(p.sellingPrice)}</div>
-                <div className="mt-1 text-xs tabular-nums text-muted-foreground">Stok: {Number.isFinite(p.stock) ? p.stock.toLocaleString("id-ID") : "-"}</div>
-                <div className="mt-0.5 inline-flex items-center gap-2 text-xs">
-                  <span className={`h-2 w-2 rounded-full ${p.isActive ? "bg-emerald-500" : "bg-red-500"}`} />
-                  <span className={p.isActive ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}>
-                    {p.isActive ? "Aktif" : "Nonaktif"}
-                  </span>
-                </div>
+              <div className="shrink-0 text-right">
+                <div className="text-sm font-bold text-primary">{rupiah(p.sellingPrice)}</div>
+                <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">Stok: {Number.isFinite(p.stock) ? p.stock.toLocaleString("id-ID") : "-"}</div>
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-              <div className="truncate">{p.categoryName}</div>
-              <Button type="button" variant="ghost" size="sm" className="h-9 w-9 rounded-2xl p-0 opacity-70 group-hover:opacity-100">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <span className="truncate text-muted-foreground">{p.categoryName}</span>
+              <span className="text-muted-foreground/30">|</span>
+              <span className={`inline-flex items-center gap-1.5 ${p.isActive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${p.isActive ? "bg-emerald-500" : "bg-red-500"}`} />
+                {p.isActive ? "Aktif" : "Nonaktif"}
+              </span>
             </div>
           </div>
         </Link>
@@ -65,4 +66,3 @@ export function ProductsMobileList({ items }: { items: ProductMobileRow[] }) {
     </div>
   );
 }
-

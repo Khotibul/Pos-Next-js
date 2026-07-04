@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, CheckCircle2, Plus, ScanBarcode, Search, SlidersHorizontal, XCircle } from "lucide-react";
+import { Boxes, CheckCircle2, Plus, ScanBarcode, Search, XCircle } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getProductOverview, listProductMeta, listProducts } from "@/modules/products/service";
@@ -164,27 +164,26 @@ export default async function ProductsPage({
       </div>
 
       <div className="md:hidden">
-        <Card className="rounded-3xl">
-          <CardContent className="grid gap-3 p-4">
-            <form className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  name="q"
-                  defaultValue={result.q ?? ""}
-                  placeholder="Search inventory..."
-                  className="h-12 w-full rounded-2xl border bg-background pl-10 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-              <Button type="submit" variant="outline" className="h-12 w-12 rounded-2xl p-0" aria-label="Filter">
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <form className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="q"
+              defaultValue={result.q ?? ""}
+              placeholder="Cari produk..."
+              className="h-11 w-full rounded-2xl border bg-background pl-10 pr-4 text-sm outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+          <Button type="submit" variant="outline" className="h-11 w-11 shrink-0 rounded-2xl p-0" aria-label="Cari">
+            <Search className="h-4 w-4" />
+          </Button>
+        </form>
 
         <div className="mt-4">
-          <div className="mb-3 text-sm font-semibold">Active Inventory</div>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold">Produk</span>
+            <span className="text-xs text-muted-foreground">{result.total} item</span>
+          </div>
           <ProductsMobileList
             items={result.items.map((p) => ({
               id: p.id,
@@ -198,12 +197,10 @@ export default async function ProductsPage({
           />
         </div>
 
-        <div className="mt-4 grid gap-2 rounded-2xl border bg-background p-3 text-xs text-muted-foreground">
-          <div>
-            Menampilkan {result.items.length} dari {result.total} produk • Page {result.page}/{totalPages}
-          </div>
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border bg-background px-4 py-3 text-xs text-muted-foreground">
+          <span>Hal {result.page}/{totalPages}</span>
           <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm" className="flex-1 rounded-xl" disabled={result.page <= 1}>
+            <Button asChild variant="outline" size="sm" className="h-9 rounded-xl px-4" disabled={result.page <= 1}>
               <Link
                 href={`/products?${new URLSearchParams({
                   ...(q ? { q } : {}),
@@ -215,7 +212,7 @@ export default async function ProductsPage({
                 Prev
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" className="flex-1 rounded-xl" disabled={result.page >= totalPages}>
+            <Button asChild variant="outline" size="sm" className="h-9 rounded-xl px-4" disabled={result.page >= totalPages}>
               <Link
                 href={`/products?${new URLSearchParams({
                   ...(q ? { q } : {}),
@@ -232,10 +229,10 @@ export default async function ProductsPage({
 
         <Link
           href="/products/create"
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-5 z-40 grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg md:hidden"
+          className="fixed bottom-[88px] right-5 z-40 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30 active:scale-90"
           aria-label="Tambah Produk"
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-5 w-5" />
         </Link>
       </div>
 
