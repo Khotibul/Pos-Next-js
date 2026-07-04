@@ -118,6 +118,7 @@ export const {
           name: user.name,
           image: user.image,
           isSuperAdmin: user.isSuperAdmin,
+          emailVerified: user.emailVerified?.toISOString() ?? null,
         };
       },
     }),
@@ -201,21 +202,25 @@ export const {
 
       return true;
     },
-    jwt: async ({ token, user }) => {
+    jwt: async ({ token, user, trigger }) => {
       if (user?.id) {
         token.sub = user.id;
         token.email = user.email ?? token.email;
         token.name = user.name ?? token.name;
         token.picture = user.image ?? token.picture;
         token.isSuperAdmin = Boolean(user.isSuperAdmin);
+        token.emailVerified = user.emailVerified ?? null;
       }
-      if (token.sub && typeof token.isSuperAdmin !== "boolean") {
-        const cached = await getCachedAuthUser(token.sub);
-        if (cached) {
-          token.email = cached.email ?? token.email;
-          token.name = cached.name ?? token.name;
-          token.picture = cached.image ?? token.picture;
-          token.isSuperAdmin = cached.isSuperAdmin;
+      if (token.sub && (trigger !== "signIn" || !user)) {
+        if (typeof token.emailVerified !== "boolean" && typeof token.emailVerified !== "string") {
+          const cached = await getCachedAuthUser(token.sub);
+          if (cached) {
+            token.email = cached.email ?? token.email;
+            token.name = cached.name ?? token.name;
+            token.picture = cached.image ?? token.picture;
+            token.isSuperAdmin = cached.isSuperAdmin;
+            token.emailVerified = cached.emailVerified ?? null;
+          }
         }
       }
       return token;
@@ -228,6 +233,11 @@ export const {
         session.user.name = typeof token.name === "string" ? token.name : session.user.name;
         session.user.image = typeof token.picture === "string" ? token.picture : session.user.image;
         session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
+        session.user.emailVerified = typeof token.emailVerified === "boolean"
+          ? token.emailVerified
+          : token.emailVerified === null
+            ? null
+            : Boolean(token.emailVerified);
       }
       endSession();
       return session;

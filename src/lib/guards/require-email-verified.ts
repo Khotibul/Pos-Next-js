@@ -7,13 +7,24 @@ import { getCachedEmailVerified, setCachedEmailVerified } from "@/lib/cache/user
 import { createDevTimer } from "@/lib/perf";
 
 export async function requireEmailVerified(userId?: string) {
-  const resolvedUserId = userId ?? (await auth())?.user?.id;
+  const session = userId ? null : await auth();
+  const resolvedUserId = userId ?? session?.user?.id;
   if (!resolvedUserId) redirect("/login");
 
+  // Fast path: read emailVerified directly from JWT session (no Redis/DB).
+  if (!userId && session?.user?.emailVerified !== undefined) {
+    if (session.user.emailVerified === true) return true;
+    if (session.user.emailVerified === false) {
+      redirect("/verify-email");
+    }
+  }
+
+  // Fallback: check Redis cache.
   const cached = await getCachedEmailVerified(resolvedUserId);
   if (cached === true) return true;
   if (cached === false) redirect("/verify-email");
 
+  // Last resort: query DB.
   const end = createDevTimer("auth.emailVerified.cache.miss");
   const user = await prisma.user.findUnique({
     where: { id: resolvedUserId },

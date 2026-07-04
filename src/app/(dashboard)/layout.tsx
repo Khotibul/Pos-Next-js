@@ -5,23 +5,23 @@ import { Topbar } from "@/components/layout/topbar";
 import { DashboardBottomNav } from "@/components/layout/dashboard-bottom-nav";
 import { DesktopLicenseGate } from "@/components/layout/desktop-license-gate";
 import { requireEmailVerified } from "@/lib/guards/require-email-verified";
-import { requireTenantAccess } from "@/lib/guards/require-tenant-access";
 import { dashboardCopy } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n-server";
-import { createDevTimer } from "@/lib/perf";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const endLayout = createDevTimer("dashboard.layout");
-  await requireEmailVerified();
-  const locale = await getRequestLocale();
+  const [locale, ctx] = await Promise.all([
+    getRequestLocale(),
+    (async () => {
+      await requireEmailVerified();
+      const ctx = await getTenantContext();
+      if (!ctx) redirect("/login");
+      return ctx;
+    })(),
+  ]);
   const copy = dashboardCopy[locale];
-  const ctx = await getTenantContext();
-  if (!ctx) redirect("/login");
-  await requireTenantAccess({ tenantId: ctx.tenantId, userId: ctx.userId, isSuperAdmin: ctx.isSuperAdmin });
-  endLayout();
 
   const tenantStatusBanner = (ctx.tenantStatus === "SUSPENDED" || ctx.tenantStatus === "EXPIRED") ? (
     <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm animate-fade-in">
