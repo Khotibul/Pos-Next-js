@@ -11,6 +11,7 @@ import { consumeOauthRegistration } from "@/modules/auth/oauth-registration/serv
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 import { setCachedEmailVerified } from "@/lib/cache/user-cache";
 import { getCachedAuthUser, setCachedAuthUser } from "@/lib/auth-cache";
+import { setCachedTenantContext } from "@/lib/tenant-context-cache";
 import { createDevTimer } from "@/lib/perf";
 import { startTimer } from "@/lib/perf-monitor";
 import { writeAuthLog } from "@/lib/monitoring/log-service";
@@ -19,6 +20,43 @@ const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
+
+async function preWarmTenantContext(user) {
+  const ms = user.memberships;
+  if (!ms || ms.length === 0) return;
+
+  const primary = ms[0];
+  const branchId = primary.branchId ?? primary.branch?.id;
+  if (!branchId) return;
+
+  const permissions = (primary.role?.permissions ?? []).map((rp) => rp.permission.key);
+  const memberships = ms.map((m) => ({
+    tenantId: m.tenantId,
+    tenantName: m.tenant.name,
+    tenantSlug: m.tenant.slug,
+    tenantStatus: m.tenant.status,
+  }));
+
+  await setCachedTenantContext(user.id, primary.tenantId, {
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    userImage: user.image,
+    isSuperAdmin: user.isSuperAdmin,
+    tenantId: primary.tenantId,
+    tenantName: primary.tenant.name,
+    tenantSlug: primary.tenant.slug,
+    tenantStatus: primary.tenant.status,
+    tenantTrialEndsAt: primary.tenant.trialEndsAt?.toISOString() ?? null,
+    branchId,
+    branchName: primary.branch?.name ?? null,
+    permissions,
+    roleName: primary.role?.name ?? null,
+    roleId: primary.role?.id ?? null,
+    subscriptionStatus: primary.tenant.status,
+    memberships,
+  });
+}
 
 export const {
   handlers: { GET, POST },
@@ -58,7 +96,7 @@ export const {
         const ua = request?.headers?.get?.("user-agent") ?? undefined;
         const loginLimit = await checkRateLimit("login", `login:email:${email}:${ip}`);
         if (!loginLimit.success) {
-          await writeAuthLog({ email, event: "RATE_LIMITED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          writeAuthLog({ email, event: "RATE_LIMITED", ipAddress: ip, userAgent: ua }).catch(() => {});
           throw new Error("RATE_LIMITED");
         }
 
@@ -74,20 +112,35 @@ export const {
             emailVerified: true,
             isSuperAdmin: true,
             isActive: true,
+            memberships: {
+              select: {
+                tenantId: true,
+                branchId: true,
+                branch: { select: { id: true, name: true } },
+                tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
+                role: {
+                  select: {
+                    id: true,
+                    name: true,
+                    permissions: { select: { permission: { select: { key: true } } } },
+                  },
+                },
+              },
+            },
           },
         });
         endQueryUser();
         if (!user?.passwordHash) {
-          await writeAuthLog({ email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          writeAuthLog({ email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
           return null;
         }
         if (!user.isActive) {
-          await writeAuthLog({ userId: user.id, email, event: "USER_DISABLED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          writeAuthLog({ userId: user.id, email, event: "USER_DISABLED", ipAddress: ip, userAgent: ua }).catch(() => {});
           throw new Error("USER_DISABLED");
         }
         if (!user.emailVerified) {
-          await setCachedEmailVerified(user.id, false);
-          await writeAuthLog({ userId: user.id, email, event: "EMAIL_NOT_VERIFIED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          setCachedEmailVerified(user.id, false).catch(() => {});
+          writeAuthLog({ userId: user.id, email, event: "EMAIL_NOT_VERIFIED", ipAddress: ip, userAgent: ua }).catch(() => {});
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
@@ -95,24 +148,12 @@ export const {
         const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
         endBcrypt();
         if (!ok) {
-          await writeAuthLog({ userId: user.id, email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
+          writeAuthLog({ userId: user.id, email, event: "LOGIN_FAILED", ipAddress: ip, userAgent: ua }).catch(() => {});
           return null;
         }
 
-        await writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }).catch(() => {});
-        await setCachedEmailVerified(user.id, true);
-        await setCachedAuthUser({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          isSuperAdmin: user.isSuperAdmin,
-          emailVerified: user.emailVerified.toISOString(),
-        });
-
-        loginTimer("login");
-
-        return {
+        const verifiedAt = user.emailVerified.toISOString();
+        const userObj = {
           id: user.id,
           email: user.email,
           name: user.name,
@@ -120,6 +161,24 @@ export const {
           isSuperAdmin: user.isSuperAdmin,
           emailVerified: user.emailVerified?.toISOString() ?? null,
         };
+
+        writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }).catch(() => {});
+        await Promise.all([
+          setCachedEmailVerified(user.id, true),
+          setCachedAuthUser({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            isSuperAdmin: user.isSuperAdmin,
+            emailVerified: verifiedAt,
+          }),
+          preWarmTenantContext(user, verifiedAt).catch(() => {}),
+        ]);
+
+        loginTimer("login");
+
+        return userObj;
       },
     }),
   ],
