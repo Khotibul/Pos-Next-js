@@ -120,7 +120,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     });
   }, [allProducts, debouncedQ]);
 
-  const CARD_HEIGHT = 130;
   const [colCount, setColCount] = useState(4);
 
   useEffect(() => {
@@ -140,7 +139,8 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const gridVirtualizer = useVirtualizer({
     count: gridRowCount,
     getScrollElement: () => gridParentRef.current,
-    estimateSize: () => CARD_HEIGHT,
+    estimateSize: () => 155,
+    measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 3,
   });
 
@@ -399,18 +399,18 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               return (
                 <div
                   key={virtualRow.key}
+                  data-index={virtualRow.index}
                   style={{
                     position: "absolute",
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: `${virtualRow.size}px`,
                     willChange: "transform",
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
                   <div
-                    className="grid gap-2 sm:gap-3"
+                    className="grid gap-2.5 sm:gap-3"
                     style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
                   >
                     {rowProducts.length === 0 ? (
