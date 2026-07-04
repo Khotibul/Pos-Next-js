@@ -1,11 +1,9 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createSaleAction } from "@/modules/transactions/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -16,99 +14,15 @@ import { VoiceInputButton } from "@/components/pos/voice-input-button";
 import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
 import { requestPrint } from "@/modules/transactions/components/receipt-view";
 import type { ReceiptSale } from "@/modules/transactions/components/receipt-view";
+import { CartSidebar } from "./cart/cart-sidebar";
+import { MobileCartSheet } from "./cart/mobile-cart-sheet";
+import { ProductCard } from "./product-card";
+import type { PaymentMethod, Product } from "./cart/cart-common";
+import { rupiah } from "./cart/cart-common";
+import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
-import type { PrinterSettings } from "@/modules/settings/printer/validators";
-
-type Product = {
-  id: string;
-  name: string;
-  sku: string;
-  price: number;
-  barcode?: string | null;
-  qrCode?: string | null;
-  stock?: number;
-  wholesalePrice?: number;
-  wholesaleDiscountPercent?: number;
-  wholesaleMinQty?: number;
-};
-
-type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
-
-function rupiah(n: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
-}
-
-const ProductCard = memo(function ProductCard({
-  product,
-  onInc,
-  showStock,
-}: {
-  product: Product;
-  onInc: (id: string) => void;
-  showStock: boolean;
-}) {
-  return (
-    <button
-      className="rounded-2xl border bg-background p-4 text-left shadow-sm transition-shadow hover:shadow-md active:shadow active:scale-[0.98]"
-      onClick={() => onInc(product.id)}
-      type="button"
-    >
-      <div className="text-sm font-semibold">{product.name}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{product.sku}</div>
-      <div className="mt-3 text-lg font-semibold text-primary">{rupiah(product.price)}</div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span>Klik untuk tambah</span>
-        {showStock ? <Badge variant="secondary">Stok {Number(product.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
-        {product.wholesaleMinQty && product.wholesaleMinQty > 0 ? <Badge variant="outline" className="border-orange-300 text-orange-700">Grosir {product.wholesaleMinQty}+</Badge> : null}
-      </div>
-    </button>
-  );
-});
-
-const CartLineItem = memo(function CartLineItem({
-  item,
-  product,
-  onInc,
-  onDec,
-  showSku,
-  showStock,
-}: {
-  item: { productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number; isWholesale?: boolean };
-  product: Product | undefined;
-  onInc: (id: string) => void;
-  onDec: (id: string) => void;
-  showSku: boolean;
-  showStock: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border bg-background p-3">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{item.name}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          {item.isWholesale && product && product.price !== item.price ? (
-            <span><span className="line-through">{rupiah(product.price)}</span> {rupiah(item.price)} / unit</span>
-          ) : (
-            <span>{rupiah(item.price)} / unit</span>
-          )}
-          {showSku ? <span>• {item.sku}</span> : null}
-          {showStock ? <Badge variant="secondary">Stok {Number(product?.stock ?? 0).toLocaleString("id-ID")}</Badge> : null}
-          {item.isWholesale ? <Badge variant="outline" className="border-orange-300 text-orange-700">Grosir</Badge> : null}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => onDec(item.productId)}>
-          -
-        </Button>
-        <div className="w-6 text-center text-sm font-medium">{item.qty}</div>
-        <Button type="button" variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => onInc(item.productId)}>
-          +
-        </Button>
-      </div>
-    </div>
-  );
-});
 
 export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
   const router = useRouter();
@@ -142,6 +56,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     changeAmount: number;
     items: Array<{ name: string; price: number; qty: number; lineTotal: number }>;
   } | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
   const gridParentRef = useRef<HTMLDivElement>(null);
 
@@ -153,12 +68,8 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         if (ignore) return;
         if (data?.data) setSettings(data.data as PrinterSettings);
       })
-      .catch(() => {
-        // Keep server-provided initial settings.
-      });
-    return () => {
-      ignore = true;
-    };
+      .catch(() => {});
+    return () => { ignore = true; };
   }, []);
 
   useEffect(() => {
@@ -174,17 +85,13 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       })
       .catch(() => {
         if (ignore) return;
-        // If we cannot determine shift state, don't hard-block UI;
-        // the server will still reject createSale if shift isn't open.
         setForceOpenShift(false);
       })
       .finally(() => {
         if (ignore) return;
         setShiftCheckDone(true);
       });
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, []);
 
   useEffect(() => {
@@ -280,7 +187,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const tax = Math.max(0, (subtotal - effectiveDiscount) * (effectiveTaxRate / 100));
   const total = Math.max(0, subtotal - effectiveDiscount + tax);
   const cashChange = Math.max(0, cashPaid - total);
-  const cashShortage = Math.max(0, total - cashPaid);
 
   const addProductToCart = useCallback((product: Product) => {
     setExtraProducts((prev) => (prev.some((item) => item.id === product.id) ? prev : [...prev, product]));
@@ -294,6 +200,50 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const dec = useCallback((id: string) => {
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }, []);
+
+  const handlePay = useCallback(() => {
+    setError(null);
+    startTransition(async () => {
+      if (method === "CASH" && cashPaid < total) {
+        setError("Uang tunai kurang dari total transaksi.");
+        return;
+      }
+      const payload = {
+        items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+        discount: effectiveDiscount,
+        taxRate: effectiveTaxRate,
+        payment: {
+          method,
+          amount: total,
+          receivedAmount: method === "CASH" ? cashPaid : total,
+          changeAmount: method === "CASH" ? cashChange : 0,
+          reference: "",
+        },
+      };
+      const res = await createSaleAction(payload);
+      if (!res.ok) {
+        setError(res.message);
+        if (res.message.toLowerCase().includes("shift")) setForceOpenShift(true);
+        return;
+      }
+      setInvoice(res.data.invoiceNo);
+      setSaleId(res.data.id);
+      setCart({});
+      setCashPaid(0);
+      setCartOpen(false);
+      setSuccessDialog({
+        invoiceNo: res.data.invoiceNo,
+        total,
+        subtotal,
+        discount: effectiveDiscount,
+        tax,
+        paymentMethod: method,
+        receivedAmount: method === "CASH" ? cashPaid : total,
+        changeAmount: cashChange,
+        items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
+      });
+    });
+  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, startTransition, setError, setForceOpenShift, setInvoice, setSaleId, setCart, setCashPaid, setSuccessDialog]);
 
   const handleVoiceProduct = useCallback(async (productName: string, qty: number): Promise<boolean> => {
     const lower = productName.toLowerCase();
@@ -392,50 +342,53 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     };
   }, [addByCode]);
 
+  const cartItemCount = lines.length;
+
   return (
     <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
-      <div className="order-2 min-w-0 xl:order-1">
-        <div className="sticky top-[72px] z-10 mb-4 rounded-2xl border bg-background/90 p-3 backdrop-blur">
+      <div className="min-w-0">
+        <div className="sticky top-[56px] z-10 mb-3 rounded-2xl border bg-background/80 p-2 backdrop-blur-lg sm:top-[72px] sm:p-3">
           <form
-            className="flex gap-2"
+            className="flex gap-1.5 sm:gap-2"
             onSubmit={(event) => {
               event.preventDefault();
               void addByCode(q, { clearQuery: true });
             }}
           >
-            <div className="flex-1">
+            <div className="relative flex-1">
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari produk, scan barcode, lalu Enter..."
+                placeholder="Cari produk atau scan..."
                 autoComplete="off"
+                className="h-10 rounded-xl pl-3 pr-9 text-sm"
               />
+              {q ? (
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
+                  onClick={() => setQ("")}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              ) : null}
             </div>
-            <Button
-              type="submit"
-              variant="outline"
-              className="h-10 gap-2 rounded-xl"
-              disabled={!q.trim()}
-            >
-              Tambah
-            </Button>
             <VoiceInputButton onProductDetected={handleVoiceProduct} />
             <Button
               type="button"
               variant="outline"
-              className="h-10 gap-2 rounded-xl"
+              className="h-10 w-10 rounded-xl p-0"
               onClick={() => setScannerOpen(true)}
               aria-label="Scan QR/Barcode"
             >
               <ScanLine className="h-4 w-4" />
-              <span className="hidden sm:inline">Scan</span>
             </Button>
           </form>
         </div>
         <div
           ref={gridParentRef}
           className="overflow-auto"
-          style={{ maxHeight: "calc(100vh - 280px)" }}
+          style={{ maxHeight: "calc(100vh - 180px)" }}
         >
           <div
             style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
@@ -456,10 +409,19 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                    {rowProducts.map((p) => (
-                      <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
-                    ))}
+                  <div
+                    className="grid gap-2 sm:gap-3"
+                    style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
+                  >
+                    {rowProducts.length === 0 ? (
+                      <div className="col-span-full flex items-center justify-center rounded-xl border-2 border-dashed p-8 text-sm text-muted-foreground">
+                        Produk tidak ditemukan
+                      </div>
+                    ) : (
+                      rowProducts.map((p) => (
+                        <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+                      ))
+                    )}
                   </div>
                 </div>
               );
@@ -468,191 +430,91 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         </div>
       </div>
 
-      <Card className="order-1 flex min-h-0 flex-col overflow-hidden rounded-3xl xl:sticky xl:top-[72px] xl:order-2 xl:max-h-[calc(100vh-96px)]">
-        <CardHeader className="shrink-0 border-b py-4">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base">Keranjang Belanja</CardTitle>
-            {invoice ? <Badge variant="secondary">Order {invoice}</Badge> : null}
-          </div>
-        </CardHeader>
-        <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-          {notice ? <Alert>{notice}</Alert> : null}
-          {error ? <Alert variant="destructive">{error}</Alert> : null}
+      {/* Desktop cart sidebar */}
+      <div className="hidden xl:block">
+        <CartSidebar
+          lines={lines}
+          productMap={productMap}
+          invoice={invoice}
+          notice={notice}
+          error={error}
+          subtotal={subtotal}
+          discount={discount}
+          effectiveTaxRate={effectiveTaxRate}
+          tax={tax}
+          total={total}
+          cashPaid={cashPaid}
+          cashChange={cashChange}
+          method={method}
+          settings={settings}
+          isPending={isPending}
+          shiftCheckDone={shiftCheckDone}
+          openShiftId={openShiftId}
+          inc={inc}
+          dec={dec}
+          setError={setError}
+          setNotice={setNotice}
+          setMethod={setMethod}
+          setCashPaid={setCashPaid}
+          setDiscount={setDiscount}
+          setTaxRate={setTaxRate}
+          setCart={setCart}
+          onPay={handlePay}
+        />
+      </div>
 
-          <div className="min-h-[120px] flex-1 overflow-y-auto pr-1">
-            <div className="grid gap-2">
-            {lines.length === 0 ? (
-              <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">Belum ada item.</div>
-            ) : (
-              lines.map((l) => (
-                <CartLineItem
-                  key={l.productId}
-                  item={l}
-                  product={productMap.get(l.productId)}
-                  onInc={inc}
-                  onDec={dec}
-                  showSku={settings.cartShowSku}
-                  showStock={settings.cartShowStock}
-                />
-              ))
-            )}
+      {/* Mobile FAB cart button */}
+      {cartItemCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 xl:hidden"
+        >
+          <div className="flex items-center gap-2.5 rounded-full border bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+              {cartItemCount}
             </div>
+            <span>Keranjang</span>
+            <span className="font-bold">{rupiah(total)}</span>
           </div>
+        </button>
+      ) : null}
 
-          <div className="shrink-0 rounded-xl border bg-background p-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{rupiah(subtotal)}</span>
-            </div>
-            {settings.cartShowDiscount ? (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Diskon</span>
-              <input
-                type="number"
-                className="h-10 w-40 rounded-xl border bg-background px-3 text-sm"
-                value={discount}
-                min={0}
-                onChange={(e) => setDiscount(Number(e.target.value || 0))}
-              />
-            </div>
-            ) : null}
-            {settings.cartShowTax ? (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Pajak (%)</span>
-              <input
-                type="number"
-                className="h-10 w-24 rounded-xl border bg-background px-3 text-sm"
-                value={effectiveTaxRate}
-                min={0}
-                max={100}
-                onChange={(e) => setTaxRate(Number(e.target.value || 0))}
-              />
-            </div>
-            ) : null}
-            {settings.cartShowTax ? (
-            <div className="mt-2 flex justify-between">
-              <span className="text-muted-foreground">Pajak</span>
-              <span>{rupiah(tax)}</span>
-            </div>
-            ) : null}
-            <div className="mt-3 flex justify-between text-base font-semibold">
-              <span>Total</span>
-              <span className="text-primary">{rupiah(total)}</span>
-            </div>
-          </div>
+      {/* Mobile cart bottom sheet */}
+      {cartOpen ? (
+        <MobileCartSheet
+          lines={lines}
+          productMap={productMap}
+          notice={notice}
+          error={error}
+          subtotal={subtotal}
+          discount={discount}
+          effectiveTaxRate={effectiveTaxRate}
+          tax={tax}
+          total={total}
+          cashPaid={cashPaid}
+          cashChange={cashChange}
+          method={method}
+          settings={settings}
+          isPending={isPending}
+          shiftCheckDone={shiftCheckDone}
+          openShiftId={openShiftId}
+          onClose={() => setCartOpen(false)}
+          inc={inc}
+          dec={dec}
+          setError={setError}
+          setNotice={setNotice}
+          setMethod={setMethod}
+          setCashPaid={setCashPaid}
+          setDiscount={setDiscount}
+          setTaxRate={setTaxRate}
+          setCart={setCart}
+          onPay={handlePay}
+        />
+      ) : null}
 
-          <div className="shrink-0 grid gap-2">
-            <div className="text-sm font-medium">Metode Pembayaran</div>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { k: "CASH", label: "Tunai" },
-                  { k: "QRIS", label: "QRIS" },
-                  { k: "CARD", label: "Kartu" },
-                  { k: "TRANSFER", label: "Transfer" },
-                  { k: "EWALLET", label: "E-Wallet" },
-                ] as Array<{ k: PaymentMethod; label: string }>
-              ).map((m) => (
-                <button
-                  key={m.k}
-                  type="button"
-                  onClick={() => {
-                    setMethod(m.k);
-                    setCashPaid(0);
-                  }}
-                  className={`rounded-xl border px-3 py-2 text-sm ${
-                    method === m.k ? "border-primary bg-primary/5 text-primary" : "bg-background text-muted-foreground hover:bg-muted/30"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {method === "CASH" ? (
-            <div className="shrink-0 rounded-xl border bg-background p-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Tunai dibayarkan</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  className="h-10 w-44 rounded-xl border bg-background px-3 text-right text-sm"
-                  value={Number.isFinite(cashPaid) ? cashPaid : 0}
-                  min={0}
-                  onChange={(e) => {
-                    setCashPaid(Number(e.target.value || 0));
-                  }}
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-muted-foreground">Kembalian</span>
-                <span className={cashShortage > 0 ? "font-medium text-destructive" : "font-medium text-primary"}>
-                  {cashShortage > 0 ? `Kurang ${rupiah(cashShortage)}` : rupiah(cashChange)}
-                </span>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="shrink-0 grid gap-2">
-            <Button
-              type="button"
-              className="h-12"
-              disabled={
-                isPending || lines.length === 0 || (shiftCheckDone && !openShiftId) || (method === "CASH" && cashPaid < total)
-              }
-              onClick={() => {
-                setError(null);
-                startTransition(async () => {
-                  if (method === "CASH" && cashPaid < total) {
-                    setError("Uang tunai kurang dari total transaksi.");
-                    return;
-                  }
-                  const payload = {
-                    items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
-                    discount: effectiveDiscount,
-                    taxRate: effectiveTaxRate,
-                    payment: {
-                      method,
-                      amount: total,
-                      receivedAmount: method === "CASH" ? cashPaid : total,
-                      changeAmount: method === "CASH" ? cashChange : 0,
-                      reference: "",
-                    },
-                  };
-                  const res = await createSaleAction(payload);
-                  if (!res.ok) {
-                    setError(res.message);
-                    if (res.message.toLowerCase().includes("shift")) setForceOpenShift(true);
-                    return;
-                  }
-                  setInvoice(res.data.invoiceNo);
-                  setSaleId(res.data.id);
-                  setCart({});
-                  setCashPaid(0);
-                  setSuccessDialog({
-                    invoiceNo: res.data.invoiceNo,
-                    total,
-                    subtotal,
-                    discount: effectiveDiscount,
-                    tax,
-                    paymentMethod: method,
-                    receivedAmount: method === "CASH" ? cashPaid : total,
-                    changeAmount: cashChange,
-                    items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
-                  });
-                  router.refresh();
-                });
-              }}
-            >
-              {isPending ? "Memproses..." : shiftCheckDone && !openShiftId ? "Buka Shift dulu" : "Bayar Sekarang"}
-            </Button>
-            <Button type="button" variant="secondary" disabled={isPending} onClick={() => setCart({})}>
-              Batalkan
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {notice ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert className="animate-slide-up shadow-lg">{notice}</Alert></div> : null}
+      {error ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert variant="destructive" className="animate-slide-up shadow-lg">{error}</Alert></div> : null}
 
       {successDialog ? (
         <TransactionSuccessDialog
