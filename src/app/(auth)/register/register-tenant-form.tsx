@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
-export function RegisterTenantForm({ planSlug, initialError }) {
+export function RegisterTenantForm({ planSlug, initialError }: { planSlug: string; initialError: string | null }) {
   const router = useRouter();
   const [tenantName, setTenantName] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -22,7 +22,7 @@ export function RegisterTenantForm({ planSlug, initialError }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(initialError || null);
 
-  async function onSubmit(e) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!agreed) {
       setError("Anda harus menyetujui syarat & ketentuan.");

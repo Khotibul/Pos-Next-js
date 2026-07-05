@@ -53,8 +53,8 @@ export function requestPrint(printer: PrinterSettings, sale: ReceiptSale) {
     document.body.classList.add("print-receipt");
     window.posDesktop.printer
       .print({ deviceName: printer.defaultBrowserPrinter, silent: true })
-      .catch((e) => {
-        console.error(e);
+      .catch((_e: unknown) => {
+        console.error(_e);
         window.print();
       })
       .finally(() => window.setTimeout(cleanupPrintClass, 800));

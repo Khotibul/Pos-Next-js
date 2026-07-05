@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
 import { completeOnboardingAction } from "@/modules/tenants/actions";
 
-export function OnboardingForm({ defaultPlanSlug }) {
+export function OnboardingForm({ defaultPlanSlug }: { defaultPlanSlug: string }) {
   const sp = useSearchParams();
   const planFromUrl = (sp.get("plan") || defaultPlanSlug || "pro").toLowerCase();
 

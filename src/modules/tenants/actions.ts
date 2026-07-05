@@ -9,13 +9,13 @@ import { createTenantFromOnboardingSchema } from "@/modules/tenants/validators";
 import { createTenantForExistingUser } from "@/modules/tenants/service";
 import { redeemLicense } from "@/modules/licenses/service";
 
-function formDataToObject(formData) {
-  const obj = {};
-  for (const [k, v] of formData.entries()) obj[k] = v;
+function formDataToObject(formData: FormData) {
+  const obj: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) obj[k] = v as string;
   return obj;
 }
 
-export async function completeOnboardingAction(_prev, formData) {
+export async function completeOnboardingAction(_prev: unknown, formData: FormData) {
   try {
     const session = await auth();
     if (!session?.user?.id) return { ok: false, message: "Silakan login terlebih dahulu." };
@@ -35,7 +35,6 @@ export async function completeOnboardingAction(_prev, formData) {
       try {
         await redeemLicense({ tenantId: created.id, serial });
       } catch {
-        // Keep tenant in trial mode if activation fails; user can retry from Billing page.
         activationFailed = true;
       }
     }
@@ -52,15 +51,15 @@ export async function completeOnboardingAction(_prev, formData) {
   } catch (err) {
     if (isAppError(err)) return { ok: false, message: err.message };
 
-    // Prisma / DB transient errors (common on serverless poolers).
-    if (err && typeof err === "object" && err.code === "P2028") {
+    const e = err as { code?: string };
+
+    if (e && typeof e === "object" && e.code === "P2028") {
       return { ok: false, message: "Koneksi database sedang sibuk. Silakan coba lagi dalam beberapa detik." };
     }
-    if (err && typeof err === "object" && err.code === "P1001") {
+    if (e && typeof e === "object" && e.code === "P1001") {
       return { ok: false, message: "Database tidak dapat diakses saat ini. Silakan coba lagi." };
     }
 
-    // Log unexpected errors for debugging (visible in server logs).
     console.error("[onboarding] create tenant failed", err);
     return { ok: false, message: "Terjadi kesalahan saat membuat tenant." };
   }

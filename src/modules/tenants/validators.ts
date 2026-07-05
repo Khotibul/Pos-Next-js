@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-function emptyToUndefined(v) {
+function emptyToUndefined(v: unknown) {
   if (typeof v !== "string") return v;
   const t = v.trim();
   return t === "" ? undefined : t;

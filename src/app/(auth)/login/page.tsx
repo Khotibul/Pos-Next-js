@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
 import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
-const AUTH_ERROR_MESSAGES = {
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
     "Akun dengan email ini sudah terdaftar dengan metode login lain. Silakan login memakai email & password, atau gunakan Registrasi Google untuk menghubungkan akun.",
   EMAIL_NOT_VERIFIED: "Email belum diverifikasi. Silakan cek inbox Gmail Anda dan klik link verifikasi.",
@@ -30,13 +30,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [info, setInfo] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [queryError, setQueryError] = useState(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
   const [queryRegistered, setQueryRegistered] = useState(false);
-  const [queryEmailSent, setQueryEmailSent] = useState(null);
+  const [queryEmailSent, setQueryEmailSent] = useState<string | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
 
   // Avoid `useSearchParams` CSR bailout warning in prerender.
@@ -51,7 +51,7 @@ export default function LoginPage() {
     if (emailFromQuery) setEmail(emailFromQuery);
   }, []);
 
-  async function resendVerification(targetEmail) {
+  async function resendVerification(targetEmail: string) {
     const e = (targetEmail || "").trim();
     if (!e) {
       setError("Masukkan email terlebih dahulu untuk kirim ulang verifikasi.");
@@ -74,7 +74,7 @@ export default function LoginPage() {
     setInfo("Email verifikasi telah dikirim. Silakan cek inbox/spam Gmail Anda.");
   }
 
-  async function onSubmit(e) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);

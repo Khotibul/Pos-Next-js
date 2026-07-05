@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
 
-function slugify(input) {
+function slugify(input: string) {
   return input
     .toLowerCase()
     .trim()
@@ -14,11 +14,10 @@ function slugify(input) {
 }
 
 function makeId() {
-  // Prisma IDs are String, so uuid is fine.
   return crypto.randomUUID().replace(/-/g, "");
 }
 
-export async function createTenantForExistingUser({ userId, tenantName, planSlug }) {
+export async function createTenantForExistingUser({ userId, tenantName, planSlug }: { userId: string; tenantName: string | null; planSlug?: string | null }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, name: true, email: true, memberships: { select: { tenantId: true }, take: 1 } },
@@ -37,11 +36,10 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
   const resolvedPlanSlug = (planSlug || "pro").toLowerCase();
   const plan = await prisma.plan.findUnique({ where: { slug: resolvedPlanSlug } }).catch(() => null);
 
-  // Requirement: tenant without serial number uses 30 days trial by default.
   const trialDays = 30;
   const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null;
 
-  async function createTenantWithSlug(slug) {
+  async function createTenantWithSlug(slug: string) {
     return prisma.tenant.create({
       data: {
         name: derivedTenantName,
@@ -54,39 +52,35 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
     });
   }
 
-  // Avoid interactive transactions in serverless environments (Neon/Vercel).
-  // Create tenant first, retry once if slug collides.
   let createdTenant;
   try {
     createdTenant = await createTenantWithSlug(baseSlug);
   } catch (e) {
-    // Retry only on unique constraint collision.
-    if (e && typeof e === "object" && e.code !== "P2002") throw e;
+    const err = e as { code?: string };
+    if (err.code !== "P2002") throw e;
     const retrySlug = `${baseSlug}-${Math.random().toString(36).slice(2, 8)}`;
     createdTenant = await createTenantWithSlug(retrySlug);
   }
 
-  // Ensure the tenant has at least one active branch so the dashboard/POS can work immediately.
-  // Use a pre-generated ID so the branch + membership can be written atomically via `$transaction([])`.
   const branchId = makeId();
 
-  const roleIdsByName = new Map();
-  const roleRows = [];
+  const roleIdsByName = new Map<string, string>();
+  const roleRows: Array<{ id: string; tenantId: string; name: string }> = [];
   for (const roleName of DEFAULT_ROLES) {
     const id = makeId();
     roleIdsByName.set(roleName, id);
     roleRows.push({ id, tenantId: createdTenant.id, name: roleName });
   }
 
-  const permIdsByKey = new Map();
-  const permRows = [];
+  const permIdsByKey = new Map<string, string>();
+  const permRows: Array<{ id: string; tenantId: string; key: string; name: string }> = [];
   for (const p of DEFAULT_PERMISSIONS) {
     const id = makeId();
     permIdsByKey.set(p.key, id);
     permRows.push({ id, tenantId: createdTenant.id, key: p.key, name: p.name });
   }
 
-  const rolePermRows = [];
+  const rolePermRows: Array<{ id: string; roleId: string; permissionId: string }> = [];
   for (const roleName of DEFAULT_ROLES) {
     const roleId = roleIdsByName.get(roleName);
     if (!roleId) continue;
@@ -99,12 +93,10 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
 
   const ownerRoleId = roleIdsByName.get("OWNER") || null;
 
-  const ops = [
+  await prisma.$transaction([
     prisma.role.createMany({ data: roleRows, skipDuplicates: true }),
     prisma.permission.createMany({ data: permRows, skipDuplicates: true }),
-  ];
-  if (rolePermRows.length) ops.push(prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true }));
-  ops.push(
+    ...(rolePermRows.length ? [prisma.rolePermission.createMany({ data: rolePermRows, skipDuplicates: true })] : []),
     prisma.branch.create({
       data: {
         id: branchId,
@@ -113,17 +105,11 @@ export async function createTenantForExistingUser({ userId, tenantName, planSlug
         name: "Main Branch",
         isActive: true,
       },
-      select: { id: true },
     }),
-  );
-  ops.push(
     prisma.tenantUser.create({
       data: { tenantId: createdTenant.id, userId, roleId: ownerRoleId, branchId },
-      select: { id: true },
     }),
-  );
-
-  await prisma.$transaction(ops);
+  ]);
 
   return createdTenant;
 }

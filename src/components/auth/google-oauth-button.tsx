@@ -4,7 +4,21 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
-function GoogleMark({ className }) {
+declare global {
+  interface Window {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      Plugins?: {
+        GoogleAuth?: {
+          signIn?: () => Promise<{ authentication?: { idToken?: string }; idToken?: string }>;
+          initialize?: (config: { clientId?: string; serverClientId?: string }) => Promise<void>;
+        };
+      };
+    };
+  }
+}
+
+function GoogleMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
       <path
@@ -27,11 +41,20 @@ function GoogleMark({ className }) {
   );
 }
 
-export function GoogleOAuthButton({ callbackUrl, label, disabled, variant = "outline", onClickOverride, purpose = "login" }) {
+export function GoogleOAuthButton({
+  callbackUrl, label, disabled, variant = "outline", onClickOverride, purpose = "login",
+}: {
+  callbackUrl: string;
+  label: string;
+  disabled?: boolean;
+  variant?: "default" | "outline" | "secondary" | "destructive" | "ghost";
+  onClickOverride?: () => void;
+  purpose?: string;
+}) {
   const [enabled, setEnabled] = useState(true);
   const [isElectron, setIsElectron] = useState(false);
   const [isCapacitor, setIsCapacitor] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;

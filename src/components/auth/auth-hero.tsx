@@ -1,8 +1,8 @@
 import Image from "next/image";
-import { BarChart3, Boxes, Cloud, CreditCard, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, Boxes, Cloud, CreditCard, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { AppLogo } from "@/components/brand/app-logo";
 
-function FeatureCard({ icon: Icon, title, desc }) {
+function FeatureCard({ icon: Icon, title, desc }: { icon: LucideIcon; title: string; desc: string }) {
   return (
     <div className="rounded-[28px] border border-white/15 bg-white/10 p-5 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
       <div className="flex items-start gap-4">
@@ -18,7 +18,7 @@ function FeatureCard({ icon: Icon, title, desc }) {
   );
 }
 
-function Pill({ icon: Icon, title }) {
+function Pill({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
       <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10">
@@ -29,7 +29,7 @@ function Pill({ icon: Icon, title }) {
   );
 }
 
-export function AuthHero({ variant }) {
+export function AuthHero({ variant }: { variant: string }) {
   const year = new Date().getFullYear();
   const isRegister = variant === "register";
 

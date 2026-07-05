@@ -1,6 +1,6 @@
 import { AuthShell } from "@/components/auth/auth-shell";
 
-export default function LoginLayout({ children }) {
+export default function LoginLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthShell
       variant="login"

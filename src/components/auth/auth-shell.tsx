@@ -9,6 +9,13 @@ export function AuthShell({
   topLinkLabel,
   topText,
   children,
+}: {
+  variant: string;
+  heroSide: string;
+  topLinkHref: string;
+  topLinkLabel: string;
+  topText: string;
+  children: React.ReactNode;
 }) {
   const isHeroRight = heroSide === "right";
   const year = new Date().getFullYear();

@@ -1,6 +1,6 @@
 import { RegisterTenantForm } from "@/app/(auth)/register/register-tenant-form";
 
-export default async function RegisterTenantPage({ searchParams }) {
+export default async function RegisterTenantPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const planSlug = (sp?.plan || "pro").toLowerCase();
   const error = sp?.error || null;

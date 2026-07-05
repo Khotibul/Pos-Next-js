@@ -21,7 +21,20 @@ const credentialsSchema = z.object({
   password: z.string().min(8),
 });
 
-async function preWarmTenantContext(user) {
+async function preWarmTenantContext(user: {
+  id: string;
+  email: string | null;
+  name: string | null;
+  image: string | null;
+  isSuperAdmin: boolean;
+  memberships: Array<{
+    tenantId: string;
+    branchId: string | null;
+    branch: { id: string; name: string } | null;
+    tenant: { name: string; slug: string; status: string; trialEndsAt: Date | null };
+    role: { id: string; name: string; permissions: Array<{ permission: { key: string } }> } | null;
+  }>;
+}) {
   const ms = user.memberships;
   if (!ms || ms.length === 0) return;
 
@@ -46,14 +59,14 @@ async function preWarmTenantContext(user) {
     tenantId: primary.tenantId,
     tenantName: primary.tenant.name,
     tenantSlug: primary.tenant.slug,
-    tenantStatus: primary.tenant.status,
+    tenantStatus: primary.tenant.status as "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED",
     tenantTrialEndsAt: primary.tenant.trialEndsAt?.toISOString() ?? null,
     branchId,
     branchName: primary.branch?.name ?? null,
     permissions,
     roleName: primary.role?.name ?? null,
     roleId: primary.role?.id ?? null,
-    subscriptionStatus: primary.tenant.status,
+    subscriptionStatus: primary.tenant.status as "ACTIVE" | "TRIAL" | "SUSPENDED" | "EXPIRED",
     memberships,
   });
 }
@@ -173,7 +186,7 @@ export const {
             isSuperAdmin: user.isSuperAdmin,
             emailVerified: verifiedAt,
           }),
-          preWarmTenantContext(user, verifiedAt).catch(() => {}),
+          preWarmTenantContext(user).catch(() => {}),
         ]);
 
         loginTimer("login");
@@ -204,7 +217,7 @@ export const {
       const cookieStore = await cookies();
       const regId = cookieStore.get("oauth_reg_id")?.value ?? null;
       const oauthLink = cookieStore.get("oauth_link")?.value ?? null;
-      const isTrustedGoogleEmail = profile?.email_verified === true || profile?.email_verified === "true";
+      const isTrustedGoogleEmail = profile?.email_verified === true || String(profile?.email_verified) === "true";
 
       // Only allow Google sign-in if the account already exists & linked to Google,
       // or the user explicitly started "Register with Google" flow.
@@ -248,7 +261,7 @@ export const {
                 token_type: account.token_type ?? null,
                 scope: account.scope ?? null,
                 id_token: account.id_token ?? null,
-                session_state: account.session_state ?? null,
+                session_state: typeof account.session_state === "string" ? account.session_state : null,
               },
             });
           }
@@ -262,13 +275,14 @@ export const {
       return true;
     },
     jwt: async ({ token, user, trigger }) => {
-      if (user?.id) {
-        token.sub = user.id;
-        token.email = user.email ?? token.email;
-        token.name = user.name ?? token.name;
-        token.picture = user.image ?? token.picture;
-        token.isSuperAdmin = Boolean(user.isSuperAdmin);
-        token.emailVerified = user.emailVerified ?? null;
+      const u = user as { id?: string; email?: string | null; name?: string | null; image?: string | null; isSuperAdmin?: boolean; emailVerified?: string | null } | undefined;
+      if (u?.id) {
+        token.sub = u.id;
+        token.email = u.email ?? token.email;
+        token.name = u.name ?? token.name;
+        token.picture = u.image ?? token.picture;
+        token.isSuperAdmin = Boolean(u.isSuperAdmin);
+        token.emailVerified = u.emailVerified ?? null;
       }
       if (token.sub && (trigger !== "signIn" || !user)) {
         if (typeof token.emailVerified !== "boolean" && typeof token.emailVerified !== "string") {
@@ -291,8 +305,8 @@ export const {
         session.user.email = typeof token.email === "string" ? token.email : session.user.email;
         session.user.name = typeof token.name === "string" ? token.name : session.user.name;
         session.user.image = typeof token.picture === "string" ? token.picture : session.user.image;
-        session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
-        session.user.emailVerified = typeof token.emailVerified === "boolean"
+        (session.user as unknown as Record<string, unknown>).isSuperAdmin = Boolean(token.isSuperAdmin);
+        (session.user as unknown as Record<string, unknown>).emailVerified = typeof token.emailVerified === "boolean"
           ? token.emailVerified
           : token.emailVerified === null
             ? null
@@ -305,26 +319,29 @@ export const {
   events: {
     signIn: async ({ user, account, isNewUser }) => {
       if (account?.provider !== "google") return;
+      const uid = user.id;
+      const uemail = user.email ?? null;
+      if (!uid) return;
 
       await writeAuthLog({
-        userId: user.id,
-        email: user.email ?? undefined,
+        userId: uid,
+        email: uemail ?? undefined,
         event: isNewUser ? "SIGNUP_SUCCESS" : "LOGIN_SUCCESS",
         provider: "google",
       }).catch(() => {});
 
       // Mark email verified for Google accounts.
       await prisma.user
-        .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
+        .update({ where: { id: uid }, data: { emailVerified: new Date() } })
         .catch(() => {});
-      await setCachedEmailVerified(user.id, true);
-      const cachedGoogleUser = await getCachedAuthUser(user.id);
+      await setCachedEmailVerified(uid, true);
+      const cachedGoogleUser = await getCachedAuthUser(uid) ?? {};
       await setCachedAuthUser({
-        id: user.id,
-        email: user.email ?? cachedGoogleUser?.email ?? null,
-        name: user.name ?? cachedGoogleUser?.name ?? null,
-        image: user.image ?? cachedGoogleUser?.image ?? null,
-        isSuperAdmin: cachedGoogleUser?.isSuperAdmin ?? false,
+        id: uid,
+        email: uemail ?? (cachedGoogleUser as Record<string, unknown>).email as string | null ?? null,
+        name: user.name ?? (cachedGoogleUser as Record<string, unknown>).name as string | null ?? null,
+        image: user.image ?? (cachedGoogleUser as Record<string, unknown>).image as string | null ?? null,
+        isSuperAdmin: (cachedGoogleUser as Record<string, unknown>).isSuperAdmin as boolean ?? false,
         emailVerified: new Date().toISOString(),
       });
 
@@ -334,7 +351,7 @@ export const {
 
       // Finalize Google registration by creating tenant + roles + membership.
       // Only do this if user is new OR has no memberships yet.
-      const membershipCount = await prisma.tenantUser.count({ where: { userId: user.id } }).catch(() => 0);
+      const membershipCount = await prisma.tenantUser.count({ where: { userId: uid } }).catch(() => 0);
       if (!isNewUser && membershipCount > 0) return;
 
       const reg = await consumeOauthRegistration({ id: regId }).catch(() => null);
@@ -342,13 +359,13 @@ export const {
 
       await prisma.user
         .update({
-          where: { id: user.id },
-          data: { name: reg.ownerName || user.name, phone: reg.phone ?? null },
+          where: { id: uid },
+          data: { name: reg.ownerName || (user.name ?? null), phone: reg.phone ?? null },
         })
         .catch(() => {});
 
       await createTenantForExistingUser({
-        userId: user.id,
+        userId: uid,
         tenantName: reg.tenantName,
         planSlug: reg.planSlug ?? undefined,
       }).catch(() => {});
