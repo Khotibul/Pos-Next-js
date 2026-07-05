@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import type { Session } from "next-auth";
 import { Errors } from "@/lib/errors";
 import { CACHE_TTL, cacheKeys } from "@/lib/cache-keys";
 import { getCache, setCache } from "@/lib/redis";
@@ -102,8 +103,8 @@ async function resolvePermissionCache(params: { tenantId: string; userId: string
   return params.fallback;
 }
 
-export const getTenantContext = cache(async (): Promise<TenantContext> => {
-  const session = await auth();
+export const getTenantContext = cache(async (existingSession?: Session | null): Promise<TenantContext> => {
+  const session = existingSession ?? await auth();
   if (!session?.user?.id) redirect("/login");
   const userId = session.user.id;
 

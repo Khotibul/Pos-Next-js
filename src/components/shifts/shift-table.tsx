@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { OpenShiftDialog } from "@/components/shifts/open-shift-dialog";
 import { CloseShiftDialog } from "@/components/shifts/close-shift-dialog";

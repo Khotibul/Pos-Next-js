@@ -1,22 +1,27 @@
+import { Suspense } from "react";
+import NextDynamic from "next/dynamic";
 import { getTenantContext } from "@/lib/tenant-context";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { Topbar } from "@/components/layout/topbar";
 import { DashboardBottomNav } from "@/components/layout/dashboard-bottom-nav";
-import { DesktopLicenseGate } from "@/components/layout/desktop-license-gate";
 import { requireEmailVerified } from "@/lib/guards/require-email-verified";
 import { dashboardCopy } from "@/lib/i18n";
 import { getRequestLocale } from "@/lib/i18n-server";
+
+const DesktopLicenseGate = NextDynamic(() => import("@/components/layout/desktop-license-gate").then((m) => ({ default: m.DesktopLicenseGate })));
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
   const [locale, ctx] = await Promise.all([
     getRequestLocale(),
     (async () => {
-      await requireEmailVerified();
-      const ctx = await getTenantContext();
+      await requireEmailVerified(session?.user?.id);
+      const ctx = await getTenantContext(session);
       if (!ctx) redirect("/login");
       return ctx;
     })(),
@@ -35,7 +40,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-dvh bg-app">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-grid" />
-      <DesktopLicenseGate />
+      <Suspense fallback={null}>
+        <DesktopLicenseGate />
+      </Suspense>
       <div className="flex">
         <SidebarShell permissions={ctx.permissions} isSuperAdmin={ctx.isSuperAdmin} locale={locale} />
         <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
