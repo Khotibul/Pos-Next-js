@@ -71,6 +71,58 @@ async function preWarmTenantContext(user: {
   });
 }
 
+async function warmLoginCache(
+  userId: string,
+  email: string | null,
+  name: string | null,
+  image: string | null,
+  isSuperAdmin: boolean,
+  verifiedAt: string,
+  ip: string | undefined,
+  ua: string | undefined,
+) {
+  try {
+    const [fullUser, _] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          image: true,
+          isSuperAdmin: true,
+          memberships: {
+            select: {
+              tenantId: true,
+              branchId: true,
+              branch: { select: { id: true, name: true } },
+              tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                  permissions: { select: { permission: { select: { key: true } } } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      writeAuthLog({ userId, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }),
+    ]);
+
+    if (!fullUser) return;
+
+    await Promise.allSettled([
+      setCachedEmailVerified(userId, true),
+      setCachedAuthUser({ id: userId, email, name, image, isSuperAdmin, emailVerified: verifiedAt }),
+      preWarmTenantContext(fullUser),
+    ]);
+  } catch (e) {
+    console.error("[auth] warmLoginCache failed", e);
+  }
+}
+
 export const {
   handlers: { GET, POST },
   auth,
@@ -113,6 +165,7 @@ export const {
           throw new Error("RATE_LIMITED");
         }
 
+        // Phase 1: lightweight query — user fields only, no joins.
         const endQueryUser = createDevTimer("auth.credentials.queryUser");
         const user = await prisma.user.findFirst({
           where: { email: { equals: email, mode: "insensitive" } },
@@ -125,21 +178,6 @@ export const {
             emailVerified: true,
             isSuperAdmin: true,
             isActive: true,
-            memberships: {
-              select: {
-                tenantId: true,
-                branchId: true,
-                branch: { select: { id: true, name: true } },
-                tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
-                role: {
-                  select: {
-                    id: true,
-                    name: true,
-                    permissions: { select: { permission: { select: { key: true } } } },
-                  },
-                },
-              },
-            },
           },
         });
         endQueryUser();
@@ -175,19 +213,8 @@ export const {
           emailVerified: user.emailVerified?.toISOString() ?? null,
         };
 
-        void Promise.allSettled([
-          writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }),
-          setCachedEmailVerified(user.id, true),
-          setCachedAuthUser({
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            isSuperAdmin: user.isSuperAdmin,
-            emailVerified: verifiedAt,
-          }),
-          preWarmTenantContext(user).catch((e) => console.error("[auth] preWarmTenantContext failed", e)),
-        ]);
+        // Phase 2: async — fetch full memberships + prewarm cache, non-blocking.
+        void warmLoginCache(user.id, user.email, user.name, user.image, user.isSuperAdmin, verifiedAt, ip, ua);
 
         loginTimer("login");
 
