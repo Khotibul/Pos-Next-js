@@ -162,6 +162,7 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
       stockByProduct.set(row.productId, arr);
     }
 
+    const decrements: Array<{ id: string; qty: number }> = [];
     for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
       const stocks = stockByProduct.get(productId) ?? [];
       const availableQty = stocks.reduce((sum, s) => sum + Number(s.qty), 0);
@@ -175,14 +176,26 @@ async function doCreateSale(params: { tenantId: string; shiftId: string; cashier
         if (remainingQty <= 0) break;
         const stockQty = Number(stock.qty);
         const decrementQty = Math.min(stockQty, remainingQty);
-        const updated = await tx.productWarehouseStock.updateMany({
-          where: { id: stock.id, tenantId: params.tenantId, qty: { gte: decrementQty } },
-          data: { qty: { decrement: decrementQty } },
-        });
-        if (updated.count !== 1) {
-          throw Errors.badRequest("Stok berubah saat transaksi diproses. Silakan ulangi transaksi.");
-        }
+        decrements.push({ id: stock.id, qty: decrementQty });
         remainingQty -= decrementQty;
+      }
+    }
+
+    if (decrements.length > 0) {
+      const placeholders = decrements.map((_, i) => `($${2 + i * 2}::text, $${3 + i * 2}::int)`).join(", ");
+      const rawParams: Array<string | number> = [params.tenantId];
+      for (const d of decrements) {
+        rawParams.push(d.id, d.qty);
+      }
+      const result = await tx.$executeRawUnsafe(
+        `UPDATE "ProductWarehouseStock" AS pws
+         SET "qty" = pws.qty - v.qty
+         FROM (VALUES ${placeholders}) AS v(id, qty)
+         WHERE pws.id = v.id AND pws."tenantId" = $1 AND pws.qty >= v.qty`,
+        ...rawParams,
+      );
+      if (result !== decrements.length) {
+        throw Errors.badRequest("Stok berubah saat transaksi diproses. Silakan ulangi transaksi.");
       }
     }
 
