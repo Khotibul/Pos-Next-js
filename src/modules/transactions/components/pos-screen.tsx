@@ -20,6 +20,7 @@ import { ProductCard } from "./product-card";
 import type { PaymentMethod, Product } from "./cart/cart-common";
 import { rupiah } from "./cart/cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
@@ -147,9 +148,22 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const productByCode = useMemo(() => {
     const map = new Map<string, Product>();
     for (const product of allProducts) {
-      for (const value of [product.sku, product.barcode, product.qrCode]) {
-        const key = value?.trim().toLowerCase();
-        if (key) map.set(key, product);
+      // Process SKU
+      if (product.sku) {
+        const skuKey = product.sku.trim().toLowerCase();
+        if (skuKey) map.set(skuKey, product);
+      }
+      
+      // Process barcode
+      if (product.barcode) {
+        const barcodeKey = product.barcode.trim().toLowerCase();
+        if (barcodeKey) map.set(barcodeKey, product);
+      }
+      
+      // Process QR code
+      if (product.qrCode) {
+        const qrKey = product.qrCode.trim().toLowerCase();
+        if (qrKey) map.set(qrKey, product);
       }
     }
     return map;
@@ -342,234 +356,261 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     };
   }, [addByCode]);
 
+  // Clean up extraProducts: remove products that are not in the original products and have zero quantity in cart
+  useEffect(() => {
+    const originalProductIds = new Set(products.map(p => p.id));
+    let hasChanged = false;
+    const newExtraProducts = extraProducts.filter(p => {
+      if (originalProductIds.has(p.id)) {
+        return true;
+      }
+      return cart[p.id] > 0;
+    });
+    if (newExtraProducts.length !== extraProducts.length) {
+      hasChanged = true;
+    } else {
+      for (let i = 0; i < extraProducts.length; i++) {
+        if (newExtraProducts[i] !== extraProducts[i]) {
+          hasChanged = true;
+          break;
+        }
+      }
+    }
+    if (hasChanged) {
+      setExtraProducts(newExtraProducts);
+    }
+  }, [cart, extraProducts, products]);
+
   const cartItemCount = lines.length;
 
   return (
-    <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
-      <div className="min-w-0">
-        <div className="sticky top-[56px] z-10 mb-3 rounded-2xl border bg-background/80 p-2 backdrop-blur-lg sm:top-[72px] sm:p-3">
-          <form
-            className="flex gap-1.5 sm:gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void addByCode(q, { clearQuery: true });
-            }}
-          >
-            <div className="relative flex-1">
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Cari produk atau scan..."
-                autoComplete="off"
-                className="h-10 rounded-xl pl-3 pr-9 text-sm"
-              />
-              {q ? (
-                <button
-                  type="button"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
-                  onClick={() => setQ("")}
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              ) : null}
-            </div>
-            <VoiceInputButton onProductDetected={handleVoiceProduct} />
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 w-10 rounded-xl p-0"
-              onClick={() => setScannerOpen(true)}
-              aria-label="Scan QR/Barcode"
+    <ErrorBoundary>
+      <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="min-w-0">
+          <div className="sticky top-[56px] z-10 mb-3 rounded-2xl border bg-background/80 p-2 backdrop-blur-lg sm:top-[72px] sm:p-3">
+            <form
+              className="flex gap-1.5 sm:gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void addByCode(q, { clearQuery: true });
+              }}
             >
-              <ScanLine className="h-4 w-4" />
-            </Button>
-          </form>
-        </div>
-        <div
-          ref={gridParentRef}
-          className="overflow-auto"
-          style={{ maxHeight: "calc(100vh - 180px)" }}
-        >
-          <div
-            style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
-          >
-            {gridVirtualizer.getVirtualItems().map((virtualRow) => {
-              const start = virtualRow.index * colCount;
-              const rowProducts = filtered.slice(start, start + colCount);
-              return (
-                <div
-                  key={virtualRow.key}
-                  data-index={virtualRow.index}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    willChange: "transform",
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <div
-                    className="grid gap-2.5 sm:gap-3"
-                    style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
+              <div className="relative flex-1">
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Cari produk atau scan..."
+                  autoComplete="off"
+                  className="h-10 rounded-xl pl-3 pr-9 text-sm"
+                />
+                {q ? (
+                  <button
+                    type="button"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
+                    onClick={() => setQ("")}
                   >
-                    {rowProducts.length === 0 ? (
-                      <div className="col-span-full flex items-center justify-center rounded-xl border-2 border-dashed p-8 text-sm text-muted-foreground">
-                        Produk tidak ditemukan
-                      </div>
-                    ) : (
-                      rowProducts.map((p) => (
-                        <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
-                      ))
-                    )}
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                ) : null}
+              </div>
+              <VoiceInputButton onProductDetected={handleVoiceProduct} />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-10 rounded-xl p-0"
+                onClick={() => setScannerOpen(true)}
+                aria-label="Scan QR/Barcode"
+              >
+                <ScanLine className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+          <div
+            ref={gridParentRef}
+            className="overflow-auto"
+            style={{ maxHeight: "calc(100vh - 180px)" }}
+          >
+            <div
+              style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
+            >
+              {gridVirtualizer.getVirtualItems().map((virtualRow) => {
+                const start = virtualRow.index * colCount;
+                const rowProducts = filtered.slice(start, start + colCount);
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      willChange: "transform",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div
+                      className="grid gap-2.5 sm:gap-3"
+                      style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
+                    >
+                      {rowProducts.length === 0 ? (
+                        <div className="col-span-full flex items-center justify-center rounded-xl border-2 border-dashed p-8 text-sm text-muted-foreground">
+                          Produk tidak ditemukan
+                        </div>
+                      ) : (
+                        rowProducts.map((p) => (
+                          <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Desktop cart sidebar */}
-      <div className="hidden xl:block">
-        <CartSidebar
-          lines={lines}
-          productMap={productMap}
-          invoice={invoice}
-          notice={notice}
-          error={error}
-          subtotal={subtotal}
-          discount={discount}
-          effectiveTaxRate={effectiveTaxRate}
-          tax={tax}
-          total={total}
-          cashPaid={cashPaid}
-          cashChange={cashChange}
-          method={method}
-          settings={settings}
-          isPending={isPending}
-          shiftCheckDone={shiftCheckDone}
-          openShiftId={openShiftId}
-          inc={inc}
-          dec={dec}
-          setError={setError}
-          setNotice={setNotice}
-          setMethod={setMethod}
-          setCashPaid={setCashPaid}
-          setDiscount={setDiscount}
-          setTaxRate={setTaxRate}
-          setCart={setCart}
-          onPay={handlePay}
-        />
-      </div>
+        {/* Desktop cart sidebar */}
+        <div className="hidden xl:block">
+          <CartSidebar
+            lines={lines}
+            productMap={productMap}
+            invoice={invoice}
+            notice={notice}
+            error={error}
+            subtotal={subtotal}
+            discount={discount}
+            effectiveTaxRate={effectiveTaxRate}
+            tax={tax}
+            total={total}
+            cashPaid={cashPaid}
+            cashChange={cashChange}
+            method={method}
+            settings={settings}
+            isPending={isPending}
+            shiftCheckDone={shiftCheckDone}
+            openShiftId={openShiftId}
+            inc={inc}
+            dec={dec}
+            setError={setError}
+            setNotice={setNotice}
+            setMethod={setMethod}
+            setCashPaid={setCashPaid}
+            setDiscount={setDiscount}
+            setTaxRate={setTaxRate}
+            setCart={setCart}
+            onPay={handlePay}
+          />
+        </div>
 
-      {/* Mobile FAB cart button */}
-      {cartItemCount > 0 ? (
-        <button
-          type="button"
-          onClick={() => setCartOpen(true)}
-          className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 xl:hidden"
-        >
-          <div className="flex items-center gap-2.5 rounded-full border bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
-              {cartItemCount}
+        {/* Mobile FAB cart button */}
+        {cartItemCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 xl:hidden"
+          >
+            <div className="flex items-center gap-2.5 rounded-full border bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                {cartItemCount}
+              </div>
+              <span>Keranjang</span>
+              <span className="font-bold">{rupiah(total)}</span>
             </div>
-            <span>Keranjang</span>
-            <span className="font-bold">{rupiah(total)}</span>
-          </div>
-        </button>
-      ) : null}
+          </button>
+        ) : null}
 
-      {/* Mobile cart bottom sheet */}
-      {cartOpen ? (
-        <MobileCartSheet
-          lines={lines}
-          productMap={productMap}
-          notice={notice}
-          error={error}
-          subtotal={subtotal}
-          discount={discount}
-          effectiveTaxRate={effectiveTaxRate}
-          tax={tax}
-          total={total}
-          cashPaid={cashPaid}
-          cashChange={cashChange}
-          method={method}
-          settings={settings}
-          isPending={isPending}
-          shiftCheckDone={shiftCheckDone}
-          openShiftId={openShiftId}
-          onClose={() => setCartOpen(false)}
-          inc={inc}
-          dec={dec}
-          setError={setError}
-          setNotice={setNotice}
-          setMethod={setMethod}
-          setCashPaid={setCashPaid}
-          setDiscount={setDiscount}
-          setTaxRate={setTaxRate}
-          setCart={setCart}
-          onPay={handlePay}
-        />
-      ) : null}
+        {/* Mobile cart bottom sheet */}
+        {cartOpen ? (
+          <MobileCartSheet
+            lines={lines}
+            productMap={productMap}
+            notice={notice}
+            error={error}
+            subtotal={subtotal}
+            discount={discount}
+            effectiveTaxRate={effectiveTaxRate}
+            tax={tax}
+            total={total}
+            cashPaid={cashPaid}
+            cashChange={cashChange}
+            method={method}
+            settings={settings}
+            isPending={isPending}
+            shiftCheckDone={shiftCheckDone}
+            openShiftId={openShiftId}
+            onClose={() => setCartOpen(false)}
+            inc={inc}
+            dec={dec}
+            setError={setError}
+            setNotice={setNotice}
+            setMethod={setMethod}
+            setCashPaid={setCashPaid}
+            setDiscount={setDiscount}
+            setTaxRate={setTaxRate}
+            setCart={setCart}
+            onPay={handlePay}
+          />
+        ) : null}
 
-      {notice ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert className="animate-slide-up shadow-lg">{notice}</Alert></div> : null}
-      {error ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert variant="destructive" className="animate-slide-up shadow-lg">{error}</Alert></div> : null}
+        {notice ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert className="animate-slide-up shadow-lg">{notice}</Alert></div> : null}
+        {error ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert variant="destructive" className="animate-slide-up shadow-lg">{error}</Alert></div> : null}
 
-      {successDialog ? (
-        <TransactionSuccessDialog
-          open
-          onOpenChange={(v) => {
-            if (!v) setSuccessDialog(null);
+        {successDialog ? (
+          <TransactionSuccessDialog
+            open
+            onOpenChange={(v) => {
+              if (!v) setSuccessDialog(null);
+            }}
+            invoiceNo={successDialog.invoiceNo}
+            total={successDialog.total}
+            subtotal={successDialog.subtotal}
+            discount={successDialog.discount}
+            tax={successDialog.tax}
+            paymentMethod={successDialog.paymentMethod}
+            receivedAmount={successDialog.receivedAmount}
+            changeAmount={successDialog.changeAmount}
+            items={successDialog.items}
+            printing={printing}
+            onPrint={() => {
+              setPrinting(true);
+              fetch(`/api/pos/receipt/${saleId}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then((json) => {
+                  if (json?.ok) {
+                    requestPrint(json.data.printer as PrinterSettings, json.data.sale as ReceiptSale);
+                  }
+                })
+                .catch(console.error)
+                .finally(() => {
+                  setPrinting(false);
+                  setSuccessDialog(null);
+                });
+            }}
+          />
+        ) : null}
+
+        <QrScannerDialog
+          open={scannerOpen}
+          onOpenChange={setScannerOpen}
+          onDetected={async (code) => {
+            await addByCode(code, { throwOnFail: true });
           }}
-          invoiceNo={successDialog.invoiceNo}
-          total={successDialog.total}
-          subtotal={successDialog.subtotal}
-          discount={successDialog.discount}
-          tax={successDialog.tax}
-          paymentMethod={successDialog.paymentMethod}
-          receivedAmount={successDialog.receivedAmount}
-          changeAmount={successDialog.changeAmount}
-          items={successDialog.items}
-          printing={printing}
-          onPrint={() => {
-            setPrinting(true);
-            fetch(`/api/pos/receipt/${saleId}`)
-              .then((r) => (r.ok ? r.json() : null))
-              .then((json) => {
-                if (json?.ok) {
-                  requestPrint(json.data.printer as PrinterSettings, json.data.sale as ReceiptSale);
-                }
-              })
-              .catch(console.error)
-              .finally(() => {
-                setPrinting(false);
-                setSuccessDialog(null);
-              });
+        />
+
+        <OpenShiftDialog
+          open={forceOpenShift}
+          onOpenChange={setForceOpenShift}
+          hideTrigger
+          preventClose
+          onOpened={(id) => {
+            setOpenShiftId(id);
+            setNotice("Shift berhasil dibuka. Silakan mulai transaksi.");
+            setForceOpenShift(false);
+            router.refresh();
           }}
         />
-      ) : null}
-
-      <QrScannerDialog
-        open={scannerOpen}
-        onOpenChange={setScannerOpen}
-        onDetected={async (code) => {
-          await addByCode(code, { throwOnFail: true });
-        }}
-      />
-
-      <OpenShiftDialog
-        open={forceOpenShift}
-        onOpenChange={setForceOpenShift}
-        hideTrigger
-        preventClose
-        onOpened={(id) => {
-          setOpenShiftId(id);
-          setNotice("Shift berhasil dibuka. Silakan mulai transaksi.");
-          setForceOpenShift(false);
-          router.refresh();
-        }}
-      />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
