@@ -18,7 +18,7 @@ export async function updatePermissionMatrixAction(_prev: unknown, formData: For
       grants.set(roleId, new Set(permissionIds));
     }
     const result = await updatePermissionMatrix(grants);
-    await writeAuditLog({ userId: actor.id, action: "UPDATE_PERMISSION_MATRIX", entity: "RolePermission", entityId: result.id, metadata: { roleCount: roleIds.length } });
+    void writeAuditLog({ userId: actor.id, action: "UPDATE_PERMISSION_MATRIX", entity: "RolePermission", entityId: result.id, metadata: { roleCount: roleIds.length } });
     revalidatePath("/super-admin/permissions");
     revalidatePath("/super-admin/roles");
     return { ok: true, data: result };

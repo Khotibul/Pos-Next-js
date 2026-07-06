@@ -22,7 +22,7 @@ export async function createRoleAction(_prev: unknown, formData: FormData): Prom
     const parsed = createRoleSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const role = await createSuperAdminRole(parsed.data);
-    await writeAuditLog({ tenantId: role.tenantId, userId: actor.id, action: "CREATE", entity: "Role", entityId: role.id, metadata: { name: parsed.data.name } });
+    void writeAuditLog({ tenantId: role.tenantId, userId: actor.id, action: "CREATE", entity: "Role", entityId: role.id, metadata: { name: parsed.data.name } });
     revalidatePath("/super-admin/roles");
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: { id: role.id } };
@@ -37,7 +37,7 @@ export async function cloneRoleAction(_prev: unknown, formData: FormData): Promi
     const parsed = cloneRoleSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const role = await cloneSuperAdminRole(parsed.data);
-    await writeAuditLog({ tenantId: role.tenantId, userId: actor.id, action: "CLONE", entity: "Role", entityId: role.id, metadata: { sourceRoleId: parsed.data.roleId } });
+    void writeAuditLog({ tenantId: role.tenantId, userId: actor.id, action: "CLONE", entity: "Role", entityId: role.id, metadata: { sourceRoleId: parsed.data.roleId } });
     revalidatePath("/super-admin/roles");
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: { id: role.id } };
@@ -52,7 +52,7 @@ export async function deleteRoleAction(_prev: unknown, formData: FormData): Prom
     const parsed = deleteRoleSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await deleteSuperAdminRole(parsed.data.roleId);
-    await writeAuditLog({ userId: actor.id, action: "DELETE", entity: "Role", entityId: result.id });
+    void writeAuditLog({ userId: actor.id, action: "DELETE", entity: "Role", entityId: result.id });
     revalidatePath("/super-admin/roles");
     revalidatePath("/super-admin/permissions");
     return { ok: true, data: result };

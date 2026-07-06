@@ -36,7 +36,7 @@ export async function createUserAction(_prev: unknown, formData: FormData): Prom
     const parsed = createUserSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await createSuperAdminUser(parsed.data);
-    await writeAuditLog({ userId: actor.id, action: "CREATE", entity: "User", entityId: result.id, metadata: { email: parsed.data.email } });
+    void writeAuditLog({ userId: actor.id, action: "CREATE", entity: "User", entityId: result.id, metadata: { email: parsed.data.email } });
     revalidatePath("/super-admin/users");
     return { ok: true, data: result };
   } catch (err) {
@@ -50,7 +50,7 @@ export async function updateUserAction(_prev: unknown, formData: FormData): Prom
     const parsed = updateUserSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await updateSuperAdminUser(parsed.data);
-    await writeAuditLog({ userId: actor.id, action: "UPDATE", entity: "User", entityId: result.id, metadata: { isSuperAdmin: parsed.data.isSuperAdmin } });
+    void writeAuditLog({ userId: actor.id, action: "UPDATE", entity: "User", entityId: result.id, metadata: { isSuperAdmin: parsed.data.isSuperAdmin } });
     revalidatePath("/super-admin/users");
     revalidatePath(`/super-admin/users/${result.id}`);
     return { ok: true, data: result };
@@ -65,7 +65,7 @@ export async function resetUserPasswordAction(_prev: unknown, formData: FormData
     const parsed = resetUserPasswordSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await resetSuperAdminUserPassword(parsed.data);
-    await writeAuditLog({ userId: actor.id, action: "RESET_PASSWORD", entity: "User", entityId: result.id });
+    void writeAuditLog({ userId: actor.id, action: "RESET_PASSWORD", entity: "User", entityId: result.id });
     revalidatePath("/super-admin/users");
     return { ok: true, data: result };
   } catch (err) {
@@ -79,7 +79,7 @@ export async function verifyUserEmailAction(_prev: unknown, formData: FormData):
     const parsed = verifyUserEmailSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await verifySuperAdminUserEmail(parsed.data.id);
-    await writeAuditLog({ userId: actor.id, action: "VERIFY_EMAIL", entity: "User", entityId: result.id });
+    void writeAuditLog({ userId: actor.id, action: "VERIFY_EMAIL", entity: "User", entityId: result.id });
     revalidatePath("/super-admin/users");
     revalidatePath(`/super-admin/users/${result.id}`);
     return { ok: true, data: result };
@@ -94,7 +94,7 @@ export async function assignUserToTenantAction(_prev: unknown, formData: FormDat
     const parsed = assignTenantSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await assignUserToTenant(parsed.data);
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: result.tenantId,
       userId: actor.id,
       action: "ASSIGN_TENANT",
@@ -116,7 +116,7 @@ export async function removeUserFromTenantAction(_prev: unknown, formData: FormD
     const parsed = removeTenantSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await removeUserFromTenant(parsed.data);
-    await writeAuditLog({ tenantId: parsed.data.tenantId, userId: actor.id, action: "REMOVE_TENANT", entity: "TenantUser", metadata: { targetUserId: parsed.data.userId } });
+    void writeAuditLog({ tenantId: parsed.data.tenantId, userId: actor.id, action: "REMOVE_TENANT", entity: "TenantUser", metadata: { targetUserId: parsed.data.userId } });
     revalidatePath("/super-admin/users");
     revalidatePath(`/super-admin/users/${parsed.data.userId}`);
     return { ok: true, data: result };

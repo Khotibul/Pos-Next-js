@@ -28,7 +28,7 @@ export async function upsertProductCategoryAction(_prev: unknown, formData: Form
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertProductCategory({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -54,7 +54,7 @@ export async function deleteProductCategoryAction(id: string): Promise<ActionRes
     if (!id) throw Errors.badRequest("ID kategori tidak valid.");
     await deleteProductCategory({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductCategory", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductCategory", entityId: id });
 
     revalidatePath("/products/categories");
     revalidatePath("/products");

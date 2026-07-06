@@ -23,7 +23,7 @@ export async function upsertTenantAction(_prev: unknown, formData: FormData): Pr
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await upsertTenant(parsed.data);
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: null,
       userId: user.id,
       action: parsed.data.id ? "UPDATE" : "CREATE",

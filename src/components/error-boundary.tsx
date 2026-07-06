@@ -28,14 +28,17 @@ export class ErrorBoundary extends React.Component<Props, { error: Error | null 
 
   render() {
     if (this.state.error) {
-      const Fallback = this.props.fallback ?? (
+      if (this.props.fallback) {
+        const Fallback = this.props.fallback;
+        return <Fallback error={this.state.error} resetError={this.resetError} />;
+      }
+      return (
         <div role="alert">
           <p>Something went wrong:</p>
           <strong>{this.state.error.message}</strong>
           <button onClick={this.resetError}>Try again</button>
         </div>
       );
-      return <Fallback error={this.state.error} resetError={this.resetError} />;
     }
 
     return this.props.children;

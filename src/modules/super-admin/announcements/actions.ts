@@ -21,7 +21,7 @@ export async function upsertAnnouncementAction(_prev: unknown, formData: FormDat
     const parsed = upsertAnnouncementSchema.safeParse(formDataToObject(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const res = await upsertAnnouncement(parsed.data);
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: null,
       userId: user.id,
       action: parsed.data.id ? "UPDATE" : "CREATE",
@@ -43,7 +43,7 @@ export async function deleteAnnouncementAction(id: string): Promise<ActionResult
     const user = await requireSuperAdmin();
     if (!id) return { ok: false, message: "ID tidak valid." };
     const res = await deleteAnnouncement(id);
-    await writeAuditLog({ tenantId: null, userId: user.id, action: "DELETE", entity: "Announcement", entityId: id });
+    void writeAuditLog({ tenantId: null, userId: user.id, action: "DELETE", entity: "Announcement", entityId: id });
     revalidatePath("/super-admin/announcements");
     return { ok: true, data: res };
   } catch (err) {

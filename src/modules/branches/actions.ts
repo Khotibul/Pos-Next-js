@@ -28,7 +28,7 @@ export async function upsertBranchAction(_prev: unknown, formData: FormData): Pr
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertBranch({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -53,7 +53,7 @@ export async function deleteBranchAction(id: string): Promise<ActionResult<{ id:
     if (!id) throw Errors.badRequest("ID cabang tidak valid.");
     await deleteBranch({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Branch", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Branch", entityId: id });
 
     revalidatePath("/branches");
     return { ok: true, data: { id } };

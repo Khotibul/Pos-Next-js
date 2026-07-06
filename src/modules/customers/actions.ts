@@ -28,7 +28,7 @@ export async function upsertCustomerAction(_prev: unknown, formData: FormData): 
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertCustomer({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -51,7 +51,7 @@ export async function deleteCustomerAction(id: string): Promise<ActionResult<{ i
     const ctx = await requireActiveTenant();
 
     await deleteCustomer({ tenantId: ctx.tenantId, id });
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Customer", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Customer", entityId: id });
 
     revalidatePath("/customers");
     return { ok: true, data: { id } };

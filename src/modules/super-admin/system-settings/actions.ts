@@ -29,7 +29,7 @@ export async function upsertGlobalSettingAction(_prev: unknown, formData: FormDa
     }
 
     const res = await upsertGlobalSetting({ id: parsed.data.id, key: parsed.data.key, value });
-    await writeAuditLog({ tenantId: null, userId: user.id, action: parsed.data.id ? "UPDATE" : "CREATE", entity: "GlobalSetting", entityId: res.id, metadata: { key: parsed.data.key } });
+    void writeAuditLog({ tenantId: null, userId: user.id, action: parsed.data.id ? "UPDATE" : "CREATE", entity: "GlobalSetting", entityId: res.id, metadata: { key: parsed.data.key } });
     revalidatePath("/super-admin/system-settings");
     return { ok: true, data: res };
   } catch (err) {
@@ -44,7 +44,7 @@ export async function deleteGlobalSettingAction(id: string): Promise<ActionResul
     const user = await requireSuperAdmin();
     if (!id) return { ok: false, message: "ID tidak valid." };
     const res = await deleteGlobalSetting(id);
-    await writeAuditLog({ tenantId: null, userId: user.id, action: "DELETE", entity: "GlobalSetting", entityId: id });
+    void writeAuditLog({ tenantId: null, userId: user.id, action: "DELETE", entity: "GlobalSetting", entityId: id });
     revalidatePath("/super-admin/system-settings");
     return { ok: true, data: res };
   } catch (err) {

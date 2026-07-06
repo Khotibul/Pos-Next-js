@@ -23,7 +23,7 @@ export async function openShiftAction(_prev: unknown, formData: FormData): Promi
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await openShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId, input: parsed.data });
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: "OPEN",
@@ -54,7 +54,7 @@ export async function closeShiftAction(_prev: unknown, formData: FormData): Prom
       input: parsed.data,
       allowAnyCashier: canCloseAnyCashier,
     });
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: "CLOSE",
@@ -79,7 +79,7 @@ export async function approveShiftAction(_prev: unknown, formData: FormData): Pr
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await approveShift({ tenantId: ctx.tenantId, approvedById: ctx.userId, input: parsed.data });
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "APPROVE", entity: "CashierShift", entityId: res.id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "APPROVE", entity: "CashierShift", entityId: res.id });
     revalidatePath("/shifts");
     revalidatePath(`/shifts/${res.id}`);
     return { ok: true, data: res };

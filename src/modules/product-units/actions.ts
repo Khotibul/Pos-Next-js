@@ -28,7 +28,7 @@ export async function upsertProductUnitAction(_prev: unknown, formData: FormData
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertProductUnit({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -54,7 +54,7 @@ export async function deleteProductUnitAction(id: string): Promise<ActionResult<
     if (!id) throw Errors.badRequest("ID satuan tidak valid.");
     await deleteProductUnit({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductUnit", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductUnit", entityId: id });
 
     revalidatePath("/products/units");
     revalidatePath("/products");

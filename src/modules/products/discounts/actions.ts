@@ -28,7 +28,7 @@ export async function upsertProductDiscountAction(_prev: unknown, formData: Form
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertProductDiscount({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -52,7 +52,7 @@ export async function deleteProductDiscountAction(id: string): Promise<ActionRes
     const ctx = await requireActiveTenant();
 
     const res = await deleteProductDiscount({ tenantId: ctx.tenantId, id });
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductDiscount", entityId: res.id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductDiscount", entityId: res.id });
 
     revalidatePath("/products/discounts");
     revalidatePath("/products");

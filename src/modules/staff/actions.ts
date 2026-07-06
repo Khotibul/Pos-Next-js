@@ -28,7 +28,7 @@ export async function upsertStaffAction(_prev: unknown, formData: FormData): Pro
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertStaff({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -53,7 +53,7 @@ export async function deleteStaffAction(id: string): Promise<ActionResult<{ id: 
     if (!id) throw Errors.badRequest("ID tidak valid.");
     await deleteStaff({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "TenantUser", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "TenantUser", entityId: id });
 
     revalidatePath("/settings/staff");
     return { ok: true, data: { id } };

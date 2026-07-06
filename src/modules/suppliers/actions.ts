@@ -28,7 +28,7 @@ export async function upsertSupplierAction(_prev: unknown, formData: FormData): 
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertSupplier({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -51,7 +51,7 @@ export async function deleteSupplierAction(id: string): Promise<ActionResult<{ i
     const ctx = await requireActiveTenant();
 
     await deleteSupplier({ tenantId: ctx.tenantId, id });
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Supplier", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Supplier", entityId: id });
 
     revalidatePath("/suppliers");
     return { ok: true, data: { id } };

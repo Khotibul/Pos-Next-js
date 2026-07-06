@@ -23,7 +23,7 @@ export async function upsertPurchaseOrderAction(_prev: unknown, formData: FormDa
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await upsertPurchaseOrder({ tenantId: ctx.tenantId, input: parsed.data });
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: parsed.data.id ? "UPDATE" : "CREATE",
@@ -46,7 +46,7 @@ export async function deletePurchaseOrderAction(id: string): Promise<ActionResul
     const ctx = await requirePermission(PERMISSIONS.inventory_delete);
     if (!id) return { ok: false, message: "ID tidak valid." };
     const res = await deletePurchaseOrder({ tenantId: ctx.tenantId, id });
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "PurchaseOrder", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "PurchaseOrder", entityId: id });
     revalidatePath("/purchases");
     return { ok: true, data: res };
   } catch (err) {

@@ -28,7 +28,7 @@ export async function upsertProductBatchAction(_prev: unknown, formData: FormDat
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertProductBatch({ tenantId: ctx.tenantId, branchId: ctx.branchId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -53,7 +53,7 @@ export async function deleteProductBatchAction(id: string): Promise<ActionResult
 
     const res = await deleteProductBatch({ tenantId: ctx.tenantId, branchId: ctx.branchId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductBatch", entityId: res.id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductBatch", entityId: res.id });
 
     revalidatePath("/products/batches");
     revalidatePath("/products/expired");

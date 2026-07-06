@@ -16,7 +16,7 @@ export async function updateSubscriptionAction(_prev: unknown, formData: FormDat
     const parsed = updateSubscriptionSchema.safeParse(formDataToRecord(formData));
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
     const result = await updateSuperAdminSubscription(parsed.data);
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: result.id,
       userId: actor.id,
       action: "UPDATE_SUBSCRIPTION",

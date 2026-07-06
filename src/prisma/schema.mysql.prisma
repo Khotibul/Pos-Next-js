@@ -1092,7 +1092,7 @@ model AuditLog {
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@index([tenantId])
+  @@index([tenantId, createdAt])
   @@index([userId])
   @@index([entity])
   @@index([action])

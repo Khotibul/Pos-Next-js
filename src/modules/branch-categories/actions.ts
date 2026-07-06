@@ -28,7 +28,7 @@ export async function upsertBranchCategoryAction(_prev: unknown, formData: FormD
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertBranchCategory({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: isUpdate ? "UPDATE" : "CREATE",
@@ -54,7 +54,7 @@ export async function deleteBranchCategoryAction(id: string): Promise<ActionResu
     if (!id) throw Errors.badRequest("ID kategori tidak valid.");
     await deleteBranchCategory({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "BranchCategory", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "BranchCategory", entityId: id });
 
     revalidatePath("/branches/categories");
     revalidatePath("/branches");

@@ -29,7 +29,7 @@ export async function createProductAction(_prev: unknown, formData: FormData): P
 
     const created = await createProduct({ tenantId: ctx.tenantId, input: parsed.data });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "CREATE", entity: "Product", entityId: created.id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "CREATE", entity: "Product", entityId: created.id });
 
     revalidatePath("/products");
     return { ok: true, data: created };
@@ -50,7 +50,7 @@ export async function updateProductAction(_prev: unknown, formData: FormData): P
 
     const updated = await updateProduct({ tenantId: ctx.tenantId, id: parsed.data.id, input: parsed.data });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "UPDATE", entity: "Product", entityId: updated.id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "UPDATE", entity: "Product", entityId: updated.id });
 
     revalidatePath("/products");
     revalidatePath(`/products/${updated.id}/edit`);
@@ -70,7 +70,7 @@ export async function deleteProductAction(id: string): Promise<ActionResult<{ id
     if (!id) throw Errors.badRequest("ID produk tidak valid.");
     await deleteProduct({ tenantId: ctx.tenantId, id });
 
-    await writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Product", entityId: id });
+    void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Product", entityId: id });
 
     revalidatePath("/products");
     return { ok: true, data: { id } };
@@ -95,7 +95,7 @@ export async function deleteManyProductsAction(ids: string[]): Promise<ActionRes
       where: { tenantId: ctx.tenantId, id: { in: parsed.data.ids } },
     });
 
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: "BULK_DELETE",

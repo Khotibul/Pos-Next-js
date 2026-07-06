@@ -30,7 +30,7 @@ export async function updateRolePermissionsAction(_prev: unknown, formData: Form
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await updateRolePermissions({ tenantId: ctx.tenantId, input: parsed.data });
-    await writeAuditLog({
+    void writeAuditLog({
       tenantId: ctx.tenantId,
       userId: ctx.userId,
       action: "UPDATE",

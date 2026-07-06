@@ -22,7 +22,7 @@ export async function upsertInternalAdminAction(_prev: unknown, formData: FormDa
     if (!parsed.success) return { ok: false, message: "Validasi gagal.", fieldErrors: fieldErrorsFromZod(parsed.error) };
 
     const res = await upsertInternalAdmin(parsed.data);
-    await writeAuditLog({ tenantId: null, userId: user.id, action: "UPSERT", entity: "InternalAdmin", entityId: res.id, metadata: { email: parsed.data.email } });
+    void writeAuditLog({ tenantId: null, userId: user.id, action: "UPSERT", entity: "InternalAdmin", entityId: res.id, metadata: { email: parsed.data.email } });
     revalidatePath("/super-admin/admins");
     return { ok: true, data: res };
   } catch (err) {
@@ -37,7 +37,7 @@ export async function revokeInternalAdminAction(userId: string): Promise<ActionR
     const user = await requireSuperAdmin();
     if (!userId) return { ok: false, message: "ID tidak valid." };
     const res = await revokeInternalAdmin({ userId, currentUserId: user.id });
-    await writeAuditLog({ tenantId: null, userId: user.id, action: "REVOKE", entity: "InternalAdmin", entityId: userId });
+    void writeAuditLog({ tenantId: null, userId: user.id, action: "REVOKE", entity: "InternalAdmin", entityId: userId });
     revalidatePath("/super-admin/admins");
     return { ok: true, data: res };
   } catch (err) {
