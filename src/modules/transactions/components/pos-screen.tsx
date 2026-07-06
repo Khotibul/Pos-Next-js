@@ -126,10 +126,11 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   useEffect(() => {
     const calc = () => {
       const w = window.innerWidth;
-      if (w < 640) setColCount(1);
-      else if (w < 1024) setColCount(2);
-      else if (w < 1536) setColCount(3);
-      else setColCount(4);
+      if (w < 480) setColCount(1);
+      else if (w < 768) setColCount(2);
+      else if (w < 1280) setColCount(3);
+      else if (w < 1920) setColCount(4);
+      else setColCount(5);
     };
     calc();
     window.addEventListener("resize", calc);
@@ -140,7 +141,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const gridVirtualizer = useVirtualizer({
     count: gridRowCount,
     getScrollElement: () => gridParentRef.current,
-    estimateSize: () => 155,
+    estimateSize: () => 175,
     measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 3,
   });
@@ -386,10 +387,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
 
   const cartItemCount = lines.length;
 
+  const productCount = filtered.length;
+
   return (
     <ErrorBoundary>
-      <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
-        <div className="min-w-0">
+      <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+        <div className="flex min-w-0 flex-col">
           <div className="sticky top-[56px] z-10 mb-3 rounded-2xl border bg-background/80 p-2 backdrop-blur-lg sm:top-[72px] sm:p-3">
             <form
               className="flex gap-1.5 sm:gap-2"
@@ -404,7 +407,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Cari produk atau scan..."
                   autoComplete="off"
-                  className="h-10 rounded-xl pl-3 pr-9 text-sm"
+                  className="h-10 rounded-xl pl-3 pr-9 text-sm sm:h-11"
                 />
                 {q ? (
                   <button
@@ -420,18 +423,21 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 w-10 rounded-xl p-0"
+                className="h-10 w-10 rounded-xl p-0 sm:h-11 sm:w-11"
                 onClick={() => setScannerOpen(true)}
                 aria-label="Scan QR/Barcode"
               >
                 <ScanLine className="h-4 w-4" />
               </Button>
             </form>
+            <div className="mt-1.5 px-0.5 text-[11px] text-muted-foreground/70 sm:text-xs">
+              {q ? `${productCount} produk ditemukan` : `${productCount} produk`}
+            </div>
           </div>
           <div
             ref={gridParentRef}
-            className="overflow-auto"
-            style={{ maxHeight: "calc(100vh - 180px)" }}
+            className="overflow-auto scrollbar-thin"
+            style={{ maxHeight: "calc(100vh - 210px)" }}
           >
             <div
               style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
@@ -453,11 +459,14 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                     }}
                   >
                     <div
-                      className="grid gap-2.5 sm:gap-3"
+                      className="grid gap-2 sm:gap-3 lg:gap-4"
                       style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
                     >
                       {rowProducts.length === 0 ? (
-                        <div className="col-span-full flex items-center justify-center rounded-xl border-2 border-dashed p-8 text-sm text-muted-foreground">
+                        <div className="col-span-full flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-10 text-sm text-muted-foreground">
+                          <svg className="h-10 w-10 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.75v11.25m-3-3l3 3 3-3M3.75 18.75h16.5" />
+                          </svg>
                           Produk tidak ditemukan
                         </div>
                       ) : (
@@ -474,7 +483,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         </div>
 
         {/* Desktop cart sidebar */}
-        <div className="hidden xl:block">
+        <div className="hidden lg:block">
           <CartSidebar
             lines={lines}
             productMap={productMap}
