@@ -45,8 +45,10 @@ export async function requireTenantAccess(params?: TenantAccessParams): Promise<
     return params?.isSuperAdmin === undefined ? cachedAccess : { ...cachedAccess, isSuperAdmin: params.isSuperAdmin };
   }
 
-  let status = await getCachedTenantStatus(tenantId);
-  let membership = await getCachedTenantMembership(tenantId, userId);
+  let [status, membership] = await Promise.all([
+    getCachedTenantStatus(tenantId),
+    getCachedTenantMembership(tenantId, userId),
+  ]);
 
   if (!status || !membership) {
     const [tenant, user, tenantUser] = await Promise.all([

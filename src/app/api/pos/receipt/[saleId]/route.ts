@@ -24,7 +24,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
 
   const sale = await prisma.sale.findFirst({
     where: { tenantId: authCtx.tenantId, id: p.saleId },
-    include: { items: { orderBy: { name: "asc" } }, payments: true },
+    select: {
+      id: true,
+      invoiceNo: true,
+      status: true,
+      subtotal: true,
+      discount: true,
+      tax: true,
+      total: true,
+      createdAt: true,
+      items: { orderBy: { name: "asc" }, select: { id: true, name: true, sku: true, price: true, qty: true, lineTotal: true } },
+      payments: { select: { id: true, method: true, amount: true, receivedAmount: true, changeAmount: true, reference: true } },
+    },
   });
   if (!sale) return NextResponse.json({ ok: false, message: "Transaksi tidak ditemukan." }, { status: 404 });
 

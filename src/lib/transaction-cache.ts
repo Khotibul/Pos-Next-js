@@ -35,8 +35,12 @@ export async function getCachedProducts(
       }
     }
   } else {
-    for (const id of productIds) {
-      const cached = await getCache<CachedProduct>(`tx:product:${tenantId}:${id}`);
+    const entries = await Promise.all(
+      productIds.map((id) =>
+        getCache<CachedProduct>(`tx:product:${tenantId}:${id}`).then((cached) => ({ id, cached })),
+      ),
+    );
+    for (const { id, cached } of entries) {
       if (cached) {
         result.set(id, cached);
       } else {
@@ -73,9 +77,7 @@ export async function getCachedProducts(
       }
       await pipeline.exec();
     } else {
-      for (const entry of cacheEntries) {
-        await setCache(entry.key, entry.value, entry.ttl);
-      }
+      await Promise.all(cacheEntries.map((entry) => setCache(entry.key, entry.value, entry.ttl)));
     }
     endSetBatch();
   }

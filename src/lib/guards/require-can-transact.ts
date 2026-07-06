@@ -2,12 +2,14 @@ import "server-only";
 
 import { Errors } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
-import { requireTenantAccess, tenantAccessIsTrialExpired } from "@/lib/guards/require-tenant-access";
+import { requireTenantAccess } from "@/lib/guards/require-tenant-access";
 
-export async function requireCanTransact(params: { tenantId: string; userId: string }) {
-  const access = await requireTenantAccess(params);
+export async function requireCanTransact(params: { tenantId: string; userId: string; status?: string; trialEndsAt?: string | null }) {
+  const access = params.status !== undefined
+    ? { status: params.status, trialEndsAt: params.trialEndsAt ?? null }
+    : await requireTenantAccess(params);
 
-  if (tenantAccessIsTrialExpired(access)) {
+  if (access.status === "TRIAL" && access.trialEndsAt && new Date(access.trialEndsAt).getTime() < Date.now()) {
     await prisma.tenant.update({ where: { id: params.tenantId }, data: { status: "EXPIRED" } }).catch(() => {});
     throw Errors.forbidden("Masa trial sudah berakhir. Silakan akses billing untuk aktivasi.");
   }

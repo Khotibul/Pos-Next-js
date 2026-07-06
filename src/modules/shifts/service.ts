@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
+import { deleteCache, getCache, setCache } from "@/lib/redis";
 import type { ApproveShiftInput, CloseShiftInput, OpenShiftInput } from "@/modules/shifts/validators";
 
 function toNumber(value: unknown) {
@@ -45,10 +46,17 @@ export async function listShifts(params: {
 }
 
 export async function getOpenShift(params: { tenantId: string; branchId: string; cashierId: string }) {
-  return prisma.cashierShift.findFirst({
+  const cacheKey = `shift:open:${params.tenantId}:${params.branchId}:${params.cashierId}`;
+  const cached = await getCache<Awaited<ReturnType<typeof prisma.cashierShift.findFirst>>>(cacheKey);
+  if (cached) return cached;
+
+  const shift = await prisma.cashierShift.findFirst({
     where: { tenantId: params.tenantId, branchId: params.branchId, cashierId: params.cashierId, status: "OPEN" },
     orderBy: { openedAt: "desc" },
   });
+
+  if (shift) void setCache(cacheKey, shift, 30);
+  return shift;
 }
 
 export async function openShift(params: { tenantId: string; branchId: string; cashierId: string; input: OpenShiftInput }) {
@@ -112,10 +120,12 @@ export async function closeShift(params: { tenantId: string; cashierId: string; 
       tenantId: params.tenantId,
       ...(params.allowAnyCashier ? {} : { cashierId: params.cashierId }),
     },
-    select: { id: true, status: true },
+    select: { id: true, status: true, branchId: true },
   });
   if (!shift) throw Errors.notFound("Shift tidak ditemukan.");
   if (shift.status !== "OPEN") throw Errors.badRequest("Shift sudah ditutup.");
+
+  void deleteCache(`shift:open:${params.tenantId}:${shift.branchId}:${params.cashierId}`);
 
   const summary = await calculateShiftSummary({ tenantId: params.tenantId, shiftId: params.input.shiftId });
   const cashCounted = params.input.cashCounted;

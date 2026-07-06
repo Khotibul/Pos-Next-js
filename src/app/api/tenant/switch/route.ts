@@ -14,21 +14,22 @@ export const POST = withApiHandler(async (req: Request) => {
   const parsed = schema.safeParse(json);
   if (!parsed.success) throw Errors.badRequest("Invalid payload");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isSuperAdmin: true, memberships: { select: { tenantId: true } } },
-  });
+  const [user, tenant] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isSuperAdmin: true, memberships: { select: { tenantId: true } } },
+    }),
+    prisma.tenant.findUnique({
+      where: { id: parsed.data.tenantId },
+      select: { id: true },
+    }),
+  ]);
 
   if (!user) throw Errors.unauthorized("Unauthorized");
+  if (!tenant) throw Errors.notFound("Tenant not found");
 
   const allowed = user.isSuperAdmin || user.memberships.some((m) => m.tenantId === parsed.data.tenantId);
   if (!allowed) throw Errors.forbidden("Forbidden");
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: parsed.data.tenantId },
-    select: { id: true },
-  });
-  if (!tenant) throw Errors.notFound("Tenant not found");
 
   const res = apiMessage("Tenant switched");
   res.cookies.set("active_tenant_id", parsed.data.tenantId, {

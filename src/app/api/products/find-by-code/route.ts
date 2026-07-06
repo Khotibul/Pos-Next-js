@@ -6,6 +6,7 @@ import { findProductByCode } from "@/modules/products/service";
 import { Errors } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { getCache, setCache } from "@/lib/redis";
+import { createDevTimer } from "@/lib/perf";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,14 @@ export const GET = withApiHandler(async (req: Request) => {
   const parsed = QuerySchema.safeParse({ code: url.searchParams.get("code") ?? "" });
   if (!parsed.success) throw Errors.badRequest("Kode tidak valid.");
 
-  const product = await findProductByCode({ tenantId: ctx.tenantId, branchId: ctx.branchId, code: parsed.data.code });
+  const endLookup = createDevTimer("findByCode.lookup");
+  const productCacheKey = `product:code:${ctx.tenantId}:${parsed.data.code}`;
+  let product: Awaited<ReturnType<typeof findProductByCode>> | null = await getCache(productCacheKey);
+  if (!product) {
+    product = await findProductByCode({ tenantId: ctx.tenantId, branchId: ctx.branchId, code: parsed.data.code });
+    if (product) void setCache(productCacheKey, product, 60);
+  }
+  endLookup();
   if (!product) throw Errors.notFound("Produk tidak ditemukan.");
 
   const cacheKey = `stock:${ctx.tenantId}:${product.id}`;

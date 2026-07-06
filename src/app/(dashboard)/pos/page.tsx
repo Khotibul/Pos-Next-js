@@ -15,7 +15,7 @@ export default async function PosPage() {
   const endTotal = createDevTimer("posPage.total");
   const endAuth = createDevTimer("posPage.auth");
   const ctx = await requirePermission(PERMISSIONS.sales_write);
-  await requireCanTransact({ tenantId: ctx.tenantId, userId: ctx.userId });
+  await requireCanTransact({ tenantId: ctx.tenantId, userId: ctx.userId, status: ctx.tenantStatus, trialEndsAt: ctx.tenantTrialEndsAt?.toISOString() ?? null });
   endAuth();
 
   const endData = createDevTimer("posPage.data");

@@ -306,6 +306,9 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     return true;
   }, [addProductToCart, productByCode]);
 
+  const addByCodeRef = useRef(addByCode);
+  addByCodeRef.current = addByCode;
+
   useEffect(() => {
     let buffer = "";
     let lastAt = 0;
@@ -336,7 +339,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         reset();
         if (code.length >= 4) {
           event.preventDefault();
-          void addByCode(code);
+          void addByCodeRef.current(code);
         }
         return;
       }
@@ -354,7 +357,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       window.removeEventListener("keydown", onKeyDown);
       reset();
     };
-  }, [addByCode]);
+  }, []);
 
   // Clean up extraProducts: remove products that are not in the original products and have zero quantity in cart
   useEffect(() => {
