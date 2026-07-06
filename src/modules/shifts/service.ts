@@ -60,8 +60,14 @@ export async function getOpenShift(params: { tenantId: string; branchId: string;
 }
 
 export async function openShift(params: { tenantId: string; branchId: string; cashierId: string; input: OpenShiftInput }) {
-  const existing = await getOpenShift({ tenantId: params.tenantId, branchId: params.branchId, cashierId: params.cashierId });
+  const existing = await prisma.cashierShift.findFirst({
+    where: { tenantId: params.tenantId, branchId: params.branchId, cashierId: params.cashierId, status: "OPEN" },
+    orderBy: { openedAt: "desc" },
+  });
   if (existing) throw Errors.badRequest("Shift masih OPEN. Tutup shift terlebih dahulu.");
+
+  const cacheKey = `shift:open:${params.tenantId}:${params.branchId}:${params.cashierId}`;
+  void deleteCache(cacheKey);
 
   return prisma.cashierShift.create({
     data: {
@@ -120,12 +126,12 @@ export async function closeShift(params: { tenantId: string; cashierId: string; 
       tenantId: params.tenantId,
       ...(params.allowAnyCashier ? {} : { cashierId: params.cashierId }),
     },
-    select: { id: true, status: true, branchId: true },
+    select: { id: true, status: true, branchId: true, cashierId: true },
   });
   if (!shift) throw Errors.notFound("Shift tidak ditemukan.");
   if (shift.status !== "OPEN") throw Errors.badRequest("Shift sudah ditutup.");
 
-  void deleteCache(`shift:open:${params.tenantId}:${shift.branchId}:${params.cashierId}`);
+  void deleteCache(`shift:open:${params.tenantId}:${shift.branchId}:${shift.cashierId}`);
 
   const summary = await calculateShiftSummary({ tenantId: params.tenantId, shiftId: params.input.shiftId });
   const cashCounted = params.input.cashCounted;

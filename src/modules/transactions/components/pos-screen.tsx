@@ -459,7 +459,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                     }}
                   >
                     <div
-                      className="grid gap-2 sm:gap-3 lg:gap-4"
+                      className="grid gap-3 sm:gap-4 lg:gap-5 xl:gap-6"
                       style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
                     >
                       {rowProducts.length === 0 ? (
