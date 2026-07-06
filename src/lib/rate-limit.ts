@@ -81,14 +81,19 @@ function limiter(kind: RateLimitKind) {
 
 export async function checkRateLimit(kind: RateLimitKind, identifier: string): Promise<RateLimitResult> {
   const safeIdentifier = identifier.trim().toLowerCase() || "anonymous";
-  const upstashLimiter = limiter(kind);
 
-  if (!upstashLimiter) return localLimit(kind, safeIdentifier);
+  // Fast path: local in-memory check first (no network).
+  const local = localLimit(kind, safeIdentifier);
+  if (!local.success) return local;
+
+  // Confirm with Redis (shared state) for distributed accuracy.
+  const upstashLimiter = limiter(kind);
+  if (!upstashLimiter) return local;
 
   try {
     return await upstashLimiter.limit(safeIdentifier);
   } catch {
-    return localLimit(kind, safeIdentifier);
+    return local;
   }
 }
 

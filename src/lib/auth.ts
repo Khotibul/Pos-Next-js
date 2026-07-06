@@ -175,8 +175,8 @@ export const {
           emailVerified: user.emailVerified?.toISOString() ?? null,
         };
 
-        writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }).catch(() => {});
-        await Promise.all([
+        void Promise.allSettled([
+          writeAuthLog({ userId: user.id, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }),
           setCachedEmailVerified(user.id, true),
           setCachedAuthUser({
             id: user.id,
@@ -186,7 +186,7 @@ export const {
             isSuperAdmin: user.isSuperAdmin,
             emailVerified: verifiedAt,
           }),
-          preWarmTenantContext(user).catch(() => {}),
+          preWarmTenantContext(user).catch((e) => console.error("[auth] preWarmTenantContext failed", e)),
         ]);
 
         loginTimer("login");
