@@ -3,7 +3,7 @@ import "server-only";
 import { Ratelimit } from "@upstash/ratelimit";
 import { getRedisClient } from "@/shared/server/cache/redis";
 
-export type RateLimitKind = "login" | "register" | "forgotPassword" | "resendVerification" | "download" | "licenseActivation";
+export type RateLimitKind = "login" | "register" | "forgotPassword" | "resendVerification" | "download" | "licenseActivation" | "barcodeScan";
 
 export type RateLimitResult = {
   success: boolean;
@@ -40,6 +40,7 @@ function maxRequests(kind: RateLimitKind) {
   if (kind === "forgotPassword") return 3;
   if (kind === "resendVerification") return 3;
   if (kind === "licenseActivation") return 10;
+  if (kind === "barcodeScan") return 120;
   return 60;
 }
 
@@ -70,7 +71,7 @@ function limiter(kind: RateLimitKind) {
   if (!redis) return null;
 
   const requests = maxRequests(kind);
-  const duration = kind === "login" || kind === "download" ? "1 m" : "10 m";
+  const duration = kind === "login" || kind === "download" || kind === "barcodeScan" ? "1 m" : "10 m";
   return new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(requests, duration),

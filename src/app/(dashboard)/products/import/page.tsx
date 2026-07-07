@@ -1,9 +1,11 @@
+import dynamic from "next/dynamic";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/page-header";
-import { ProductImportUploader } from "@/components/products/product-import-uploader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
+const ProductImportUploader = dynamic(() => import("@/components/products/product-import-uploader").then((m) => ({ default: m.ProductImportUploader })));
 
 export default async function ProductImportPage() {
   await requirePermission(PERMISSIONS.products_import);

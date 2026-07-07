@@ -18,4 +18,5 @@ export const Errors = {
   forbidden: (message = "Forbidden") => new AppError(message, { code: "FORBIDDEN", status: 403 }),
   notFound: (message = "Not found") => new AppError(message, { code: "NOT_FOUND", status: 404 }),
   badRequest: (message = "Bad request") => new AppError(message, { code: "BAD_REQUEST", status: 400 }),
+  tooManyRequests: (message = "Too many requests") => new AppError(message, { code: "TOO_MANY_REQUESTS", status: 429 }),
 };

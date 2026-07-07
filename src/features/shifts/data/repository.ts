@@ -7,6 +7,7 @@ export async function findOpenShift(tenantId: string, branchId: string, cashierI
   return prisma.cashierShift.findFirst({
     where: { tenantId, branchId, cashierId, status: "OPEN" },
     orderBy: { openedAt: "desc" },
+    select: { id: true, status: true, openedAt: true },
   });
 }
 
@@ -14,6 +15,7 @@ export async function findExistingOpenShift(tenantId: string, branchId: string, 
   return prisma.cashierShift.findFirst({
     where: { tenantId, branchId, cashierId, status: "OPEN" },
     orderBy: { openedAt: "desc" },
+    select: { id: true, status: true, openedAt: true },
   });
 }
 

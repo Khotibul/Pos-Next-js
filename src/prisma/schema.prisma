@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  engineType = "binary"
+  engineType = "library"
 }
 
 datasource db {
@@ -156,6 +156,8 @@ model Announcement {
   endsAt    DateTime?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
+
+  @@index([status])
 }
 
 model GlobalSetting {
@@ -175,7 +177,7 @@ model User {
   image         String?
   passwordHash  String?
   isSuperAdmin  Boolean   @default(false)
-  isActive       Boolean   @default(true)
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -191,6 +193,8 @@ model User {
   productTransfers    ProductTransfer[] @relation("ProductTransferCreatedBy")
   productAdjustments  ProductAdjustment[] @relation("ProductAdjustmentCreatedBy")
   productOpnames      ProductOpname[] @relation("ProductOpnameCreatedBy")
+
+  @@index([isActive])
 }
 
 model EmailVerificationToken {
@@ -440,6 +444,7 @@ model Product {
   @@index([brandId])
   @@index([supplierId])
   @@index([type])
+  @@index([tenantId, isActive])
 }
 
 enum ProductType {
@@ -620,6 +625,7 @@ model Warehouse {
   @@index([tenantId])
   @@index([branchId])
   @@index([type])
+  @@index([tenantId, isActive])
 }
 
 model ProductBatch {

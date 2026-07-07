@@ -7,6 +7,7 @@ import * as repo from "@/features/products/data/repository";
 import { toProductListItem, toProductDetail, toFindProductByCodeResult } from "@/features/products/data/dto";
 import type { ProductOverview, ProductDetail, ProductMeta, FindProductByCodeResult } from "@/features/products/domain/entity";
 import type { CreateProductInput, UpdateProductInput } from "@/features/products/validators";
+import { rememberCache } from "@/lib/cache";
 
 function slugify(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
@@ -67,13 +68,19 @@ export async function listProducts(params: {
 }
 
 export async function getProductOverview(params: { tenantId: string }): Promise<ProductOverview> {
-  const [total, active, inactive, withBarcode] = await Promise.all([
-    repo.countProducts({ tenantId: params.tenantId }),
-    repo.countProducts({ tenantId: params.tenantId, isActive: true }),
-    repo.countProducts({ tenantId: params.tenantId, isActive: false }),
-    repo.countProducts({ tenantId: params.tenantId, barcode: { not: null } }),
-  ]);
-  return { total, active, inactive, withBarcode };
+  return rememberCache({
+    key: `product:overview:${params.tenantId}`,
+    ttl: 60,
+    fetcher: async () => {
+      const [total, active, inactive, withBarcode] = await Promise.all([
+        repo.countProducts({ tenantId: params.tenantId }),
+        repo.countProducts({ tenantId: params.tenantId, isActive: true }),
+        repo.countProducts({ tenantId: params.tenantId, isActive: false }),
+        repo.countProducts({ tenantId: params.tenantId, barcode: { not: null } }),
+      ]);
+      return { total, active, inactive, withBarcode };
+    },
+  });
 }
 
 export async function getProductById(params: { tenantId: string; id: string }): Promise<ProductDetail> {

@@ -7,6 +7,7 @@ import { Errors } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { getCache, setCache } from "@/lib/redis";
 import { createDevTimer } from "@/lib/perf";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,9 @@ export const GET = withApiHandler(async (req: Request) => {
     ctx.permissions.includes(PERMISSIONS.products_read) ||
     ctx.permissions.includes(PERMISSIONS.products_barcode_read);
   if (!allowed) throw Errors.forbidden("Anda tidak punya izin.");
+
+  const rl = await checkRateLimit("barcodeScan", getClientIp(req));
+  if (!rl.success) throw Errors.tooManyRequests("Terlalu banyak permintaan. Coba lagi nanti.");
 
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ code: url.searchParams.get("code") ?? "" });

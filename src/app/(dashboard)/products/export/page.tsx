@@ -1,9 +1,11 @@
+import dynamic from "next/dynamic";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { listProductMeta } from "@/modules/products/service";
-import { ProductExportClient } from "@/components/products/product-export-client";
+
+const ProductExportClient = dynamic(() => import("@/components/products/product-export-client").then((m) => ({ default: m.ProductExportClient })));
 
 export default async function ProductExportPage() {
   const ctx = await requirePermission(PERMISSIONS.products_export);

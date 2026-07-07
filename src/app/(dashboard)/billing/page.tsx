@@ -4,8 +4,10 @@ import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, Receipt, Timer } from "lucide-react";
-import { RedeemLicenseCard } from "@/modules/licenses/components/redeem-license-card";
+import dynamic from "next/dynamic";
 import { Alert } from "@/components/ui/alert";
+
+const RedeemLicenseCard = dynamic(() => import("@/modules/licenses/components/redeem-license-card").then((m) => ({ default: m.RedeemLicenseCard})));
 
 export default async function BillingPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = (await searchParams) ?? {};
