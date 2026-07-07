@@ -68,7 +68,7 @@ export async function getCachedProducts(
         sellingPrice: Number(p.sellingPrice),
       };
       result.set(p.id, cached);
-      cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 300 });
+      cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 600 });
     }
     if (redis && cacheEntries.length > 0) {
       const pipeline = redis.pipeline();

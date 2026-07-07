@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "node:crypto";
 import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -10,7 +11,8 @@ import { createSaleUseCase } from "@/features/transactions/domain/create-sale.us
 import { getOpenShift } from "@/modules/shifts/service";
 import { checkIdempotencyKey, releaseIdempotencyKey } from "@/lib/transaction-cache";
 import { writeAuditLog } from "@/shared/server/audit/index";
-import { invalidateDashboardCache, invalidateProductCache } from "@/shared/server/cache/index";
+import { invalidateDashboardCache } from "@/shared/server/cache/index";
+import { invalidateCachedProduct } from "@/lib/transaction-cache";
 import { writeErrorLog } from "@/shared/server/monitoring/log-service";
 import { createDevTimer } from "@/shared/utils/perf";
 
@@ -29,7 +31,11 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     endValidate();
 
     const endIdempotency = createDevTimer("pos.createSaleAction.idempotency");
-    const idempotencyRaw = parsed.data.payment.reference || `${ctx.userId}-${Date.now()}`;
+    const idempotencyRaw = parsed.data.payment.reference || crypto
+      .createHash("sha256")
+      .update(JSON.stringify(parsed.data.items))
+      .digest("hex")
+      .slice(0, 16);
     const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
     idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
     const allowed = await checkIdempotencyKey(ctx.tenantId, idempotencyKey);
@@ -51,6 +57,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       input: parsed.data,
     });
 
+    const productIds = parsed.data.items.map((i) => i.productId);
     void Promise.allSettled([
       writeAuditLog({
         tenantId: ctx.tenantId,
@@ -61,7 +68,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
         metadata: { invoiceNo: created.invoiceNo, total: created.total },
       }),
       invalidateDashboardCache(ctx.tenantId),
-      invalidateProductCache(ctx.tenantId),
+      ...productIds.map((pid) => invalidateCachedProduct(ctx.tenantId, pid)),
     ]);
     await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
 

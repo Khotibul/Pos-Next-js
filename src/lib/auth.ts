@@ -82,28 +82,19 @@ async function warmLoginCache(
   ua: string | undefined,
 ) {
   try {
-    const [fullUser] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
+    const [memberships] = await Promise.all([
+      prisma.tenantUser.findMany({
+        where: { userId },
         select: {
-          id: true,
-          email: true,
-          name: true,
-          image: true,
-          isSuperAdmin: true,
-          memberships: {
+          tenantId: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
+          tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
+          role: {
             select: {
-              tenantId: true,
-              branchId: true,
-              branch: { select: { id: true, name: true } },
-              tenant: { select: { name: true, slug: true, status: true, trialEndsAt: true } },
-              role: {
-                select: {
-                  id: true,
-                  name: true,
-                  permissions: { select: { permission: { select: { key: true } } } },
-                },
-              },
+              id: true,
+              name: true,
+              permissions: { select: { permission: { select: { key: true } } } },
             },
           },
         },
@@ -111,12 +102,17 @@ async function warmLoginCache(
       writeAuthLog({ userId, email, event: "LOGIN_SUCCESS", ipAddress: ip, userAgent: ua, provider: "credentials" }),
     ]);
 
-    if (!fullUser) return;
-
     await Promise.allSettled([
       setCachedEmailVerified(userId, true),
       setCachedAuthUser({ id: userId, email, name, image, isSuperAdmin, emailVerified: verifiedAt }),
-      preWarmTenantContext(fullUser),
+      preWarmTenantContext({
+        id: userId,
+        email,
+        name,
+        image,
+        isSuperAdmin,
+        memberships,
+      }),
     ]);
   } catch (e) {
     console.error("[auth] warmLoginCache failed", e);
@@ -213,8 +209,8 @@ export const {
           emailVerified: user.emailVerified?.toISOString() ?? null,
         };
 
-        // Phase 2: async — fetch full memberships + prewarm cache, non-blocking.
-        void warmLoginCache(user.id, user.email, user.name, user.image, user.isSuperAdmin, verifiedAt, ip, ua);
+        // Phase 2: prewarm cache synchronously so dashboard load gets a cache hit.
+        await warmLoginCache(user.id, user.email, user.name, user.image, user.isSuperAdmin, verifiedAt, ip, ua);
 
         loginTimer("login");
 
