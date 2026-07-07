@@ -141,7 +141,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const gridVirtualizer = useVirtualizer({
     count: gridRowCount,
     getScrollElement: () => gridParentRef.current,
-    estimateSize: () => 175,
+    estimateSize: () => colCount <= 2 ? 145 : 175,
     measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 3,
   });
@@ -459,7 +459,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
                     }}
                   >
                     <div
-                      className="grid gap-3 sm:gap-4 lg:gap-5 xl:gap-6"
+                      className={`grid ${colCount <= 2 ? "gap-1.5" : "gap-3 sm:gap-4 lg:gap-5 xl:gap-6"}`}
                       style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
                     >
                       {rowProducts.length === 0 ? (

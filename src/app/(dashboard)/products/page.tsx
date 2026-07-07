@@ -84,54 +84,54 @@ export default async function ProductsPage({
         title="Manajemen Inventaris"
         description="Pantau stok dan kelola produk Anda secara real-time."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl">
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto scrollbar-none max-md:flex-nowrap max-md:-mx-2 max-md:gap-1.5 max-md:px-2">
+            <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
               <Link href="/products/categories">Kategori</Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-xl">
+            <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
               <Link href="/products/units">Satuan</Link>
             </Button>
             {can(PERMISSIONS.products_import) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/import">Import</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_export) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/export">Export</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_barcode_read) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/barcodes">Barcode</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_analytics_read) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/analytics">Analytics</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_price_manage) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/prices">Harga</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_discount_manage) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/discounts">Promo</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_expired_read) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/expired">Expired</Link>
               </Button>
             ) : null}
             {can(PERMISSIONS.products_expired_read) ? (
-              <Button asChild variant="outline" className="rounded-xl">
+              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
                 <Link href="/products/batches">Stock Batch</Link>
               </Button>
             ) : null}
-            <Button asChild className="gap-2 rounded-xl">
+            <Button asChild className="gap-2 rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs">
               <Link href="/products/create">
                 <Plus className="h-4 w-4" />
                 Tambah Produk
@@ -150,7 +150,7 @@ export default async function ProductsPage({
         </Alert>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3">
         <StatCard icon={<Boxes className="h-5 w-5" />} title="Total Produk" value={overview.total.toLocaleString("id-ID")} description="Semua item master produk" />
         <StatCard
           icon={<CheckCircle2 className="h-5 w-5" />}
@@ -164,19 +164,42 @@ export default async function ProductsPage({
       </div>
 
       <div className="md:hidden">
-        <form className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              name="q"
-              defaultValue={result.q ?? ""}
-              placeholder="Cari produk..."
-              className="h-11 w-full rounded-2xl border bg-background pl-10 pr-4 text-sm outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring"
-            />
+        <form className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                name="q"
+                defaultValue={result.q ?? ""}
+                placeholder="Cari produk..."
+                className="h-11 w-full rounded-2xl border bg-background pl-10 pr-4 text-sm outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <Button type="submit" variant="outline" className="h-11 w-11 shrink-0 rounded-2xl p-0" aria-label="Cari">
+              <Search className="h-4 w-4" />
+            </Button>
           </div>
-          <Button type="submit" variant="outline" className="h-11 w-11 shrink-0 rounded-2xl p-0" aria-label="Cari">
-            <Search className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            <select
+              name="categoryId"
+              defaultValue={result.categoryId ?? ""}
+              className="h-10 flex-1 rounded-xl border bg-background px-3 text-sm outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Semua Kategori</option>
+              {meta.categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+            <select
+              name="status"
+              defaultValue={result.status ?? ""}
+              className="h-10 flex-1 rounded-xl border bg-background px-3 text-sm outline-none ring-offset-background transition-all focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Semua Status</option>
+              <option value="active">Aktif</option>
+              <option value="inactive">Nonaktif</option>
+            </select>
+          </div>
         </form>
 
         <div className="mt-4">
