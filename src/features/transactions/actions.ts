@@ -53,6 +53,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     const created = await createSaleUseCase({
       tenantId: ctx.tenantId,
       cashierId: ctx.userId,
+      branchId: ctx.branchId,
       shiftId: openShift.id,
       input: parsed.data,
     });
@@ -69,8 +70,8 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       }),
       invalidateDashboardCache(ctx.tenantId),
       ...productIds.map((pid) => invalidateCachedProduct(ctx.tenantId, pid)),
+      releaseIdempotencyKey(ctx.tenantId, idempotencyKey),
     ]);
-    await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
 
     return actionOk({ id: created.id, invoiceNo: created.invoiceNo });
   } catch (err) {

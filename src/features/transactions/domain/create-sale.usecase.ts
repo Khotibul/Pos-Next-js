@@ -5,7 +5,6 @@ import { prisma } from "@/shared/server/db/prisma";
 import { Errors } from "@/shared/server/errors/app-error";
 import { getCachedProducts, cacheReceiptData } from "@/lib/transaction-cache";
 import {
-  findShiftById,
   findAvailableStock,
   decrementStockRaw,
   createSaleInTransaction,
@@ -26,15 +25,16 @@ function generateInvoiceNo(prefix = "TRX") {
 export async function createSaleUseCase(params: {
   tenantId: string;
   shiftId: string;
+  branchId: string;
   cashierId?: string | null;
   input: CreateSaleInput;
 }): Promise<SaleResult> {
-  const { tenantId, shiftId, cashierId, input } = params;
+  const { tenantId, shiftId, branchId, cashierId, input } = params;
   if (!shiftId) throw Errors.badRequest("Shift belum dibuka.");
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await executeCreateSale(tenantId, shiftId, cashierId ?? null, input);
+      return await executeCreateSale(tenantId, shiftId, branchId, cashierId ?? null, input);
     } catch (e: unknown) {
       const err = e as { code?: string };
       if (err?.code === "P2002" && attempt < 2) continue;
@@ -47,6 +47,7 @@ export async function createSaleUseCase(params: {
 async function executeCreateSale(
   tenantId: string,
   shiftId: string,
+  branchId: string,
   cashierId: string | null,
   input: CreateSaleInput,
 ): Promise<SaleResult> {
@@ -79,9 +80,6 @@ async function executeCreateSale(
 
   const endTransaction = createDevTimer("pos.createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
-    const shift = await findShiftById(tenantId, shiftId, cashierId);
-    if (!shift) throw Errors.badRequest("Shift belum dibuka atau sudah ditutup.");
-
     const invoiceNo = generateInvoiceNo("TRX");
 
     const requestedQtyByProduct = new Map<string, number>();
@@ -89,7 +87,7 @@ async function executeCreateSale(
       requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
     }
 
-    const allStockRows = await findAvailableStock(tenantId, Array.from(requestedQtyByProduct.keys()), shift.branchId);
+    const allStockRows = await findAvailableStock(tenantId, Array.from(requestedQtyByProduct.keys()), branchId);
 
     const stockByProduct = new Map<string, Array<{ id: string; qty: number }>>();
     for (const row of allStockRows) {
