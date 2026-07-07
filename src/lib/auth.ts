@@ -82,7 +82,7 @@ async function warmLoginCache(
   ua: string | undefined,
 ) {
   try {
-    const [fullUser, _] = await Promise.all([
+    const [fullUser] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: {
