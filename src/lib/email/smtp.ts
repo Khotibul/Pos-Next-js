@@ -55,8 +55,11 @@ async function sendViaResend(apiKey: string, from: string, input: SendEmailInput
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     let hint = "";
-    if (res.status === 403 || res.status === 401) {
-      hint = " Cek RESEND_API_KEY. Untuk mode sandbox, email tujuan harus email akun Resend yang sudah diverifikasi.";
+    if (res.status === 401) {
+      hint = " Cek RESEND_API_KEY.";
+    } else if (res.status === 403 && /domain is not verified|not verified/i.test(body)) {
+      hint =
+        " EMAIL_FROM memakai domain yang belum diverifikasi di Resend. Verifikasi domain di https://resend.com/domains, atau pakai 'onboarding@resend.dev' (mode sandbox: hanya bisa kirim ke email akun Resend).";
     } else if (res.status === 422 && body.includes("from")) {
       hint = " EMAIL_FROM harus menggunakan domain yang sudah diverifikasi di Resend.";
     }
