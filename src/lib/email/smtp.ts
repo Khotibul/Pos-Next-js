@@ -13,7 +13,7 @@ function getSmtpConfig() {
   const host = process.env.SMTP_HOST;
   const portRaw = process.env.SMTP_PORT;
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const pass = (process.env.SMTP_PASS || "").replace(/\s+/g, "");
   const secureRaw = process.env.SMTP_SECURE;
   const from = process.env.EMAIL_FROM || user;
 
