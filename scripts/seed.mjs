@@ -695,9 +695,6 @@ async function seedDemoPurchases({ tenantId, supplierId, prodBySku }) {
 }
 
 async function seedDemoShiftsAndSales({ tenantId, mainBranchId, cashierId, approverId, prodBySku }) {
-  const shiftCount = await prisma.cashierShift.count({ where: { tenantId } });
-  if (shiftCount > 0) return;
-
   const now = new Date();
   const productIds = [...prodBySku.values()];
 
@@ -712,117 +709,131 @@ async function seedDemoShiftsAndSales({ tenantId, mainBranchId, cashierId, appro
   };
 
   // --- Approved shift (kemarin) ---
-  const yesterday = new Date(now.getTime() - 86400000);
-  const openedAt = new Date(yesterday);
-  openedAt.setHours(8, 0, 0, 0);
-  const closedAt = new Date(yesterday);
-  closedAt.setHours(21, 30, 0, 0);
-  const approvedAt = new Date(yesterday);
-  approvedAt.setHours(21, 45, 0, 0);
-
-  const approvedShift = await prisma.cashierShift.create({
-    data: {
-      tenantId,
-      branchId: mainBranchId,
-      cashierId,
-      status: "APPROVED",
-      openedAt,
-      closedAt,
-      approvedById: approverId,
-      approvedAt,
-      openingCash: 500000,
-      openNote: "Buka kasir pagi",
-      closeNote: "Tutup kasir malam",
-    },
+  const approvedExists = await prisma.cashierShift.findFirst({
+    where: { tenantId, branchId: mainBranchId, cashierId, status: "APPROVED" },
     select: { id: true },
   });
 
-  const summary = { totalSales: 0, totalCash: 0, totalQris: 0, totalTransfer: 0, totalEwallet: 0, transactionCount: 0 };
-  for (let i = 0; i < 6; i++) {
-    const at = new Date(yesterday);
-    at.setHours(8 + i * 2, 15 + i * 7, 0, 0);
-    const method = PAY_METHODS[i % PAY_METHODS.length];
-    const sale = await createSale({
-      tenantId,
-      cashierId,
-      shiftId: approvedShift.id,
-      items: buildSaleData(i, at).items,
-      method,
-      createdAt: at,
-    });
-    const total = Number(sale.total);
-    summary.totalSales = round2(summary.totalSales + total);
-    summary.transactionCount += 1;
-    if (method === "CASH") summary.totalCash = round2(summary.totalCash + total);
-    else if (method === "QRIS") summary.totalQris = round2(summary.totalQris + total);
-    else if (method === "TRANSFER") summary.totalTransfer = round2(summary.totalTransfer + total);
-    else if (method === "EWALLET") summary.totalEwallet = round2(summary.totalEwallet + total);
-  }
+  if (!approvedExists) {
+    const yesterday = new Date(now.getTime() - 86400000);
+    const openedAt = new Date(yesterday);
+    openedAt.setHours(8, 0, 0, 0);
+    const closedAt = new Date(yesterday);
+    closedAt.setHours(21, 30, 0, 0);
+    const approvedAt = new Date(yesterday);
+    approvedAt.setHours(21, 45, 0, 0);
 
-  await prisma.cashierShift.update({
-    where: { id: approvedShift.id },
-    data: {
-      totalSales: summary.totalSales,
-      totalCash: summary.totalCash,
-      totalQris: summary.totalQris,
-      totalTransfer: summary.totalTransfer,
-      totalEwallet: summary.totalEwallet,
-      transactionCount: summary.transactionCount,
-      cashSystem: summary.totalCash,
-      cashCounted: round2(summary.totalCash + 50000),
-      cashDifference: 50000,
-    },
-  });
+    const approvedShift = await prisma.cashierShift.create({
+      data: {
+        tenantId,
+        branchId: mainBranchId,
+        cashierId,
+        status: "APPROVED",
+        openedAt,
+        closedAt,
+        approvedById: approverId,
+        approvedAt,
+        openingCash: 500000,
+        openNote: "Buka kasir pagi",
+        closeNote: "Tutup kasir malam",
+      },
+      select: { id: true },
+    });
+
+    const summary = { totalSales: 0, totalCash: 0, totalQris: 0, totalTransfer: 0, totalEwallet: 0, transactionCount: 0 };
+    for (let i = 0; i < 6; i++) {
+      const at = new Date(yesterday);
+      at.setHours(8 + i * 2, 15 + i * 7, 0, 0);
+      const method = PAY_METHODS[i % PAY_METHODS.length];
+      const sale = await createSale({
+        tenantId,
+        cashierId,
+        shiftId: approvedShift.id,
+        items: buildSaleData(i, at).items,
+        method,
+        createdAt: at,
+      });
+      const total = Number(sale.total);
+      summary.totalSales = round2(summary.totalSales + total);
+      summary.transactionCount += 1;
+      if (method === "CASH") summary.totalCash = round2(summary.totalCash + total);
+      else if (method === "QRIS") summary.totalQris = round2(summary.totalQris + total);
+      else if (method === "TRANSFER") summary.totalTransfer = round2(summary.totalTransfer + total);
+      else if (method === "EWALLET") summary.totalEwallet = round2(summary.totalEwallet + total);
+    }
+
+    await prisma.cashierShift.update({
+      where: { id: approvedShift.id },
+      data: {
+        totalSales: summary.totalSales,
+        totalCash: summary.totalCash,
+        totalQris: summary.totalQris,
+        totalTransfer: summary.totalTransfer,
+        totalEwallet: summary.totalEwallet,
+        transactionCount: summary.transactionCount,
+        cashSystem: summary.totalCash,
+        cashCounted: round2(summary.totalCash + 50000),
+        cashDifference: 50000,
+      },
+    });
+  }
 
   // --- Open shift (hari ini) ---
-  const today = new Date(now);
-  today.setHours(8, 0, 0, 0);
-  const openShift = await prisma.cashierShift.create({
-    data: {
-      tenantId,
-      branchId: mainBranchId,
-      cashierId,
-      status: "OPEN",
-      openedAt: today,
-      openingCash: 500000,
-      openNote: "Shift pagi",
-    },
+  const openExists = await prisma.cashierShift.findFirst({
+    where: { tenantId, branchId: mainBranchId, cashierId, status: "OPEN" },
     select: { id: true },
   });
 
-  const openSummary = { totalSales: 0, totalCash: 0, totalQris: 0, totalTransfer: 0, totalEwallet: 0, transactionCount: 0 };
-  const todayMethods = ["CASH", "CASH", "QRIS"];
-  for (let i = 0; i < 3; i++) {
-    const at = new Date(now);
-    at.setHours(8 + i * 3, 10, 0, 0);
-    const createdAt = at.getTime() > now.getTime() ? now : at;
-    const sale = await createSale({
-      tenantId,
-      cashierId,
-      shiftId: openShift.id,
-      items: buildSaleData(i + 3, at).items,
-      method: todayMethods[i],
-      createdAt,
+  if (!openExists) {
+    const today = new Date(now);
+    today.setHours(8, 0, 0, 0);
+    const openShift = await prisma.cashierShift.create({
+      data: {
+        tenantId,
+        branchId: mainBranchId,
+        cashierId,
+        status: "OPEN",
+        openedAt: today,
+        openingCash: 500000,
+        openNote: "Shift pagi",
+      },
+      select: { id: true },
     });
-    const total = Number(sale.total);
-    openSummary.totalSales = round2(openSummary.totalSales + total);
-    openSummary.transactionCount += 1;
-    if (todayMethods[i] === "CASH") openSummary.totalCash = round2(openSummary.totalCash + total);
-    else openSummary.totalQris = round2(openSummary.totalQris + total);
-  }
 
-  await prisma.cashierShift.update({
-    where: { id: openShift.id },
-    data: {
-      totalSales: openSummary.totalSales,
-      totalCash: openSummary.totalCash,
-      totalQris: openSummary.totalQris,
-      totalTransfer: openSummary.totalTransfer,
-      totalEwallet: openSummary.totalEwallet,
-      transactionCount: openSummary.transactionCount,
-      cashSystem: openSummary.totalCash,
-    },
-  });
+    const openSummary = { totalSales: 0, totalCash: 0, totalQris: 0, totalTransfer: 0, totalEwallet: 0, transactionCount: 0 };
+    const todayMethods = ["CASH", "CASH", "QRIS"];
+    for (let i = 0; i < 3; i++) {
+      const at = new Date(now);
+      at.setHours(8 + i * 3, 10, 0, 0);
+      const createdAt = at.getTime() > now.getTime() ? now : at;
+      const sale = await createSale({
+        tenantId,
+        cashierId,
+        shiftId: openShift.id,
+        items: buildSaleData(i + 3, at).items,
+        method: todayMethods[i],
+        createdAt,
+      });
+      const total = Number(sale.total);
+      openSummary.totalSales = round2(openSummary.totalSales + total);
+      openSummary.transactionCount += 1;
+      if (todayMethods[i] === "CASH") openSummary.totalCash = round2(openSummary.totalCash + total);
+      else openSummary.totalQris = round2(openSummary.totalQris + total);
+    }
+
+    await prisma.cashierShift.update({
+      where: { id: openShift.id },
+      data: {
+        totalSales: openSummary.totalSales,
+        totalCash: openSummary.totalCash,
+        totalQris: openSummary.totalQris,
+        totalTransfer: openSummary.totalTransfer,
+        totalEwallet: openSummary.totalEwallet,
+        transactionCount: openSummary.transactionCount,
+        cashSystem: openSummary.totalCash,
+      },
+    });
+  }
 
   // --- Sales tanpa shift (2 hari lalu) ---
   const unassignedCount = await prisma.sale.count({ where: { tenantId, shiftId: null } });
@@ -981,7 +992,7 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
     }
 
     const prodRows = await prisma.product.findMany({
-      where: { tenantId, sku: { in: productSeeds.map((p) => p.sku) } },
+      where: { tenantId: tenant.id, sku: { in: productSeeds.map((p) => p.sku) } },
       select: { id: true, sku: true, name: true, sellingPrice: true, costPrice: true },
     });
     const prodBySku = new Map(prodRows.map((p) => [p.sku, p]));
@@ -1027,7 +1038,6 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
       create: { tenantId: tenant.id, code: "MAIN", name: "Main Outlet", categoryId: branchCategory.id, isActive: true },
       select: { id: true },
     });
-    mainBranchId = mainBranch.id;
 
     const mallBranch = await prisma.branch.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: "MALL" } },
@@ -1035,7 +1045,6 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
       create: { tenantId: tenant.id, code: "MALL", name: "Cabang Mall", categoryId: branchCategory.id, isActive: true },
       select: { id: true },
     });
-    mallBranchId = mallBranch.id;
 
     // Warehouses
     const warehouseCentral = await prisma.warehouse.upsert({
@@ -1058,19 +1067,19 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
     });
 
     // Printers
-    const printerCount = await prisma.printer.count({ where: { tenantId } });
+    const printerCount = await prisma.printer.count({ where: { tenantId: tenant.id } });
     if (printerCount === 0) {
       await prisma.printer.createMany({
         data: [
-          { tenantId, branchId: mainBranch.id, name: "Printer Kasir Utama", type: "BLUETOOTH", paperSize: "80mm", isDefault: true, isActive: true },
-          { tenantId, branchId: mallBranch.id, name: "Printer Kasir Mall", type: "BLUETOOTH", paperSize: "58mm", isDefault: true, isActive: true },
+          { tenantId: tenant.id, branchId: mainBranch.id, name: "Printer Kasir Utama", type: "BLUETOOTH", paperSize: "80mm", isDefault: true, isActive: true },
+          { tenantId: tenant.id, branchId: mallBranch.id, name: "Printer Kasir Mall", type: "BLUETOOTH", paperSize: "58mm", isDefault: true, isActive: true },
         ],
       });
     }
 
     // Inventory (stock, variants, batches, serials, prices, discounts, suppliers links)
     await seedDemoInventory({
-      tenantId,
+      tenantId: tenant.id,
       mainBranchId: mainBranch.id,
       mallBranchId: mallBranch.id,
       warehouseCentralId: warehouseCentral.id,
@@ -1082,7 +1091,7 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
     // Purchase orders
     const sup1 = await prisma.supplier.findUnique({ where: { id: `${tenant.id}-sup-1` }, select: { id: true } });
     if (sup1) {
-      await seedDemoPurchases({ tenantId, supplierId: sup1.id, prodBySku });
+      await seedDemoPurchases({ tenantId: tenant.id, supplierId: sup1.id, prodBySku });
     }
 
     // TenantUser memberships
@@ -1107,7 +1116,7 @@ async function seedTenant({ name, slug, status, planId, trialDays, users, demo =
     });
     if (cashierUser && ownerUser) {
       await seedDemoShiftsAndSales({
-        tenantId,
+        tenantId: tenant.id,
         mainBranchId: mainBranch.id,
         cashierId: cashierUser.id,
         approverId: ownerUser.id,
