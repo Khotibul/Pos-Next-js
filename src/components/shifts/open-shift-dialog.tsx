@@ -36,17 +36,17 @@ export function OpenShiftDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const [state, formAction, pending] = useActionState(openShiftAction, null as ActionResult<{ id: string }> | null);
   const pathname = usePathname();
-  const isProductRoute = pathname === "/products" || pathname.startsWith("/products/");
-  if (isProductRoute) {
-    return null;
-  }
-
   const errors = useMemo(() => ((state && !state.ok ? state.fieldErrors : undefined) ?? {}) as Record<string, string>, [state]);
   const message = state && !state.ok ? state.message : null;
 
   useEffect(() => {
     if (state && state.ok) setInternalOpen(false);
   }, [state]);
+
+  const isProductRoute = pathname === "/products" || pathname.startsWith("/products/");
+  if (isProductRoute) {
+    return null;
+  }
 
   // Backward-compatible: if used without control props, behaves like old component.
   return (
