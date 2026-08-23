@@ -33,7 +33,7 @@ export function ProductsMobileList({ items }: { items: ProductMobileRow[] }) {
       {items.map((p) => (
         <Link
           key={p.id}
-          href={`/products/${p.id}/edit`}
+          href={`/products/${p.id}`}
           className="flex items-center gap-3 rounded-2xl border bg-background p-3.5 shadow-xs transition hover:bg-muted/20 active:scale-[0.99]"
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-muted/20 text-sm font-bold text-muted-foreground">

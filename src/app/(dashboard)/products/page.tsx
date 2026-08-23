@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, CheckCircle2, Plus, ScanBarcode, Search, XCircle } from "lucide-react";
+import { Boxes, CheckCircle2, ChevronDown, Plus, ScanBarcode, Search, XCircle } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { getProductOverview, listProductMeta, listProducts } from "@/modules/products/service";
@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/layout/stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type ProductOverviewResult = Awaited<ReturnType<typeof getProductOverview>>;
 type ProductMetaResult = Awaited<ReturnType<typeof listProductMeta>>;
@@ -84,59 +85,41 @@ export default async function ProductsPage({
         title="Manajemen Inventaris"
         description="Pantau stok dan kelola produk Anda secara real-time."
         actions={
-          <div className="flex flex-wrap items-center gap-2 overflow-x-auto scrollbar-none max-md:flex-nowrap max-md:-mx-2 max-md:gap-1.5 max-md:px-2">
-            <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-              <Link href="/products/categories">Kategori</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-              <Link href="/products/units">Satuan</Link>
-            </Button>
-            {can(PERMISSIONS.products_import) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/import">Import</Link>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-1.5 rounded-xl">
+                  Alat
+                  <ChevronDown className="h-4 w-4 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Master</DropdownMenuLabel>
+                <DropdownMenuItem asChild><Link href="/products/categories" className="w-full">Kategori</Link></DropdownMenuItem>
+                <DropdownMenuItem asChild><Link href="/products/units" className="w-full">Satuan</Link></DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Data</DropdownMenuLabel>
+                {can(PERMISSIONS.products_import) ? <DropdownMenuItem asChild><Link href="/products/import" className="w-full">Import</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_export) ? <DropdownMenuItem asChild><Link href="/products/export" className="w-full">Export</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_barcode_read) ? <DropdownMenuItem asChild><Link href="/products/barcodes" className="w-full">Barcode</Link></DropdownMenuItem> : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Operasional</DropdownMenuLabel>
+                {can(PERMISSIONS.products_analytics_read) ? <DropdownMenuItem asChild><Link href="/products/analytics" className="w-full">Analytics</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_price_manage) ? <DropdownMenuItem asChild><Link href="/products/prices" className="w-full">Harga</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_discount_manage) ? <DropdownMenuItem asChild><Link href="/products/discounts" className="w-full">Promo</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_expired_read) ? <DropdownMenuItem asChild><Link href="/products/expired" className="w-full">Expired</Link></DropdownMenuItem> : null}
+                {can(PERMISSIONS.products_expired_read) ? <DropdownMenuItem asChild><Link href="/products/batches" className="w-full">Stock Batch</Link></DropdownMenuItem> : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {can(PERMISSIONS.products_write) ? (
+              <Button asChild className="gap-2 rounded-xl">
+                <Link href="/products/create">
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Tambah Produk</span>
+                  <span className="sm:hidden">Tambah</span>
+                </Link>
               </Button>
             ) : null}
-            {can(PERMISSIONS.products_export) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/export">Export</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_barcode_read) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/barcodes">Barcode</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_analytics_read) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/analytics">Analytics</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_price_manage) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/prices">Harga</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_discount_manage) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/discounts">Promo</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_expired_read) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/expired">Expired</Link>
-              </Button>
-            ) : null}
-            {can(PERMISSIONS.products_expired_read) ? (
-              <Button asChild variant="outline" className="rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs max-md:px-3">
-                <Link href="/products/batches">Stock Batch</Link>
-              </Button>
-            ) : null}
-            <Button asChild className="gap-2 rounded-xl max-md:h-9 max-md:shrink-0 max-md:text-xs">
-              <Link href="/products/create">
-                <Plus className="h-4 w-4" />
-                Tambah Produk
-              </Link>
-            </Button>
           </div>
         }
       />

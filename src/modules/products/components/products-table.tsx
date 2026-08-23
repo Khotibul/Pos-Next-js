@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,25 +57,28 @@ export function ProductsTable({
   }
 
   return (
-    <Card>
+    <Card className="rounded-2xl">
       <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle className="text-base">Daftar Produk</CardTitle>
         <div className="text-sm text-muted-foreground">{selectedCount > 0 ? `${selectedCount} terpilih` : null}</div>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget as HTMLFormElement);
+            const q = String(fd.get("q") ?? "");
+            const categoryId = String(fd.get("categoryId") ?? "");
+            const status = String(fd.get("status") ?? "");
+            setParam({ q, categoryId, status });
+          }}
+        >
           <div className="flex-1 min-w-[260px]">
-            <Input
-              defaultValue={query.q}
-              placeholder="Cari produk atau SKU..."
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                const q = (e.currentTarget as HTMLInputElement).value;
-                setParam({ q, categoryId: query.categoryId, status: query.status });
-              }}
-            />
+            <Input name="q" defaultValue={query.q} placeholder="Cari produk atau SKU... (Enter)" />
           </div>
           <select
+            name="categoryId"
             className="h-11 rounded-xl border bg-background px-3 text-sm"
             value={query.categoryId}
             onChange={(e) => setParam({ q: query.q, categoryId: e.target.value, status: query.status })}
@@ -88,6 +91,7 @@ export function ProductsTable({
             ))}
           </select>
           <select
+            name="status"
             className="h-11 rounded-xl border bg-background px-3 text-sm"
             value={query.status}
             onChange={(e) => setParam({ q: query.q, categoryId: query.categoryId, status: e.target.value })}
@@ -96,6 +100,8 @@ export function ProductsTable({
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+          <Button type="submit" variant="outline" className="hidden rounded-xl sm:inline-flex">Cari</Button>
+        </form>
 
           {selectedCount > 0 ? (
             <div className="ml-auto flex items-center gap-2">
@@ -127,7 +133,6 @@ export function ProductsTable({
               </Button>
             </div>
           ) : null}
-        </div>
 
         <div className="overflow-x-auto rounded-xl border bg-background">
           <Table>
@@ -176,7 +181,7 @@ export function ProductsTable({
                         aria-label={`Select ${p.name}`}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="font-medium"><Link href={`/products/${p.id}`} className="hover:underline">{p.name}</Link></TableCell>
                     <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                     <TableCell className="min-w-[160px]">
                       <Code128Mark value={(p.barcode ?? p.sku) as string} label={p.barcode ?? p.sku} height={28} moduleWidth={1.2} className="max-w-[220px]" />
@@ -193,15 +198,17 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-1">
+                        <Button asChild variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Lihat detail">
+                          <Link href={`/products/${p.id}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         <Button asChild variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="Edit">
                           <Link href={`/products/${p.id}/edit`}>
                             <Pencil className="h-4 w-4" />
                           </Link>
                         </Button>
                         <DeleteProductButton id={p.id} />
-                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0" aria-label="More">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

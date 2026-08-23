@@ -67,6 +67,8 @@ export function ProductForm({
 
   const [skuPreview, setSkuPreview] = useState(String(initial?.sku ?? ""));
   const [barcodePreview, setBarcodePreview] = useState(String(initial?.barcode ?? ""));
+  const [typeValue, setTypeValue] = useState<NonNullable<Initial["type"]>>(initial?.type ?? "SINGLE");
+  const isStockable = typeValue !== "SERVICE" && typeValue !== "DIGITAL";
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanTarget, setScanTarget] = useState<"barcode" | "qrCode">("barcode");
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,11 +93,11 @@ export function ProductForm({
 
   return (
     <>
-      <Card className="max-w-3xl">
-        <CardHeader>
+      <Card className="max-w-4xl rounded-3xl">
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <CardTitle>{title}</CardTitle>
+              <CardTitle className="text-xl">{title}</CardTitle>
               <CardDescription>Perubahan tersimpan per-tenant dan tercatat audit log.</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm" className="rounded-xl">
@@ -105,7 +107,7 @@ export function ProductForm({
         </CardHeader>
         <CardContent>
           {message ? <Alert variant="destructive">{message}</Alert> : null}
-          <form action={formAction} className="mt-4 grid gap-5">
+          <form action={formAction} className="mt-4 grid gap-6">
             {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -125,7 +127,8 @@ export function ProductForm({
                 <select
                   id="type"
                   name="type"
-                  defaultValue={initial?.type ?? "SINGLE"}
+                  value={typeValue}
+                  onChange={(e) => setTypeValue(e.target.value as NonNullable<Initial["type"]>)}
                   className="h-10 rounded-xl border bg-background px-3 text-sm"
                 >
                   <option value="SINGLE">Single</option>
@@ -135,6 +138,7 @@ export function ProductForm({
                   <option value="SERVICE">Service</option>
                   <option value="DIGITAL">Digital</option>
                 </select>
+                {!isStockable ? <p className="text-xs text-muted-foreground">Service/Digital tidak mengelola stok fisik.</p> : null}
               </div>
             </div>
 
@@ -293,39 +297,44 @@ export function ProductForm({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="grid gap-2">
-                <Label htmlFor="costPrice">Harga Modal</Label>
-                <Input id="costPrice" name="costPrice" type="number" step="0.01" defaultValue={String(initial?.costPrice ?? 0)} />
-                {fieldErrors.costPrice ? <p className="text-xs text-destructive">{fieldErrors.costPrice}</p> : null}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="sellingPrice">Harga Jual</Label>
-                <Input id="sellingPrice" name="sellingPrice" type="number" step="0.01" defaultValue={String(initial?.sellingPrice ?? 0)} />
-                {fieldErrors.sellingPrice ? <p className="text-xs text-destructive">{fieldErrors.sellingPrice}</p> : null}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="taxRate">Pajak (%)</Label>
-                <Input id="taxRate" name="taxRate" type="number" step="0.01" defaultValue={String(initial?.taxRate ?? 0)} />
+            <div className="grid gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga & Pajak</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="costPrice">Harga Modal</Label>
+                  <Input id="costPrice" name="costPrice" type="number" step="0.01" min={0} defaultValue={String(initial?.costPrice ?? 0)} />
+                  {fieldErrors.costPrice ? <p className="text-xs text-destructive">{fieldErrors.costPrice}</p> : null}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="sellingPrice">Harga Jual</Label>
+                  <Input id="sellingPrice" name="sellingPrice" type="number" step="0.01" min={0} defaultValue={String(initial?.sellingPrice ?? 0)} />
+                  {fieldErrors.sellingPrice ? <p className="text-xs text-destructive">{fieldErrors.sellingPrice}</p> : null}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="taxRate">Pajak (%)</Label>
+                  <Input id="taxRate" name="taxRate" type="number" step="0.01" min={0} max={100} defaultValue={String(initial?.taxRate ?? 0)} />
+                  {fieldErrors.taxRate ? <p className="text-xs text-destructive">{fieldErrors.taxRate}</p> : null}
+                </div>
               </div>
             </div>
 
             <div className="rounded-2xl border border-orange-200 bg-orange-50/30 p-4">
-              <div className="mb-2 text-sm font-semibold text-orange-800">Harga Grosir</div>
+              <div className="mb-2 text-sm font-semibold text-orange-800">Harga Grosir (Opsional)</div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="grid gap-2">
                   <Label htmlFor="wholesalePrice">Harga Grosir</Label>
-                  <Input id="wholesalePrice" name="wholesalePrice" type="number" step="0.01" defaultValue={String(initial?.wholesalePrice ?? 0)} placeholder="0" />
+                  <Input id="wholesalePrice" name="wholesalePrice" type="number" step="0.01" min={0} defaultValue={String(initial?.wholesalePrice ?? 0)} placeholder="0" />
+                  {fieldErrors.wholesalePrice ? <p className="text-xs text-destructive">{fieldErrors.wholesalePrice}</p> : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="wholesaleDiscountPercent">Diskon Grosir (%)</Label>
                   <Input id="wholesaleDiscountPercent" name="wholesaleDiscountPercent" type="number" step="0.01" min="0" max="100" defaultValue={String(initial?.wholesaleDiscountPercent ?? 0)} placeholder="0" />
-                  <p className="text-xs text-muted-foreground">Potongan persen dari harga jual</p>
+                  {fieldErrors.wholesaleDiscountPercent ? <p className="text-xs text-destructive">{fieldErrors.wholesaleDiscountPercent}</p> : <p className="text-xs text-muted-foreground">Potongan persen dari harga jual</p>}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="wholesaleMinQty">Min. Pembelian Grosir</Label>
                   <Input id="wholesaleMinQty" name="wholesaleMinQty" type="number" step="1" min="0" defaultValue={String(initial?.wholesaleMinQty ?? 0)} placeholder="0" />
-                  <p className="text-xs text-muted-foreground">Minimal qty untuk harga grosir</p>
+                  {fieldErrors.wholesaleMinQty ? <p className="text-xs text-destructive">{fieldErrors.wholesaleMinQty}</p> : <p className="text-xs text-muted-foreground">Minimal qty untuk harga grosir</p>}
                 </div>
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -333,59 +342,68 @@ export function ProductForm({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {isStockable ? (
               <div className="grid gap-2">
-                <Label htmlFor="initialStock">{initial?.id ? "Atur Stok" : "Stok Awal"}</Label>
-                <Input id="initialStock" name="initialStock" type="number" step="1" min="0" defaultValue={String(initial?.initialStock ?? (initial?.totalStock ?? 0))} placeholder="0" />
-                {initial?.id ? (
-                  <p className="text-xs text-muted-foreground">Stok saat ini: {initial.totalStock ?? 0}. Ubah untuk menyesuaikan stok.</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Stok awal saat membuat produk baru.</p>
-                )}
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stok & Gudang</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="initialStock">{initial?.id ? "Atur Stok" : "Stok Awal"}</Label>
+                    <Input id="initialStock" name="initialStock" type="number" step="1" min="0" defaultValue={String(initial?.initialStock ?? (initial?.totalStock ?? 0))} placeholder="0" />
+                    {fieldErrors.initialStock ? <p className="text-xs text-destructive">{fieldErrors.initialStock}</p> : initial?.id ? <p className="text-xs text-muted-foreground">Stok saat ini: {initial.totalStock ?? 0}. Ubah untuk menyesuaikan stok gudang utama.</p> : <p className="text-xs text-muted-foreground">Stok awal di gudang utama saat membuat produk baru.</p>}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="minStock">Minimum Stok</Label>
+                    <Input id="minStock" name="minStock" type="number" step="1" min="0" defaultValue={String(initial?.minStock ?? 0)} />
+                    {fieldErrors.minStock ? <p className="text-xs text-destructive">{fieldErrors.minStock}</p> : null}
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="reorderPoint">Reorder Point</Label>
+                    <Input id="reorderPoint" name="reorderPoint" type="number" step="1" min="0" defaultValue={String(initial?.reorderPoint ?? 0)} />
+                    {fieldErrors.reorderPoint ? <p className="text-xs text-destructive">{fieldErrors.reorderPoint}</p> : null}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="weight">Berat</Label>
+                    <Input id="weight" name="weight" type="number" step="0.01" min={0} defaultValue={String(initial?.weight ?? 0)} />
+                    {fieldErrors.weight ? <p className="text-xs text-destructive">{fieldErrors.weight}</p> : null}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="volume">Volume</Label>
+                    <Input id="volume" name="volume" type="number" step="0.01" min={0} defaultValue={String(initial?.volume ?? 0)} />
+                    {fieldErrors.volume ? <p className="text-xs text-destructive">{fieldErrors.volume}</p> : null}
+                  </div>
+                </div>
               </div>
-              <div />
-            </div>
+            ) : (
+              <>
+                <input type="hidden" name="initialStock" value="0" />
+                <input type="hidden" name="minStock" value="0" />
+                <input type="hidden" name="reorderPoint" value="0" />
+                <input type="hidden" name="weight" value="0" />
+                <input type="hidden" name="volume" value="0" />
+                <div className="rounded-2xl border border-dashed bg-muted/10 p-4 text-sm text-muted-foreground">Produk tipe {typeValue} tidak memerlukan stok, berat, atau volume. Field diganti otomatis 0.</div>
+              </>
+            )}
 
-            <div className="grid gap-3 rounded-2xl border bg-muted/10 p-4 sm:grid-cols-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="hidden" name="isActive" value="false" />
-                <input type="checkbox" name="isActive" value="true" defaultChecked={initial?.isActive ?? true} />
-                Aktif
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="hidden" name="isFeatured" value="false" />
-                <input type="checkbox" name="isFeatured" value="true" defaultChecked={initial?.isFeatured ?? false} />
-                Featured
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="hidden" name="isConsignment" value="false" />
-                <input type="checkbox" name="isConsignment" value="true" defaultChecked={initial?.isConsignment ?? false} />
-                Konsinyasi
-              </label>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4">
-              <div className="grid gap-2">
-                <Label htmlFor="minStock">Minimum Stok</Label>
-                <Input id="minStock" name="minStock" type="number" step="1" defaultValue={String(initial?.minStock ?? 0)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="reorderPoint">Reorder Point</Label>
-                <Input
-                  id="reorderPoint"
-                  name="reorderPoint"
-                  type="number"
-                  step="1"
-                  defaultValue={String(initial?.reorderPoint ?? 0)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="weight">Berat</Label>
-                <Input id="weight" name="weight" type="number" step="0.01" defaultValue={String(initial?.weight ?? 0)} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="volume">Volume</Label>
-                <Input id="volume" name="volume" type="number" step="0.01" defaultValue={String(initial?.volume ?? 0)} />
+            <div className="rounded-2xl border bg-muted/10 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pengaturan</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="hidden" name="isActive" value="false" />
+                  <input type="checkbox" name="isActive" value="true" defaultChecked={initial?.isActive ?? true} />
+                  Aktif
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="hidden" name="isFeatured" value="false" />
+                  <input type="checkbox" name="isFeatured" value="true" defaultChecked={initial?.isFeatured ?? false} />
+                  Featured
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="hidden" name="isConsignment" value="false" />
+                  <input type="checkbox" name="isConsignment" value="true" defaultChecked={initial?.isConsignment ?? false} />
+                  Konsinyasi
+                </label>
               </div>
             </div>
 
