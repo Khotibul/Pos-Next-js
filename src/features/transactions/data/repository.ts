@@ -69,11 +69,19 @@ export async function findSaleDetail(tenantId: string, id: string) {
 }
 
 export async function findAvailableStock(tenantId: string, productIds: string[], branchId: string) {
+  if (productIds.length === 0) return [];
+  // Cepatkan: ambil warehouseIds dulu, lalu filter stock via warehouseId IN (pakai index), hindari join warehouse
+  const warehouses = await prisma.warehouse.findMany({
+    where: { tenantId, isActive: true, OR: [{ branchId }, { branchId: null }] },
+    select: { id: true },
+  });
+  const warehouseIds = warehouses.map((w) => w.id);
+  if (warehouseIds.length === 0) return [];
   return prisma.productWarehouseStock.findMany({
     where: {
       tenantId,
       productId: { in: productIds },
-      warehouse: { tenantId, isActive: true, OR: [{ branchId }, { branchId: null }] },
+      warehouseId: { in: warehouseIds },
       qty: { gt: 0 },
     },
     orderBy: [{ productId: "asc" }, { updatedAt: "asc" }],

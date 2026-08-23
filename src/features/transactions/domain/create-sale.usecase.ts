@@ -85,42 +85,43 @@ async function executeCreateSale(
   if (input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
   endCalc();
 
+  const requestedQtyByProduct = new Map<string, number>();
+  for (const line of lines) {
+    requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
+  }
+
+  const endStockFetch = createDevTimer("pos.createSale.stockFetch");
+  const allStockRows = await findAvailableStock(tenantId, Array.from(requestedQtyByProduct.keys()), branchId);
+  endStockFetch();
+
+  const stockByProduct = new Map<string, Array<{ id: string; qty: number }>>();
+  for (const row of allStockRows) {
+    const arr = stockByProduct.get(row.productId) ?? [];
+    arr.push({ id: row.id, qty: Number(row.qty) });
+    stockByProduct.set(row.productId, arr);
+  }
+
+  const decrements: Array<{ id: string; qty: number }> = [];
+  for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
+    const stocks = stockByProduct.get(productId) ?? [];
+    const availableQty = stocks.reduce((sum, s) => sum + Number(s.qty), 0);
+    if (availableQty < requestedQty) {
+      const productName = productMap.get(productId)?.name ?? "Produk";
+      throw Errors.badRequest(`Stok ${productName} tidak mencukupi. Tersedia ${availableQty}, diminta ${requestedQty}.`);
+    }
+    let remainingQty = requestedQty;
+    for (const stock of stocks) {
+      if (remainingQty <= 0) break;
+      const stockQty = Number(stock.qty);
+      const decrementQty = Math.min(stockQty, remainingQty);
+      decrements.push({ id: stock.id, qty: decrementQty });
+      remainingQty -= decrementQty;
+    }
+  }
+
   const endTransaction = createDevTimer("pos.createSale.transaction");
   const created = await prisma.$transaction(async (tx) => {
     const invoiceNo = generateInvoiceNo("TRX");
-
-    const requestedQtyByProduct = new Map<string, number>();
-    for (const line of lines) {
-      requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
-    }
-
-    const allStockRows = await findAvailableStock(tenantId, Array.from(requestedQtyByProduct.keys()), branchId);
-
-    const stockByProduct = new Map<string, Array<{ id: string; qty: number }>>();
-    for (const row of allStockRows) {
-      const arr = stockByProduct.get(row.productId) ?? [];
-      arr.push({ id: row.id, qty: Number(row.qty) });
-      stockByProduct.set(row.productId, arr);
-    }
-
-    const decrements: Array<{ id: string; qty: number }> = [];
-    for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
-      const stocks = stockByProduct.get(productId) ?? [];
-      const availableQty = stocks.reduce((sum, s) => sum + Number(s.qty), 0);
-      if (availableQty < requestedQty) {
-        const productName = productMap.get(productId)?.name ?? "Produk";
-        throw Errors.badRequest(`Stok ${productName} tidak mencukupi. Tersedia ${availableQty}, diminta ${requestedQty}.`);
-      }
-
-      let remainingQty = requestedQty;
-      for (const stock of stocks) {
-        if (remainingQty <= 0) break;
-        const stockQty = Number(stock.qty);
-        const decrementQty = Math.min(stockQty, remainingQty);
-        decrements.push({ id: stock.id, qty: decrementQty });
-        remainingQty -= decrementQty;
-      }
-    }
 
     const updatedCount = await decrementStockRaw(tx, tenantId, decrements);
     if (updatedCount !== decrements.length) {

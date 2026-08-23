@@ -31,20 +31,29 @@ export async function listShifts(params: {
 }
 
 export async function getOpenShift(params: { tenantId: string; branchId: string; cashierId: string }) {
-  return repo.findOpenShift(params.tenantId, params.branchId, params.cashierId);
+  const { getCache, setCache } = await import("@/shared/server/cache/redis");
+  const key = `shift:open:${params.tenantId}:${params.branchId}:${params.cashierId}`;
+  const cached = await getCache<{ id: string; status: string; openedAt: string }>(key);
+  if (cached) return cached as unknown as Awaited<ReturnType<typeof repo.findOpenShift>>;
+  const result = await repo.findOpenShift(params.tenantId, params.branchId, params.cashierId);
+  if (result) void setCache(key, result as unknown as { id: string }, 15);
+  return result;
 }
 
 export async function openShift(params: { tenantId: string; branchId: string; cashierId: string; input: OpenShiftInput }) {
   const existing = await repo.findExistingOpenShift(params.tenantId, params.branchId, params.cashierId);
   if (existing) throw Errors.badRequest("Shift masih OPEN. Tutup shift terlebih dahulu.");
 
-  return repo.createShift({
+  const created = await repo.createShift({
     tenantId: params.tenantId,
     branchId: params.branchId,
     cashierId: params.cashierId,
     openingCash: params.input.openingCash,
     openNote: (params.input.openNote || "").trim() || null,
   });
+  const { deleteCache } = await import("@/shared/server/cache/redis");
+  void deleteCache(`shift:open:${params.tenantId}:${params.branchId}:${params.cashierId}`);
+  return created;
 }
 
 export async function calculateShiftSummary(params: { tenantId: string; shiftId: string }): Promise<ShiftSummary> {
@@ -83,7 +92,7 @@ export async function closeShift(params: { tenantId: string; cashierId: string; 
   const cashCounted = params.input.cashCounted;
   const cashDifference = cashCounted - summary.cashSystem;
 
-  return repo.updateShiftStatus(params.input.shiftId, {
+  const updated = await repo.updateShiftStatus(params.input.shiftId, {
     status: "CLOSED",
     closedAt: new Date(),
     cashSystem: summary.cashSystem,
@@ -97,6 +106,9 @@ export async function closeShift(params: { tenantId: string; cashierId: string; 
     transactionCount: summary.transactionCount,
     closeNote: (params.input.closeNote || "").trim() || null,
   });
+  const { deleteCache } = await import("@/shared/server/cache/redis");
+  void deleteCache(`shift:open:${params.tenantId}:${shift.branchId}:${shift.cashierId}`);
+  return updated;
 }
 
 export async function approveShift(params: { tenantId: string; approvedById: string; input: ApproveShiftInput }) {
