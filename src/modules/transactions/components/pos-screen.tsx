@@ -5,7 +5,7 @@ import { createSaleAction } from "@/modules/transactions/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -26,6 +26,8 @@ const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dia
 
 export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isPosRoute = pathname === "/pos" || pathname.startsWith("/pos/");
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -72,6 +74,11 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   }, []);
 
   useEffect(() => {
+    if (!isPosRoute) {
+      setShiftCheckDone(true);
+      setForceOpenShift(false);
+      return;
+    }
     let ignore = false;
     setShiftCheckDone(false);
     fetch("/api/shifts/open")
@@ -91,7 +98,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         setShiftCheckDone(true);
       });
     return () => { ignore = true; };
-  }, []);
+  }, [isPosRoute]);
 
   useEffect(() => {
     if (!notice) return;
@@ -553,18 +560,20 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
           }}
         />
 
-        <OpenShiftDialog
-          open={forceOpenShift}
-          onOpenChange={setForceOpenShift}
-          hideTrigger
-          preventClose
-          onOpened={(id) => {
-            setOpenShiftId(id);
-            setNotice("Shift berhasil dibuka. Silakan mulai transaksi.");
-            setForceOpenShift(false);
-            router.refresh();
-          }}
-        />
+        {isPosRoute ? (
+          <OpenShiftDialog
+            open={forceOpenShift}
+            onOpenChange={setForceOpenShift}
+            hideTrigger
+            preventClose
+            onOpened={(id) => {
+              setOpenShiftId(id);
+              setNotice("Shift berhasil dibuka. Silakan mulai transaksi.");
+              setForceOpenShift(false);
+              router.refresh();
+            }}
+          />
+        ) : null}
       </div>
     </ErrorBoundary>
   );
