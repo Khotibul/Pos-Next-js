@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { Alert } from "@/components/ui/alert";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
+import { SavedCartsPanel } from "./saved-carts-panel";
 import type { CartLine, Product, PaymentMethod } from "./cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
@@ -77,7 +78,8 @@ export function MobileCartSheet({
         </div>
 
         <div className="shrink-0 border-t px-4 py-3">
-          <div className="grid gap-2">
+          <div className="grid gap-3">
+            <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.productId]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={(v) => { setCart(v); onClose(); }} setNotice={setNotice} />
             <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} />
             <CartActions isPending={isPending} lines={lines} shiftCheckDone={shiftCheckDone} openShiftId={openShiftId} method={method} cashPaid={cashPaid} total={total} onPay={onPay} onCancel={() => { setCart({}); setError(null); setNotice(null); onClose(); }} />
           </div>

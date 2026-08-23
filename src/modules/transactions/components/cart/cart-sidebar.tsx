@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
+import { SavedCartsPanel } from "./saved-carts-panel";
 import type { CartLine, Product, PaymentMethod } from "./cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
@@ -64,6 +65,8 @@ export function CartSidebar({
           )}
           </div>
         </div>
+
+        <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.productId]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={setCart} setNotice={setNotice} />
 
         <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} />
 
