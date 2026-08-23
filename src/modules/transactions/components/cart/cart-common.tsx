@@ -190,19 +190,19 @@ export function CartActions({
   onPay: () => void; onCancel: () => void;
 }) {
   return (
-    <div className="shrink-0 flex gap-2">
-      <Button type="button" variant="secondary" className="flex-1 rounded-xl" disabled={isPending} onClick={onCancel}>
+    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+      <Button type="button" variant="outline" className="h-12 rounded-xl border-2 text-sm font-semibold sm:h-11" disabled={isPending} onClick={onCancel}>
         Batal
       </Button>
       <Button
         type="button"
-        className="flex-1 rounded-xl"
+        className="h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 sm:h-11"
         disabled={isPending || lines.length === 0 || (shiftCheckDone && !openShiftId) || (method === "CASH" && cashPaid < total)}
         onClick={onPay}
       >
         {isPending ? (
           <span className="flex items-center gap-2"><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Memproses</span>
-        ) : shiftCheckDone && !openShiftId ? "Buka Shift" : `Bayar ${rupiah(total)}`}
+        ) : shiftCheckDone && !openShiftId ? "Buka Shift" : `Bayar • ${rupiah(total)}`}
       </Button>
     </div>
   );
