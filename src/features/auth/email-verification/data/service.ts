@@ -45,7 +45,15 @@ export async function createEmailVerificationToken(params: { userId: string; ema
     if (queued.queued) return { token, expiresAt };
   }
 
-  await sendEmail({ to: params.email, subject, html, text });
+  try {
+    await sendEmail({ to: params.email, subject, html, text });
+  } catch (e) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[email] Gagal kirim verifikasi. Link preview (dev-only):", url.toString());
+      console.warn("[email] Error:", e instanceof Error ? e.message : String(e));
+    }
+    throw e;
+  }
 
   return { token, expiresAt };
 }

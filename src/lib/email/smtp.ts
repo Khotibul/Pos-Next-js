@@ -98,21 +98,44 @@ async function sendViaSmtp(input: SendEmailInput) {
 }
 
 export async function sendEmail(input: SendEmailInput) {
-  // Provider priority: Resend (jika RESEND_API_KEY ada) -> SMTP.
-  if (hasResendConfig()) {
+  const hasResend = hasResendConfig();
+  const hasSmtp = hasSmtpConfig();
+
+  // Provider priority: Resend -> SMTP (fallback jika Resend gagal karena sandbox/domain)
+  if (hasResend) {
     const { apiKey, from } = getResendConfig();
-    await sendViaResend(apiKey, from, input);
-    return;
+    try {
+      await sendViaResend(apiKey, from, input);
+      return;
+    } catch (resendErr: unknown) {
+      const msg = resendErr instanceof Error ? resendErr.message : String(resendErr);
+      const isSandboxOrDomainError =
+        /only send testing emails|domain is not verified|not verified/i.test(msg);
+      if (isSandboxOrDomainError && hasSmtp) {
+        console.warn("[email] Resend gagal (sandbox/domain), fallback ke SMTP:", msg);
+        try {
+          await sendViaSmtp(input);
+          return;
+        } catch (smtpErr: unknown) {
+          const smtpMsg = smtpErr instanceof Error ? smtpErr.message : String(smtpErr);
+          throw Errors.badRequest(
+            `Resend: ${msg} | SMTP fallback juga gagal: ${smtpMsg}. ` +
+              `Solusi: verifikasi domain di https://resend.com/domains (lalu set EMAIL_FROM) ATAU perbaiki SMTP_PASS Gmail (App Password 16 huruf di https://myaccount.google.com/apppasswords).`
+          );
+        }
+      }
+      throw resendErr;
+    }
   }
 
   const { from } = getSmtpConfig();
   if (!from) throw Errors.badRequest("EMAIL_FROM atau SMTP_USER belum di-set.");
 
   // Allow dev to run without email provider configured.
-  if (!hasSmtpConfig()) {
+  if (!hasSmtp) {
     if (process.env.NODE_ENV !== "production") {
       console.warn("[email] SMTP/Resend belum dikonfigurasi. Email tidak terkirim. Preview:");
-      console.warn({ to: input.to, subject: input.subject });
+      console.warn({ to: input.to, subject: input.subject, html: input.html.slice(0, 500) });
       return;
     }
     const { host, user, pass } = getSmtpConfig();
