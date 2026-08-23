@@ -8,7 +8,6 @@ import {
   findAvailableStock,
   decrementStockRaw,
   createSaleInTransaction,
-  updateShiftTotals,
 } from "@/features/transactions/data/repository";
 import type { CreateSaleInput, SaleResult } from "@/features/transactions/domain/entity";
 import { createDevTimer } from "@/shared/utils/perf";
@@ -36,8 +35,14 @@ export async function createSaleUseCase(params: {
     try {
       return await executeCreateSale(tenantId, shiftId, branchId, cashierId ?? null, input);
     } catch (e: unknown) {
-      const err = e as { code?: string };
-      if (err?.code === "P2002" && attempt < 2) continue;
+      const err = e as { code?: string; message?: string };
+      const msg = err?.message ?? (e instanceof Error ? e.message : "");
+      const isRetryable = (err?.code === "P2002" || msg.includes("Stok berubah") || msg.includes("Stok") && msg.includes("tidak mencukupi") === false) && attempt < 2;
+      if (isRetryable) {
+        // Backoff 50-150ms agar tidak thundering herd saat transaksi padat
+        await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
+        continue;
+      }
       throw e;
     }
   }
@@ -123,6 +128,10 @@ async function executeCreateSale(
   const created = await prisma.$transaction(async (tx) => {
     const invoiceNo = generateInvoiceNo("TRX");
 
+    // Cek shift masih OPEN di dalam transaksi (tanpa update, jadi lock singkat)
+    const shiftOk = await tx.cashierShift.findFirst({ where: { id: shiftId, status: "OPEN" }, select: { id: true } });
+    if (!shiftOk) throw Errors.badRequest("Shift sudah ditutup. Tidak dapat memproses transaksi.");
+
     const updatedCount = await decrementStockRaw(tx, tenantId, decrements);
     if (updatedCount !== decrements.length) {
       throw Errors.badRequest("Stok berubah saat transaksi diproses. Silakan ulangi transaksi.");
@@ -147,26 +156,29 @@ async function executeCreateSale(
       },
     });
 
-    const cashTotal = input.payment.method === "CASH" ? total : 0;
-    const qrisTotal = input.payment.method === "QRIS" ? total : 0;
-    const transferTotal = input.payment.method === "TRANSFER" ? total : 0;
-    const ewalletTotal = input.payment.method === "EWALLET" ? total : 0;
-
-    const updatedShift = await updateShiftTotals(tx, shiftId, {
-      total,
-      cashTotal,
-      qrisTotal,
-      transferTotal,
-      ewalletTotal,
-    });
-
-    if (updatedShift.count !== 1) {
-      throw Errors.badRequest("Shift sudah ditutup. Tidak dapat memproses transaksi.");
-    }
-
     return sale;
   }, { timeout: 10000, maxWait: 5000 });
   endTransaction();
+
+  // Update shift totals di luar transaksi utama agar tidak jadi bottleneck saat transaksi padat (row lock shift)
+  const cashTotal = input.payment.method === "CASH" ? total : 0;
+  const qrisTotal = input.payment.method === "QRIS" ? total : 0;
+  const transferTotal = input.payment.method === "TRANSFER" ? total : 0;
+  const ewalletTotal = input.payment.method === "EWALLET" ? total : 0;
+  void prisma.cashierShift
+    .updateMany({
+      where: { id: shiftId, status: "OPEN" },
+      data: {
+        totalSales: { increment: total },
+        transactionCount: { increment: 1 },
+        cashSystem: { increment: cashTotal },
+        totalCash: { increment: cashTotal },
+        totalQris: { increment: qrisTotal },
+        totalTransfer: { increment: transferTotal },
+        totalEwallet: { increment: ewalletTotal },
+      },
+    })
+    .catch(() => {});
 
   const endReceiptCache = createDevTimer("pos.createSale.cacheReceipt");
   void cacheReceiptData(created.id, tenantId, {
