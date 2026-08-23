@@ -470,7 +470,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
           <button
             type="button"
             onClick={() => setCartOpen(true)}
-            className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 xl:hidden"
+            className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 lg:hidden"
           >
             <div className="flex items-center gap-2.5 rounded-full border bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-95">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
@@ -515,8 +515,8 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
           />
         ) : null}
 
-        {notice ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert className="animate-slide-up shadow-lg">{notice}</Alert></div> : null}
-        {error ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 xl:hidden"><Alert variant="destructive" className="animate-slide-up shadow-lg">{error}</Alert></div> : null}
+        {notice ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 lg:hidden"><Alert className="animate-slide-up shadow-lg">{notice}</Alert></div> : null}
+        {error ? <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 lg:hidden"><Alert variant="destructive" className="animate-slide-up shadow-lg">{error}</Alert></div> : null}
 
         {successDialog ? (
           <TransactionSuccessDialog
