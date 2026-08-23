@@ -11,8 +11,8 @@ import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { VoiceInputButton } from "@/components/pos/voice-input-button";
 import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
-import { requestPrint } from "@/modules/transactions/components/receipt-view";
 import type { ReceiptSale } from "@/modules/transactions/components/receipt-view";
+import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
 import { CartSidebar } from "./cart/cart-sidebar";
 import { MobileCartSheet } from "./cart/mobile-cart-sheet";
 import { ProductCard } from "./product-card";
@@ -38,7 +38,6 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<string | null>(null);
-  const [saleId, setSaleId] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const settings = initialSettings;
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -59,6 +58,8 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
     items: Array<{ name: string; price: number; qty: number; lineTotal: number }>;
   } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState<ReceiptSale | null>(null);
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
 
   useEffect(() => {
@@ -192,10 +193,21 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
         return;
       }
       setInvoice(res.data.invoiceNo);
-      setSaleId(res.data.id);
       setCart({});
       setCashPaid(0);
       setCartOpen(false);
+      setLastReceipt({
+        id: res.data.id,
+        invoiceNo: res.data.invoiceNo,
+        status: "PAID",
+        createdAt: new Date().toISOString(),
+        subtotal,
+        discount: effectiveDiscount,
+        tax,
+        total,
+        items: lines.map((l, idx) => ({ id: `${res.data.id}-item-${idx}`, name: l.name, sku: l.sku, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
+        payments: [{ id: `${res.data.id}-pay-0`, method, amount: total, receivedAmount: method === "CASH" ? cashPaid : total, changeAmount: cashChange, reference: null }],
+      });
       setSuccessDialog({
         invoiceNo: res.data.invoiceNo,
         total,
@@ -208,7 +220,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
         items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
       });
     });
-  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, startTransition, setError, setForceOpenShift, setInvoice, setSaleId, setCart, setCashPaid, setSuccessDialog]);
+  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, startTransition, setError, setForceOpenShift, setInvoice, setCart, setCashPaid, setSuccessDialog]);
 
   const handleVoiceProduct = useCallback(async (productName: string, qty: number): Promise<boolean> => {
     const lower = productName.toLowerCase();
@@ -503,24 +515,26 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             items={successDialog.items}
             printing={printing}
             onPrint={() => {
-              if (!successDialog) return;
-              setPrinting(true);
-              try {
-                const receiptSale: ReceiptSale = {
-                  id: saleId ?? successDialog.invoiceNo,
-                  invoiceNo: successDialog.invoiceNo,
-                  status: "PAID",
-                  createdAt: new Date().toISOString(),
-                  subtotal: successDialog.subtotal,
-                  discount: successDialog.discount ?? 0,
-                  tax: successDialog.tax ?? 0,
-                  total: successDialog.total,
-                  items: successDialog.items.map((it, idx) => ({ id: `item-${idx}`, name: it.name, sku: "", price: it.price, qty: it.qty, lineTotal: it.lineTotal })),
-                  payments: [{ id: "pay-0", method: successDialog.paymentMethod, amount: successDialog.total, receivedAmount: successDialog.receivedAmount, changeAmount: successDialog.changeAmount, reference: null }],
-                };
-                requestPrint(settings, receiptSale);
-              } finally {
-                setPrinting(false);
+              if (!lastReceipt) return;
+              // Buka preview struk (ReceiptView ter-mount) agar CSS cetak rapat/center + presisi kertas berlaku
+              setPrinting(false);
+              setPrintPreviewOpen(true);
+            }}
+          />
+        ) : null}
+
+        {printPreviewOpen && lastReceipt ? (
+          <PrintReceiptDialog
+            sale={lastReceipt}
+            printer={settings}
+            triggerLabel={null}
+            open={printPreviewOpen}
+            onOpenChange={(v) => {
+              setPrintPreviewOpen(v);
+              if (!v) {
+                setSuccessDialog(null);
+                setLastReceipt(null);
+                setInvoice(null);
               }
             }}
           />

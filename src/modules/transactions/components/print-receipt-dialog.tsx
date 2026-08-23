@@ -58,6 +58,7 @@ export function PrintReceiptDialog({
   triggerVariant = "default",
   defaultOpen = false,
   autoPrintOnOpen = false,
+  open: controlledOpen,
   onOpenChange,
 }: {
   sale: ReceiptSale;
@@ -66,9 +67,15 @@ export function PrintReceiptDialog({
   triggerVariant?: "default" | "outline" | "secondary";
   defaultOpen?: boolean;
   autoPrintOnOpen?: boolean;
+  open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = typeof controlledOpen === "boolean" ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    setInternalOpen(v);
+    onOpenChange?.(v);
+  };
 
   const canUseAfterPrint = useMemo(() => typeof window !== "undefined" && "onafterprint" in window, []);
 
@@ -104,7 +111,6 @@ export function PrintReceiptDialog({
         open={open}
         onOpenChange={(v) => {
           setOpen(v);
-          onOpenChange?.(v);
         }}
       >
         <DialogContent className="max-w-3xl rounded-2xl p-0 overflow-hidden">
@@ -141,8 +147,7 @@ export function PrintReceiptDialog({
                 Cetak
               </Button>
             </DialogFooter>
-          </div>
-        </DialogContent>
+          </div>        </DialogContent>
       </Dialog>
     </>
   );

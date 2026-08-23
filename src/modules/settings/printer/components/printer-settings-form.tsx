@@ -313,8 +313,16 @@ export function PrinterSettingsForm({
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="headerSubtitle">Header Subtitle</Label>
-        <Input id="headerSubtitle" name="headerSubtitle" defaultValue={initial.headerSubtitle} placeholder="Alamat / Telp (opsional)" />
+        <Label htmlFor="headerSubtitle">Header Subtitle (Alamat &amp; Telepon)</Label>
+        <textarea
+          id="headerSubtitle"
+          name="headerSubtitle"
+          defaultValue={initial.headerSubtitle}
+          placeholder={"Jl. Merdeka No. 10, Jakarta\nTelp. 0812-3456-7890"}
+          rows={3}
+          className="min-h-[72px] rounded-xl border bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <p className="text-xs text-muted-foreground">Tiap baris tampil center di bawah nama toko. Pisahkan baris dengan Enter atau tanda |</p>
         <FieldError msg={fieldErrors.headerSubtitle} />
       </div>
 

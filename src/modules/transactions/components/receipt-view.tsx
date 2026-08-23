@@ -151,6 +151,8 @@ export const ReceiptView = memo(function ReceiptView({
           line-height: var(--receipt-line-height);
           letter-spacing: -0.01em;
           overflow: hidden;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .receipt-logo {
           display: block;
