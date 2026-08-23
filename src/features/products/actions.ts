@@ -16,6 +16,14 @@ function formDataToObject(formData: FormData) {
   return obj;
 }
 
+function isPrismaUniqueError(err: unknown): { target: string } | null {
+  const e = err as { code?: string; meta?: { target?: unknown } };
+  if (e?.code !== "P2002") return null;
+  const raw = e.meta?.target;
+  const target = Array.isArray(raw) ? raw.join(",") : typeof raw === "string" ? raw : "";
+  return { target };
+}
+
 export async function createProductAction(_prev: unknown, formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
     await requirePermission(PERMISSIONS.products_write);
@@ -30,6 +38,13 @@ export async function createProductAction(_prev: unknown, formData: FormData): P
     return actionOk({ id: created.id });
   } catch (err) {
     if (isAppError(err)) return actionFail(err.message);
+    const unique = isPrismaUniqueError(err);
+    if (unique) {
+      if (unique.target.includes("sku")) return actionFail("SKU sudah dipakai.", { sku: "SKU sudah dipakai di tenant ini." });
+      if (unique.target.includes("qrCode")) return actionFail("QR Code sudah dipakai.", { qrCode: "QR Code sudah dipakai." });
+      if (unique.target.includes("slug")) return actionFail("Slug sudah dipakai.", { slug: "Slug sudah dipakai." });
+      return actionFail("Data duplikat: " + unique.target);
+    }
     await writeErrorLog({ source: "feature:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat membuat produk.");
   }
@@ -49,6 +64,13 @@ export async function updateProductAction(_prev: unknown, formData: FormData): P
     return actionOk({ id: updated.id });
   } catch (err) {
     if (isAppError(err)) return actionFail(err.message);
+    const unique = isPrismaUniqueError(err);
+    if (unique) {
+      if (unique.target.includes("sku")) return actionFail("SKU sudah dipakai.", { sku: "SKU sudah dipakai di tenant ini." });
+      if (unique.target.includes("qrCode")) return actionFail("QR Code sudah dipakai.", { qrCode: "QR Code sudah dipakai." });
+      if (unique.target.includes("slug")) return actionFail("Slug sudah dipakai.", { slug: "Slug sudah dipakai." });
+      return actionFail("Data duplikat: " + unique.target);
+    }
     await writeErrorLog({ source: "feature:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat mengubah produk.");
   }
