@@ -12,10 +12,13 @@ export default async function RolesPermissionsPage() {
   ]);
 
   const initialRoleId = roles[0]?.id ?? null;
+  const permIdLists = await Promise.all(
+    roles.map((r) => getRolePermissionIds({ tenantId: ctx.tenantId, roleId: r.id })),
+  );
   const map: Record<string, string[]> = {};
-  for (const r of roles) {
-    map[r.id] = await getRolePermissionIds({ tenantId: ctx.tenantId, roleId: r.id });
-  }
+  roles.forEach((r, idx) => {
+    map[r.id] = permIdLists[idx];
+  });
 
   return (
     <div className="grid gap-4">

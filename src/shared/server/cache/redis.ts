@@ -21,7 +21,11 @@ export function getRedisClient() {
     return redisInstance;
   }
 
-  redisInstance = new Redis({ url, token });
+  redisInstance = new Redis({
+    url,
+    token,
+    latencyLogging: false,
+  });
   return redisInstance;
 }
 

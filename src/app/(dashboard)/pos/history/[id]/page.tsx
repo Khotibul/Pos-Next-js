@@ -24,8 +24,10 @@ function toNumber(value: unknown) {
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requirePermission(PERMISSIONS.sales_read);
   const p = await params;
-  const sale = await getSaleById({ tenantId: ctx.tenantId, id: p.id });
-  const printer = await getPrinterSettings({ tenantId: ctx.tenantId });
+  const [sale, printer] = await Promise.all([
+    getSaleById({ tenantId: ctx.tenantId, id: p.id }),
+    getPrinterSettings({ tenantId: ctx.tenantId }),
+  ]);
 
   const saleForPrint = {
     id: sale.id,

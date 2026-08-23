@@ -27,8 +27,9 @@ export async function writeErrorLog(
         metadata: input.metadata ?? Prisma.JsonNull,
       },
     });
-  } catch {
-    // Monitoring is best-effort; never fail the request.
+  } catch (e) {
+    // Monitoring is best-effort; never fail the request. Fallback ke console agar telemetri tidak hilang saat DB down.
+    console.error("[errorLog:fallback]", input.source, input.message, e instanceof Error ? e.message : e);
   }
 }
 

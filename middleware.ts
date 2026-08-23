@@ -5,6 +5,7 @@ const protectedPrefixes = [
   "/dashboard", "/pos", "/sales", "/shifts", "/products",
   "/inventory", "/customers", "/suppliers", "/purchases",
   "/reports", "/settings", "/billing", "/super-admin", "/cashier",
+  "/transactions", "/audit-logs",
 ];
 
 function isProtectedPath(pathname: string) {
@@ -60,5 +61,7 @@ export const config = {
     "/billing/:path*",
     "/super-admin/:path*",
     "/cashier/:path*",
+    "/transactions/:path*",
+    "/audit-logs/:path*",
   ],
 };

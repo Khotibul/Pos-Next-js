@@ -3,7 +3,7 @@ import "server-only";
 import { Ratelimit } from "@upstash/ratelimit";
 import { getRedisClient } from "@/shared/server/cache/redis";
 
-export type RateLimitKind = "login" | "register" | "forgotPassword" | "resendVerification" | "download" | "licenseActivation" | "barcodeScan";
+export type RateLimitKind = "login" | "register" | "forgotPassword" | "resendVerification" | "download" | "licenseActivation" | "barcodeScan" | "contact";
 
 export type RateLimitResult = {
   success: boolean;

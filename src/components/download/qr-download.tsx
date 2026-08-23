@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 
 function toAbsoluteUrl(url: string) {
   if (!url) return "";
@@ -22,7 +21,8 @@ export function QrDownload({ url, size = 132 }: { url: string; size?: number }) 
     setDataUrl("");
     if (!absoluteUrl) return;
 
-    QRCode.toDataURL(absoluteUrl, { margin: 1, width: size })
+    import("qrcode")
+      .then((mod) => mod.default.toDataURL(absoluteUrl, { margin: 1, width: size }))
       .then((u) => {
         if (!alive) return;
         setDataUrl(u);

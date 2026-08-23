@@ -24,7 +24,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
 
-export function PosScreen({ products, initialSettings }: { products: Product[]; initialSettings: PrinterSettings }) {
+export function PosScreen({ products, initialSettings, initialOpenShiftId }: { products: Product[]; initialSettings: PrinterSettings; initialOpenShiftId?: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const isPosRoute = pathname === "/pos" || pathname.startsWith("/pos/");
@@ -40,12 +40,12 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const [invoice, setInvoice] = useState<string | null>(null);
   const [saleId, setSaleId] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
-  const [settings, setSettings] = useState<PrinterSettings>(initialSettings);
+  const settings = initialSettings;
   const [scannerOpen, setScannerOpen] = useState(false);
   const [extraProducts, setExtraProducts] = useState<Product[]>([]);
-  const [openShiftId, setOpenShiftId] = useState<string | null>(null);
-  const [shiftCheckDone, setShiftCheckDone] = useState(false);
-  const [forceOpenShift, setForceOpenShift] = useState(false);
+  const [openShiftId, setOpenShiftId] = useState<string | null>(initialOpenShiftId ?? null);
+  const [shiftCheckDone, setShiftCheckDone] = useState(true);
+  const [forceOpenShift, setForceOpenShift] = useState(initialOpenShiftId == null);
   const [isPending, startTransition] = useTransition();
   const [successDialog, setSuccessDialog] = useState<{
     invoiceNo: string;
@@ -62,42 +62,10 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
 
   useEffect(() => {
-    let ignore = false;
-    fetch("/api/settings/printer")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (ignore) return;
-        if (data?.data) setSettings(data.data as PrinterSettings);
-      })
-      .catch(() => {});
-    return () => { ignore = true; };
-  }, []);
-
-  useEffect(() => {
     if (!isPosRoute) {
       setShiftCheckDone(true);
       setForceOpenShift(false);
-      return;
     }
-    let ignore = false;
-    setShiftCheckDone(false);
-    fetch("/api/shifts/open")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (ignore) return;
-        const id = json?.data?.shiftId ?? null;
-        setOpenShiftId(typeof id === "string" ? id : null);
-        setForceOpenShift(!id);
-      })
-      .catch(() => {
-        if (ignore) return;
-        setForceOpenShift(false);
-      })
-      .finally(() => {
-        if (ignore) return;
-        setShiftCheckDone(true);
-      });
-    return () => { ignore = true; };
   }, [isPosRoute]);
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import { requireCanTransact } from "@/lib/guards/require-can-transact";
 import { prisma } from "@/lib/prisma";
 import { PosScreen } from "@/modules/transactions/components/pos-screen";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
+import { getOpenShift } from "@/modules/shifts/service";
 import { createDevTimer } from "@/lib/perf";
 
 export default async function PosPage() {
@@ -19,7 +20,7 @@ export default async function PosPage() {
   endAuth();
 
   const endData = createDevTimer("posPage.data");
-  const [products, printerSettings, branchWarehouses] = await Promise.all([
+  const [products, printerSettings, branchWarehouses, openShift] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: ctx.tenantId, isActive: true },
       orderBy: { updatedAt: "desc" },
@@ -31,6 +32,7 @@ export default async function PosPage() {
       where: { tenantId: ctx.tenantId, isActive: true, OR: [{ branchId: ctx.branchId }, { branchId: null }] },
       select: { id: true },
     }),
+    getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId }),
   ]);
 
   const warehouseIds = branchWarehouses.map((w) => w.id);
@@ -90,6 +92,7 @@ export default async function PosPage() {
       ) : (
         <PosScreen
           initialSettings={printerSettings}
+          initialOpenShiftId={openShift?.id ?? null}
           products={products.map((p) => ({
             id: p.id,
             name: p.name,
