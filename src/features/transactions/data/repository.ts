@@ -81,14 +81,18 @@ export async function findAvailableStock(tenantId: string, productIds: string[],
   });
 }
 
-export async function decrementStockRaw(tenantId: string, decrements: Array<{ id: string; qty: number }>) {
+export async function decrementStockRaw(
+  client: Prisma.TransactionClient | typeof prisma,
+  tenantId: string,
+  decrements: Array<{ id: string; qty: number }>,
+) {
   if (decrements.length === 0) return 0;
-  const placeholders = decrements.map((_, i) => `($${2 + i * 2}::text, $${3 + i * 2}::int)`).join(", ");
+  const placeholders = decrements.map((_, i) => `($${2 + i * 2}::text, $${3 + i * 2}::decimal)`).join(", ");
   const rawParams: Array<string | number> = [tenantId];
   for (const d of decrements) {
     rawParams.push(d.id, d.qty);
   }
-  return prisma.$executeRawUnsafe(
+  return (client as unknown as typeof prisma).$executeRawUnsafe(
     `UPDATE "ProductWarehouseStock" AS pws
      SET "qty" = pws.qty - v.qty
      FROM (VALUES ${placeholders}) AS v(id, qty)

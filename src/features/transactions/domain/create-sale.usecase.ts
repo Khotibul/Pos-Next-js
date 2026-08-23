@@ -61,7 +61,14 @@ async function executeCreateSale(
 
   const lines = input.items.map((i) => {
     const p = productMap.get(i.productId)!;
-    const price = Number(p.sellingPrice);
+    let price = Number(p.sellingPrice);
+    const minQty = Number((p as unknown as { wholesaleMinQty: unknown }).wholesaleMinQty ?? 0);
+    if (minQty > 0 && i.qty >= minQty) {
+      const wp = Number((p as unknown as { wholesalePrice: unknown }).wholesalePrice ?? 0);
+      const disc = Number((p as unknown as { wholesaleDiscountPercent: unknown }).wholesaleDiscountPercent ?? 0);
+      if (wp > 0) price = wp;
+      else if (disc > 0) price = price * (1 - disc / 100);
+    }
     const lineTotal = price * i.qty;
     return { productId: p.id, name: p.name, sku: p.sku, price, qty: i.qty, lineTotal };
   });
@@ -115,7 +122,7 @@ async function executeCreateSale(
       }
     }
 
-    const updatedCount = await decrementStockRaw(tenantId, decrements);
+    const updatedCount = await decrementStockRaw(tx, tenantId, decrements);
     if (updatedCount !== decrements.length) {
       throw Errors.badRequest("Stok berubah saat transaksi diproses. Silakan ulangi transaksi.");
     }
@@ -157,7 +164,7 @@ async function executeCreateSale(
     }
 
     return sale;
-  });
+  }, { timeout: 10000, maxWait: 5000 });
   endTransaction();
 
   const endReceiptCache = createDevTimer("pos.createSale.cacheReceipt");

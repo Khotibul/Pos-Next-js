@@ -31,11 +31,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     endValidate();
 
     const endIdempotency = createDevTimer("pos.createSaleAction.idempotency");
-    const idempotencyRaw = parsed.data.payment.reference || crypto
-      .createHash("sha256")
-      .update(JSON.stringify(parsed.data.items))
-      .digest("hex")
-      .slice(0, 16);
+    const idempotencyRaw = parsed.data.payment.reference?.trim() || crypto.randomUUID();
     const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
     idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
     const allowed = await checkIdempotencyKey(ctx.tenantId, idempotencyKey);

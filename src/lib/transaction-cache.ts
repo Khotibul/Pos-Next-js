@@ -8,6 +8,9 @@ type CachedProduct = {
   name: string;
   sku: string;
   sellingPrice: number;
+  wholesalePrice: number;
+  wholesaleDiscountPercent: number;
+  wholesaleMinQty: number;
 };
 
 export async function getCachedProducts(
@@ -54,7 +57,7 @@ export async function getCachedProducts(
     const { prisma } = await import("@/lib/prisma");
     const products = await prisma.product.findMany({
       where: { tenantId, id: { in: uncachedIds }, isActive: true },
-      select: { id: true, name: true, sku: true, sellingPrice: true },
+      select: { id: true, name: true, sku: true, sellingPrice: true, wholesalePrice: true, wholesaleDiscountPercent: true, wholesaleMinQty: true },
     });
     endDbFetch();
 
@@ -66,6 +69,9 @@ export async function getCachedProducts(
         name: p.name,
         sku: p.sku,
         sellingPrice: Number(p.sellingPrice),
+        wholesalePrice: Number((p as unknown as { wholesalePrice: unknown }).wholesalePrice ?? 0),
+        wholesaleDiscountPercent: Number((p as unknown as { wholesaleDiscountPercent: unknown }).wholesaleDiscountPercent ?? 0),
+        wholesaleMinQty: Number((p as unknown as { wholesaleMinQty: unknown }).wholesaleMinQty ?? 0),
       };
       result.set(p.id, cached);
       cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 600 });
