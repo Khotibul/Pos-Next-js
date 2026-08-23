@@ -690,6 +690,9 @@ model ProductWarehouseStock {
   @@index([tenantId])
   @@index([warehouseId])
   @@index([productId])
+  @@index([tenantId, productId])
+  @@index([tenantId, warehouseId])
+  @@index([tenantId, productId, warehouseId])
   @@index([variantId])
   @@index([batchId])
 }
@@ -1048,6 +1051,7 @@ model Sale {
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([shiftId])
+  @@index([tenantId, shiftId])
   @@index([invoiceNo])
 }
 
@@ -1285,6 +1289,7 @@ model CashierShift {
   @@index([cashierId])
   @@index([openedAt])
   @@index([status])
+  @@index([tenantId, branchId, cashierId, status])
 }
 
 // NextAuth / Auth.js models (Prisma Adapter)

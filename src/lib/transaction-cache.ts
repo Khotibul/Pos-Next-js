@@ -13,6 +13,23 @@ type CachedProduct = {
   wholesaleMinQty: number;
 };
 
+// In-memory LRU untuk transaksi padat (hindari Redis roundtrip untuk produk laris)
+const memCache = new Map<string, { value: CachedProduct; exp: number }>();
+function getMemCache(key: string): CachedProduct | null {
+  const e = memCache.get(key);
+  if (!e) return null;
+  if (Date.now() > e.exp) { memCache.delete(key); return null; }
+  return e.value;
+}
+function setMemCache(key: string, value: CachedProduct, ttlSec: number) {
+  memCache.set(key, { value, exp: Date.now() + ttlSec * 1000 });
+  if (memCache.size > 800) {
+    const first = memCache.keys().next().value as string | undefined;
+    if (first) memCache.delete(first);
+  }
+}
+function delMemCache(key: string) { memCache.delete(key); }
+
 export async function getCachedProducts(
   tenantId: string,
   productIds: string[],
@@ -21,31 +38,43 @@ export async function getCachedProducts(
   if (productIds.length === 0) return result;
 
   const uncachedIds: string[] = [];
+  const memMissIds: string[] = [];
+
+  // 1. Cek memCache dulu (0ms)
+  for (const id of productIds) {
+    const memKey = `tx:product:${tenantId}:${id}`;
+    const memVal = getMemCache(memKey);
+    if (memVal) result.set(id, memVal);
+    else memMissIds.push(id);
+  }
+  if (memMissIds.length === 0) return result;
 
   const redis = isRedisEnabled() ? getRedisClient() : null;
   if (redis) {
     const endMget = createDevTimer("tx.productCache.mget");
-    const keys = productIds.map((id) => `tx:product:${tenantId}:${id}`);
+    const keys = memMissIds.map((id) => `tx:product:${tenantId}:${id}`);
     const cachedValues = await redis.mget<Array<{ value: CachedProduct } | null>>(...keys);
     endMget();
 
-    for (let i = 0; i < productIds.length; i++) {
+    for (let i = 0; i < memMissIds.length; i++) {
       const val = cachedValues?.[i]?.value ?? null;
       if (val) {
-        result.set(productIds[i], val);
+        result.set(memMissIds[i], val);
+        setMemCache(`tx:product:${tenantId}:${memMissIds[i]}`, val, 30);
       } else {
-        uncachedIds.push(productIds[i]);
+        uncachedIds.push(memMissIds[i]);
       }
     }
   } else {
     const entries = await Promise.all(
-      productIds.map((id) =>
+      memMissIds.map((id) =>
         getCache<CachedProduct>(`tx:product:${tenantId}:${id}`).then((cached) => ({ id, cached })),
       ),
     );
     for (const { id, cached } of entries) {
       if (cached) {
         result.set(id, cached);
+        setMemCache(`tx:product:${tenantId}:${id}`, cached, 30);
       } else {
         uncachedIds.push(id);
       }
@@ -74,6 +103,7 @@ export async function getCachedProducts(
         wholesaleMinQty: Number((p as unknown as { wholesaleMinQty: unknown }).wholesaleMinQty ?? 0),
       };
       result.set(p.id, cached);
+      setMemCache(`tx:product:${tenantId}:${p.id}`, cached, 30);
       cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 600 });
     }
     if (redis && cacheEntries.length > 0) {
@@ -92,6 +122,7 @@ export async function getCachedProducts(
 }
 
 export async function invalidateCachedProduct(tenantId: string, productId: string) {
+  delMemCache(`tx:product:${tenantId}:${productId}`);
   await deleteCache(`tx:product:${tenantId}:${productId}`);
 }
 
