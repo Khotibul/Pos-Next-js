@@ -41,6 +41,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ pr
         wholesaleDiscountPercent: product.wholesaleDiscountPercent?.toString() ?? "0",
         wholesaleMinQty: product.wholesaleMinQty?.toString() ?? "0",
         totalStock: product.totalStock,
+        imageUrl: (product as unknown as { images?: Array<{ url: string }> }).images?.[0]?.url ?? null,
         isActive: product.isActive,
         isFeatured: product.isFeatured,
         isConsignment: product.isConsignment,

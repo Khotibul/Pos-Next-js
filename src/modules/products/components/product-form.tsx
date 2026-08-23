@@ -44,6 +44,7 @@ type Initial = {
   wholesaleMinQty?: number | string;
   initialStock?: number | string;
   totalStock?: number;
+  imageUrl?: string | null;
   isActive?: boolean;
   isFeatured?: boolean;
   isConsignment?: boolean;
@@ -69,10 +70,12 @@ export function ProductForm({
   const [barcodePreview, setBarcodePreview] = useState(String(initial?.barcode ?? ""));
   const [typeValue, setTypeValue] = useState<NonNullable<Initial["type"]>>(initial?.type ?? "SINGLE");
   const isStockable = typeValue !== "SERVICE" && typeValue !== "DIGITAL";
+  const [imagePreview, setImagePreview] = useState<string>(String(initial?.imageUrl ?? ""));
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanTarget, setScanTarget] = useState<"barcode" | "qrCode">("barcode");
   const barcodeInputRef = useRef<HTMLInputElement | null>(null);
   const qrInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const barcodeValue = useMemo(() => {
     const b = barcodePreview.trim();
     if (b) return b;
@@ -181,6 +184,60 @@ export function ProductForm({
                 placeholder="Catatan produk, komposisi, ukuran, dll"
               />
             </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="imageUrl">Gambar Produk</Label>
+          <div className="rounded-2xl border bg-muted/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-background sm:h-32 sm:w-32">
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" onError={() => setImagePreview("")} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No Image</span>
+                )}
+              </div>
+              <div className="grid flex-1 gap-2">
+                <Input
+                  id="imageUrl"
+                  name="imageUrl"
+                  value={imagePreview}
+                  onChange={(e) => setImagePreview(e.target.value)}
+                  placeholder="https://... atau pilih file"
+                />
+                {fieldErrors.imageUrl ? <p className="text-xs text-destructive">{fieldErrors.imageUrl}</p> : <p className="text-xs text-muted-foreground">URL gambar atau upload file. Kosongkan untuk tanpa gambar.</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" className="rounded-xl" onClick={() => imageInputRef.current?.click()}>
+                    Upload File
+                  </Button>
+                  {imagePreview ? (
+                    <Button type="button" variant="ghost" className="rounded-xl" onClick={() => setImagePreview("")}>
+                      Hapus
+                    </Button>
+                  ) : null}
+                </div>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      alert("File maksimal 2MB");
+                      e.target.value = "";
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => setImagePreview(String(reader.result ?? ""));
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="grid gap-2">
           <Label htmlFor="barcode">Barcode</Label>

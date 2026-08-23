@@ -43,7 +43,7 @@ export async function getStockAggregate(tenantId: string, productIds: string[]):
 }
 
 export async function findProductById(tenantId: string, id: string) {
-  return prisma.product.findFirst({ where: { tenantId, id } });
+  return prisma.product.findFirst({ where: { tenantId, id }, include: { category: true, brand: true, supplier: true, unit: true, images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } } });
 }
 
 export async function createProductInTransaction(tx: Prisma.TransactionClient, _tenantId: string, data: Prisma.ProductCreateInput) {

@@ -8,6 +8,7 @@ export type ProductMobileRow = {
   sellingPrice: unknown;
   stock: number;
   isActive: boolean;
+  imageUrl?: string | null;
 };
 
 function rupiah(value: unknown) {
@@ -36,8 +37,13 @@ export function ProductsMobileList({ items }: { items: ProductMobileRow[] }) {
           href={`/products/${p.id}`}
           className="flex items-center gap-3 rounded-2xl border bg-background p-3.5 shadow-xs transition hover:bg-muted/20 active:scale-[0.99]"
         >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-muted/20 text-sm font-bold text-muted-foreground">
-            {p.name.slice(0, 1).toUpperCase()}
+          <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border bg-muted/20">
+            {p.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm font-bold text-muted-foreground">{p.name.slice(0, 1).toUpperCase()}</div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">

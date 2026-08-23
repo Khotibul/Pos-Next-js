@@ -54,6 +54,17 @@ export async function listProducts(params: {
   const stockAgg = await repo.getStockAggregate(params.tenantId, productIds);
   const stockMap = new Map(stockAgg.map((s) => [s.productId, Number(s._sum?.qty ?? 0)]));
 
+  const { prisma: prismaForImages } = await import("@/shared/server/db/prisma");
+  const imageRows = productIds.length
+    ? await prismaForImages.productImage.findMany({
+        where: { tenantId: params.tenantId, productId: { in: productIds } },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { productId: true, url: true },
+      })
+    : [];
+  const imageMap = new Map<string, string>();
+  for (const r of imageRows) if (!imageMap.has(r.productId)) imageMap.set(r.productId, r.url);
+
   const mappedItems = items.map((p) => ({
     ...p,
     costPrice: Number(p.costPrice),
@@ -62,7 +73,7 @@ export async function listProducts(params: {
     wholesaleDiscountPercent: Number(p.wholesaleDiscountPercent),
   }));
   return {
-    items: mappedItems.map((p) => toProductListItem(p, stockMap.get(p.id) ?? 0)),
+    items: mappedItems.map((p) => toProductListItem({ ...p, imageUrl: imageMap.get(p.id) ?? null } as never, stockMap.get(p.id) ?? 0)),
     total, page, pageSize, q, categoryId, status,
   };
 }
@@ -156,6 +167,14 @@ export async function createProduct(params: { tenantId: string; input: CreatePro
           });
         }
 
+        const imageUrl = (params.input.imageUrl ?? "").trim();
+        if (imageUrl) {
+          await tx.productImage.create({
+            data: { tenantId: params.tenantId, productId: product.id, url: imageUrl, alt: params.input.name, sortOrder: 0 },
+            select: { id: true },
+          });
+        }
+
         return product;
       });
 
@@ -237,6 +256,20 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
           await tx.productWarehouseStock.update({ where: { id: existingStock.id }, data: { qty: initialStock }, select: { id: true } });
         } else if (initialStock > 0) {
           await tx.productWarehouseStock.create({ data: { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, variantId: null, batchId: null, qty: initialStock }, select: { id: true } });
+        }
+      }
+
+      if (params.input.imageUrl !== undefined) {
+        const raw = (params.input.imageUrl ?? "").trim();
+        if (raw === "") {
+          await tx.productImage.deleteMany({ where: { tenantId: params.tenantId, productId: product.id } });
+        } else if (raw) {
+          const existingImg = await tx.productImage.findFirst({ where: { tenantId: params.tenantId, productId: product.id }, orderBy: { sortOrder: "asc" }, select: { id: true } });
+          if (existingImg) {
+            await tx.productImage.update({ where: { id: existingImg.id }, data: { url: raw } });
+          } else {
+            await tx.productImage.create({ data: { tenantId: params.tenantId, productId: product.id, url: raw, alt: params.input.name ?? exists.name, sortOrder: 0 } });
+          }
         }
       }
 

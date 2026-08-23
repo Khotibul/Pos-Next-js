@@ -13,6 +13,7 @@ type ProductRecord = {
   wholesaleMinQty: number | null;
   isActive: boolean;
   updatedAt: Date;
+  imageUrl?: string | null;
 };
 
 export function toProductListItem(
@@ -21,6 +22,7 @@ export function toProductListItem(
 ): ProductListItem {
   return {
     ...record,
+    imageUrl: record.imageUrl ?? null,
     costPrice: Number(record.costPrice),
     sellingPrice: Number(record.sellingPrice),
     wholesalePrice: Number(record.wholesalePrice),

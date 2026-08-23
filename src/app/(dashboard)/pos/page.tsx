@@ -34,19 +34,30 @@ export default async function PosPage() {
   ]);
 
   const warehouseIds = branchWarehouses.map((w) => w.id);
-  const stockRows = products.length > 0 && warehouseIds.length > 0
-    ? await prisma.productWarehouseStock.groupBy({
-        by: ["productId"],
-        where: {
-          tenantId: ctx.tenantId,
-          productId: { in: products.map((p) => p.id) },
-          warehouseId: { in: warehouseIds },
-        },
-        _sum: { qty: true },
-      })
-    : [];
+  const [stockRows, imageRows] = await Promise.all([
+    products.length > 0 && warehouseIds.length > 0
+      ? prisma.productWarehouseStock.groupBy({
+          by: ["productId"],
+          where: {
+            tenantId: ctx.tenantId,
+            productId: { in: products.map((p) => p.id) },
+            warehouseId: { in: warehouseIds },
+          },
+          _sum: { qty: true },
+        })
+      : Promise.resolve([] as Array<{ productId: string; _sum: { qty: number | null } }>),
+    products.length > 0
+      ? prisma.productImage.findMany({
+          where: { tenantId: ctx.tenantId, productId: { in: products.map((p) => p.id) } },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { productId: true, url: true },
+        })
+      : Promise.resolve([] as Array<{ productId: string; url: string }>),
+  ]);
 
   const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.qty ?? 0)]));
+  const imageByProductId = new Map<string, string>();
+  for (const r of imageRows) if (!imageByProductId.has(r.productId)) imageByProductId.set(r.productId, r.url);
   endData();
   endTotal();
 
@@ -90,6 +101,7 @@ export default async function PosPage() {
             wholesalePrice: Number(p.wholesalePrice ?? 0),
             wholesaleDiscountPercent: Number(p.wholesaleDiscountPercent ?? 0),
             wholesaleMinQty: Number(p.wholesaleMinQty ?? 0),
+            imageUrl: imageByProductId.get(p.id) ?? null,
           }))}
         />
       )}

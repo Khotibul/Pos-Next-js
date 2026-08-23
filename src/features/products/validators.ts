@@ -36,6 +36,7 @@ export const createProductSchema = z.object({
   wholesaleDiscountPercent: z.coerce.number().min(0).max(100).optional(),
   wholesaleMinQty: z.coerce.number().int().min(0).optional(),
   initialStock: z.coerce.number().int().min(0).optional(),
+  imageUrl: z.string().max(4000000).optional().or(z.literal("")),
   isActive: booleanFromForm.default(true),
   isFeatured: booleanFromForm.default(false),
   isConsignment: booleanFromForm.default(false),

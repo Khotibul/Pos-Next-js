@@ -27,6 +27,7 @@ export type Product = {
   wholesalePrice?: number;
   wholesaleDiscountPercent?: number;
   wholesaleMinQty?: number;
+  imageUrl?: string | null;
 };
 
 export function rupiah(n: number) {

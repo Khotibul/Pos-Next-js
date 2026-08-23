@@ -23,6 +23,7 @@ type Item = {
   stock: number;
   isActive: boolean;
   updatedAt: string;
+  imageUrl?: string | null;
 };
 
 function formatRupiah(value: unknown) {
@@ -181,7 +182,19 @@ export function ProductsTable({
                         aria-label={`Select ${p.name}`}
                       />
                     </TableCell>
-                    <TableCell className="font-medium"><Link href={`/products/${p.id}`} className="hover:underline">{p.name}</Link></TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border bg-muted/20">
+                          {p.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">{p.name.slice(0,1).toUpperCase()}</div>
+                          )}
+                        </div>
+                        <Link href={`/products/${p.id}`} className="hover:underline line-clamp-1">{p.name}</Link>
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                     <TableCell className="min-w-[160px]">
                       <Code128Mark value={(p.barcode ?? p.sku) as string} label={p.barcode ?? p.sku} height={28} moduleWidth={1.2} className="max-w-[220px]" />

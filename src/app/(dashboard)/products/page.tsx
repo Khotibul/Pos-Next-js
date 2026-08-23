@@ -199,6 +199,7 @@ export default async function ProductsPage({
               sellingPrice: Number(p.sellingPrice),
               stock: p.stock,
               isActive: p.isActive,
+              imageUrl: (p as unknown as { imageUrl?: string | null }).imageUrl ?? null,
             }))}
           />
         </div>
@@ -254,6 +255,7 @@ export default async function ProductsPage({
             stock: p.stock,
             isActive: p.isActive,
             updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : p.updatedAt.toISOString(),
+            imageUrl: (p as unknown as { imageUrl?: string | null }).imageUrl ?? null,
           }))}
           query={{
             q: result.q ?? "",

@@ -14,6 +14,7 @@ export type ProductListItem = {
   isActive: boolean;
   updatedAt: Date;
   stock: number;
+  imageUrl: string | null;
 };
 
 export type ProductOverview = {
@@ -23,7 +24,7 @@ export type ProductOverview = {
   withBarcode: number;
 };
 
-export type ProductDetail = Prisma.ProductGetPayload<{ include: { category: true; brand: true; supplier: true; unit: true } }> & {
+export type ProductDetail = Prisma.ProductGetPayload<{ include: { category: true; brand: true; supplier: true; unit: true; images: true } }> & {
   totalStock: number;
 };
 
