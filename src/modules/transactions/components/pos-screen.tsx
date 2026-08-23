@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { VoiceInputButton } from "@/components/pos/voice-input-button";
 import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
 import { requestPrint } from "@/modules/transactions/components/receipt-view";
@@ -59,7 +58,6 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
   } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
-  const gridParentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -121,30 +119,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
     });
   }, [allProducts, debouncedQ]);
 
-  const [colCount, setColCount] = useState(4);
 
-  useEffect(() => {
-    const calc = () => {
-      const w = window.innerWidth;
-      if (w < 480) setColCount(1);
-      else if (w < 768) setColCount(2);
-      else if (w < 1280) setColCount(3);
-      else if (w < 1920) setColCount(4);
-      else setColCount(5);
-    };
-    calc();
-    window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
-  }, []);
-
-  const gridRowCount = Math.ceil(filtered.length / colCount);
-  const gridVirtualizer = useVirtualizer({
-    count: gridRowCount,
-    getScrollElement: () => gridParentRef.current,
-    estimateSize: () => colCount <= 2 ? 145 : 175,
-    measureElement: (el) => el.getBoundingClientRect().height,
-    overscan: 3,
-  });
 
   const productByCode = useMemo(() => {
     const map = new Map<string, Product>();
@@ -391,7 +366,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
 
   return (
     <ErrorBoundary>
-      <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_430px] 2xl:grid-cols-[minmax(0,1fr)_460px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px] items-start">
         <div className="flex min-w-0 flex-col">
           <div className="sticky top-[56px] z-10 mb-3 rounded-2xl border bg-background/80 p-2 backdrop-blur-lg sm:top-[72px] sm:p-3">
             <form
@@ -434,56 +409,24 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
               {q ? `${productCount} produk ditemukan` : `${productCount} produk`}
             </div>
           </div>
-          <div
-            ref={gridParentRef}
-            className="overflow-auto scrollbar-thin"
-            style={{ maxHeight: "calc(100vh - 210px)" }}
-          >
-            <div
-              style={{ height: `${gridVirtualizer.getTotalSize()}px`, position: "relative" }}
-            >
-              {gridVirtualizer.getVirtualItems().map((virtualRow) => {
-                const start = virtualRow.index * colCount;
-                const rowProducts = filtered.slice(start, start + colCount);
-                return (
-                  <div
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      willChange: "transform",
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    <div
-                      className={`grid ${colCount <= 2 ? "gap-1.5" : "gap-3 sm:gap-4 lg:gap-5 xl:gap-6"}`}
-                      style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
-                    >
-                      {rowProducts.length === 0 ? (
-                        <div className="col-span-full flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-10 text-sm text-muted-foreground">
-                          <svg className="h-10 w-10 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.75v11.25m-3-3l3 3 3-3M3.75 18.75h16.5" />
-                          </svg>
-                          Produk tidak ditemukan
-                        </div>
-                      ) : (
-                        rowProducts.map((p) => (
-                          <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-10 text-sm text-muted-foreground">
+              <svg className="h-10 w-10 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.75v11.25m-3-3l3 3 3-3M3.75 18.75h16.5" />
+              </svg>
+              Produk tidak ditemukan
             </div>
-          </div>
+          ) : (
+            <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {filtered.map((p) => (
+                <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Desktop cart sidebar */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block lg:sticky lg:top-[72px] lg:max-h-[calc(100vh-80px)] lg:overflow-auto">
           <CartSidebar
             lines={lines}
             productMap={productMap}
