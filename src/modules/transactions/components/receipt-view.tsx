@@ -94,6 +94,16 @@ export const ReceiptView = memo(function ReceiptView({
   const totalFontPx = Math.round((baseFontPx + 2.2) * 10) / 10;
   const itemNameChars = Math.max(12, Math.round(profile.charsPerLine * 0.52));
 
+  // Alamat & nomor telepon: pisah per baris (newline, koma-pipe, atau titik-koma), tampil center di bawah nama toko
+  const headerLines = useMemo(() => {
+    const raw = printer.headerSubtitle ?? "";
+    return raw
+      .split(/\r?\n|\s*\|\s*|\s*;\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }, [printer.headerSubtitle]);
+
   useEffect(() => {
     if (!autoPrint) return;
     const timer = window.setTimeout(() => requestPrint(printer, sale), 200);
@@ -132,7 +142,8 @@ export const ReceiptView = memo(function ReceiptView({
           width: var(--receipt-width-px);
           max-width: 100%;
           margin: 0 auto;
-          padding: var(--receipt-padding);
+          /* Hemat kertas: atas/bawah setengah dari padding samping */
+          padding: calc(var(--receipt-padding) * 0.4) var(--receipt-padding);
           background: #fff;
           color: #000;
           font-family: Inter, "Roboto Mono", "Courier New", monospace;
@@ -145,7 +156,7 @@ export const ReceiptView = memo(function ReceiptView({
           display: block;
           width: auto;
           max-width: var(--receipt-logo-width);
-          max-height: 42px;
+          max-height: 30px;
           object-fit: contain;
           margin: 0 auto 2px;
         }
@@ -154,15 +165,16 @@ export const ReceiptView = memo(function ReceiptView({
         .receipt-title {
           font-size: var(--receipt-title-font);
           font-weight: 800;
-          line-height: 1.1;
+          line-height: 1.05;
         }
         .receipt-small { font-size: var(--receipt-small-font); }
         .receipt-bold { font-weight: 800; }
-        .receipt-section { margin: var(--receipt-gap) 0; }
-        .receipt-header-section { margin: calc(var(--receipt-gap) / 2) 0; }
+        .receipt-section { margin: calc(var(--receipt-gap) * 0.7) 0; }
+        .receipt-header-section { margin: 0 0 calc(var(--receipt-gap) * 0.35); }
+        .receipt-header-line { line-height: 1.25; }
         .receipt-separator {
           height: 1px;
-          margin: var(--receipt-gap) 0;
+          margin: calc(var(--receipt-gap) * 0.55) 0;
           background: repeating-linear-gradient(to right, #000 0, #000 4px, transparent 4px, transparent 7px);
           border: 0;
         }
@@ -251,7 +263,7 @@ export const ReceiptView = memo(function ReceiptView({
           .receipt-wrap {
             width: var(--receipt-width-mm);
             max-width: var(--receipt-width-mm);
-            padding: var(--receipt-padding);
+            padding: calc(var(--receipt-padding) * 0.4) var(--receipt-padding);
             border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
@@ -264,10 +276,12 @@ export const ReceiptView = memo(function ReceiptView({
         <div className="receipt-wrap rounded-xl border shadow-sm">
           <div className="receipt-center receipt-header-section">
             {printer.showLogo ? (
-              <Image src="/posqu-pro.png" alt="Logo toko" width={profile.logoMaxWidthPx} height={42} className="receipt-logo" priority={false} />
+              <Image src="/posqu-pro.png" alt="Logo toko" width={profile.logoMaxWidthPx} height={30} className="receipt-logo" priority={false} />
             ) : null}
             <div className="receipt-title">{printer.headerTitle}</div>
-            {printer.headerSubtitle ? <div className="receipt-small receipt-muted">{printer.headerSubtitle}</div> : null}
+            {headerLines.map((line, i) => (
+              <div key={i} className="receipt-small receipt-muted receipt-header-line">{line}</div>
+            ))}
           </div>
 
           <hr className="receipt-separator" />
