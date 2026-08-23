@@ -121,9 +121,9 @@ export function CartSummary({
           </div>
         </>
         ) : null}
-        <div className="mt-3 flex justify-between border-t pt-3 text-base">
-          <span className="font-semibold">Total</span>
-          <span className="text-lg font-bold text-primary">{rupiah(total)}</span>
+        <div className="mt-3 flex flex-col gap-1 border-t pt-3">
+          <span className="text-sm font-medium text-muted-foreground">Total Bayar</span>
+          <span className="text-2xl font-extrabold tracking-tight text-primary sm:text-3xl">{rupiah(total)}</span>
         </div>
       </div>
 
@@ -154,21 +154,23 @@ export function CartSummary({
       </div>
 
       {method === "CASH" ? (
-        <div className="shrink-0 rounded-lg bg-muted/30 p-3 text-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Dibayar</span>
+        <div className="shrink-0 rounded-xl border-2 bg-background p-3 shadow-sm">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold">Dibayar</label>
             <input
               type="number"
               inputMode="numeric"
-              className="h-9 w-36 rounded-lg border bg-background px-2.5 text-right text-sm"
-              value={Number.isFinite(cashPaid) ? cashPaid : 0}
+              className="h-14 w-full rounded-xl border-2 bg-muted/20 px-4 text-right text-xl font-extrabold tracking-tight placeholder:text-muted-foreground/30 focus:border-primary focus:bg-background"
+              value={cashPaid === 0 ? "" : cashPaid}
+              placeholder="0"
               min={0}
-              onChange={(e) => setCashPaid(Number(e.target.value || 0))}
+              autoFocus
+              onChange={(e) => setCashPaid(e.target.value === "" ? 0 : Number(e.target.value))}
             />
           </div>
-          <div className="mt-1.5 flex items-center justify-between">
-            <span className="text-muted-foreground">Kembalian</span>
-            <span className={cashShortage > 0 ? "font-semibold text-destructive" : "font-semibold text-primary"}>
+          <div className="mt-3 flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+            <span className="text-sm font-medium text-muted-foreground">Kembalian</span>
+            <span className={`text-lg font-extrabold ${cashShortage > 0 ? "text-destructive" : "text-primary"}`}>
               {cashShortage > 0 ? `Kurang ${rupiah(cashShortage)}` : rupiah(cashChange)}
             </span>
           </div>
