@@ -228,7 +228,7 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
       setCart({});
       setCashPaid(0);
       setCartOpen(false);
-      setSuccessDialog({
+      const dialogData = {
         invoiceNo: res.data.invoiceNo,
         total,
         subtotal,
@@ -238,9 +238,25 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
         receivedAmount: method === "CASH" ? cashPaid : total,
         changeAmount: cashChange,
         items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
-      });
+      };
+      setSuccessDialog(dialogData);
+      // Tampilkan print view secara spontan (tanpa perlu klik Cetak) — langsung pakai data lokal, tanpa fetch
+      const receiptSale: ReceiptSale = {
+        id: res.data.id,
+        invoiceNo: res.data.invoiceNo,
+        status: "PAID",
+        createdAt: new Date().toISOString(),
+        subtotal,
+        discount: effectiveDiscount,
+        tax,
+        total,
+        items: lines.map((l, idx) => ({ id: `${res.data.id}-item-${idx}`, name: l.name, sku: l.sku, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
+        payments: [{ id: `${res.data.id}-pay-0`, method, amount: total, receivedAmount: method === "CASH" ? cashPaid : total, changeAmount: cashChange, reference: null }],
+      };
+      // Delay sedikit agar dialog ter-render dulu, tetap dalam gesture
+      setTimeout(() => requestPrint(settings, receiptSale), 250);
     });
-  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, startTransition, setError, setForceOpenShift, setInvoice, setSaleId, setCart, setCashPaid, setSuccessDialog]);
+  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, settings, startTransition, setError, setForceOpenShift, setInvoice, setSaleId, setCart, setCashPaid, setSuccessDialog]);
 
   const handleVoiceProduct = useCallback(async (productName: string, qty: number): Promise<boolean> => {
     const lower = productName.toLowerCase();
@@ -535,19 +551,25 @@ export function PosScreen({ products, initialSettings }: { products: Product[]; 
             items={successDialog.items}
             printing={printing}
             onPrint={() => {
+              if (!successDialog) return;
               setPrinting(true);
-              fetch(`/api/pos/receipt/${saleId}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .then((json) => {
-                  if (json?.ok) {
-                    requestPrint(json.data.printer as PrinterSettings, json.data.sale as ReceiptSale);
-                  }
-                })
-                .catch(console.error)
-                .finally(() => {
-                  setPrinting(false);
-                  setSuccessDialog(null);
-                });
+              try {
+                const receiptSale: ReceiptSale = {
+                  id: saleId ?? successDialog.invoiceNo,
+                  invoiceNo: successDialog.invoiceNo,
+                  status: "PAID",
+                  createdAt: new Date().toISOString(),
+                  subtotal: successDialog.subtotal,
+                  discount: successDialog.discount ?? 0,
+                  tax: successDialog.tax ?? 0,
+                  total: successDialog.total,
+                  items: successDialog.items.map((it, idx) => ({ id: `item-${idx}`, name: it.name, sku: "", price: it.price, qty: it.qty, lineTotal: it.lineTotal })),
+                  payments: [{ id: "pay-0", method: successDialog.paymentMethod, amount: successDialog.total, receivedAmount: successDialog.receivedAmount, changeAmount: successDialog.changeAmount, reference: null }],
+                };
+                requestPrint(settings, receiptSale);
+              } finally {
+                setPrinting(false);
+              }
             }}
           />
         ) : null}
