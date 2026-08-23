@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef } from "react";
+import { Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
 import { SavedCartsPanel } from "./saved-carts-panel";
 import type { CartLine, Product, PaymentMethod } from "./cart-common";
@@ -46,9 +48,28 @@ export function MobileCartSheet({
               </span>
             ) : null}
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/60">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {lines.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 rounded-lg px-2.5 text-xs hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => {
+                  if (!window.confirm(`Kosongkan keranjang (${lines.length} item)?`)) return;
+                  setCart({});
+                  setError(null);
+                  setNotice("Keranjang dikosongkan");
+                }}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                Kosongkan
+              </Button>
+            ) : null}
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/60">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3">

@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef } from "react";
+import { Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
 import { SavedCartsPanel } from "./saved-carts-panel";
 import type { CartLine, Product, PaymentMethod } from "./cart-common";
@@ -33,8 +35,31 @@ export function CartSidebar({
     <Card ref={sidebarRef} className="sticky top-[72px] flex min-h-0 flex-col overflow-hidden rounded-3xl lg:max-h-[calc(100vh-96px)]">
       <CardHeader className="shrink-0 border-b py-3.5">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm font-semibold">Keranjang</CardTitle>
-          {invoice ? <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{invoice}</span> : null}
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold">Keranjang</CardTitle>
+            {lines.length > 0 ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{lines.length}</span> : null}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {lines.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 rounded-lg px-2 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => {
+                  if (!window.confirm(`Kosongkan keranjang (${lines.length} item)?`)) return;
+                  setCart({});
+                  setError(null);
+                  setNotice("Keranjang dikosongkan");
+                }}
+                aria-label="Kosongkan keranjang"
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Kosongkan
+              </Button>
+            ) : null}
+            {invoice ? <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{invoice}</span> : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
