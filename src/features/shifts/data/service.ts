@@ -31,13 +31,7 @@ export async function listShifts(params: {
 }
 
 export async function getOpenShift(params: { tenantId: string; branchId: string; cashierId: string }) {
-  const { getCache, setCache } = await import("@/shared/server/cache/redis");
-  const key = `shift:open:${params.tenantId}:${params.branchId}:${params.cashierId}`;
-  const cached = await getCache<{ id: string; status: string; openedAt: string }>(key);
-  if (cached) return cached as unknown as Awaited<ReturnType<typeof repo.findOpenShift>>;
-  const result = await repo.findOpenShift(params.tenantId, params.branchId, params.cashierId);
-  if (result) void setCache(key, result as unknown as { id: string }, 15);
-  return result;
+  return repo.findOpenShift(params.tenantId, params.branchId, params.cashierId);
 }
 
 export async function openShift(params: { tenantId: string; branchId: string; cashierId: string; input: OpenShiftInput }) {

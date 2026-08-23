@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { DoorOpen } from "lucide-react";
 import type { ActionResult } from "@/lib/action";
 import { openShiftAction } from "@/modules/shifts/actions";
@@ -34,6 +35,11 @@ export function OpenShiftDialog({
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [state, formAction, pending] = useActionState(openShiftAction, null as ActionResult<{ id: string }> | null);
+  const pathname = usePathname();
+  const isProductRoute = pathname === "/products" || pathname.startsWith("/products/");
+  if (isProductRoute) {
+    return null;
+  }
 
   const errors = useMemo(() => ((state && !state.ok ? state.fieldErrors : undefined) ?? {}) as Record<string, string>, [state]);
   const message = state && !state.ok ? state.message : null;
