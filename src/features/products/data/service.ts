@@ -7,7 +7,7 @@ import * as repo from "@/features/products/data/repository";
 import { toProductListItem, toProductDetail, toFindProductByCodeResult } from "@/features/products/data/dto";
 import type { ProductOverview, ProductDetail, ProductMeta, FindProductByCodeResult } from "@/features/products/domain/entity";
 import type { CreateProductInput, UpdateProductInput } from "@/features/products/validators";
-import { rememberCache } from "@/lib/cache";
+import { rememberCache, invalidateProductCache } from "@/shared/server/cache/index";
 
 function slugify(input: string) {
   return input.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
@@ -42,7 +42,7 @@ export async function listProducts(params: {
     tenantId: params.tenantId,
     ...(categoryId ? { categoryId } : {}),
     ...(status === "active" ? { isActive: true } : status === "inactive" ? { isActive: false } : {}),
-    ...(q ? { OR: [{ name: { contains: q } }, { sku: { contains: q } }, { barcode: { contains: q } }] } : {}),
+    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { sku: { contains: q, mode: "insensitive" as const } }, { barcode: { contains: q, mode: "insensitive" as const } }] } : {}),
   };
 
   const [total, items] = await Promise.all([
@@ -100,52 +100,78 @@ export async function createProduct(params: { tenantId: string; input: CreatePro
 
   const { prisma } = await import("@/shared/server/db/prisma");
 
+  // Validasi FK milik tenant (mencegah P2003)
+  const fkChecks: Promise<unknown>[] = [];
+  if (params.input.categoryId) fkChecks.push(prisma.productCategory.findFirst({ where: { id: params.input.categoryId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Kategori tidak ditemukan."); }));
+  if (params.input.brandId) fkChecks.push(prisma.productBrand.findFirst({ where: { id: params.input.brandId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Brand tidak ditemukan."); }));
+  if (params.input.supplierId) fkChecks.push(prisma.supplier.findFirst({ where: { id: params.input.supplierId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Supplier tidak ditemukan."); }));
+  if (params.input.unitId) fkChecks.push(prisma.productUnit.findFirst({ where: { id: params.input.unitId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Satuan tidak ditemukan."); }));
+  if (fkChecks.length) await Promise.all(fkChecks);
+
   for (let attempt = 0; attempt < 3; attempt++) {
     const sku = desiredSku || genSku();
     try {
       const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const product = await repo.createProductInTransaction(tx, params.tenantId, {
-          sku,
-          name: params.input.name,
-          slug: desiredSlug ? slugify(desiredSlug) : null,
-          description: params.input.description?.trim() || null,
-          barcode: params.input.barcode || null,
-          qrCode: params.input.qrCode || null,
-          categoryId: params.input.categoryId || null,
-          brandId: params.input.brandId || null,
-          supplierId: params.input.supplierId || null,
-          unitId: params.input.unitId || null,
-          costPrice: params.input.costPrice,
-          sellingPrice: params.input.sellingPrice,
-          marginPct,
-          taxRate: params.input.taxRate ?? 0,
-          weight: params.input.weight ?? 0,
-          volume: params.input.volume ?? 0,
-          minStock: params.input.minStock ?? 0,
-          reorderPoint: params.input.reorderPoint ?? 0,
-          wholesalePrice: params.input.wholesalePrice ?? 0,
-          wholesaleDiscountPercent: params.input.wholesaleDiscountPercent ?? 0,
-          wholesaleMinQty: params.input.wholesaleMinQty ?? 0,
-          isActive: params.input.isActive ?? true,
-          isFeatured: params.input.isFeatured ?? false,
-          isConsignment: params.input.isConsignment ?? false,
-          type: params.input.type ?? "SINGLE",
-        } as unknown as Prisma.ProductCreateInput);
+        const product = await tx.product.create({
+          data: {
+            tenantId: params.tenantId,
+            sku,
+            name: params.input.name,
+            slug: desiredSlug ? slugify(desiredSlug) : null,
+            description: params.input.description?.trim() || null,
+            barcode: params.input.barcode || null,
+            qrCode: params.input.qrCode || null,
+            categoryId: params.input.categoryId || null,
+            brandId: params.input.brandId || null,
+            supplierId: params.input.supplierId || null,
+            unitId: params.input.unitId || null,
+            costPrice: params.input.costPrice,
+            sellingPrice: params.input.sellingPrice,
+            marginPct,
+            taxRate: params.input.taxRate ?? 0,
+            weight: params.input.weight ?? 0,
+            volume: params.input.volume ?? 0,
+            minStock: params.input.minStock ?? 0,
+            reorderPoint: params.input.reorderPoint ?? 0,
+            wholesalePrice: params.input.wholesalePrice ?? 0,
+            wholesaleDiscountPercent: params.input.wholesaleDiscountPercent ?? 0,
+            wholesaleMinQty: params.input.wholesaleMinQty ?? 0,
+            isActive: params.input.isActive ?? true,
+            isFeatured: params.input.isFeatured ?? false,
+            isConsignment: params.input.isConsignment ?? false,
+            type: params.input.type ?? "SINGLE",
+          },
+          select: { id: true },
+        });
 
         const initialStock = params.input.initialStock ?? 0;
         if (initialStock > 0) {
-          let warehouse = await repo.findFirstWarehouse(params.tenantId);
-          if (!warehouse) warehouse = await repo.createWarehouse(params.tenantId);
-          await repo.createProductStock(tx, { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, qty: initialStock });
+          let warehouse = await tx.warehouse.findFirst({ where: { tenantId: params.tenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true } });
+          if (!warehouse) {
+            warehouse = await tx.warehouse.create({ data: { tenantId: params.tenantId, name: "Main Warehouse", type: "BRANCH", isActive: true }, select: { id: true } });
+          }
+          await tx.productWarehouseStock.create({
+            data: { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, variantId: null, batchId: null, qty: initialStock },
+            select: { id: true },
+          });
         }
 
         return product;
       });
 
+      await invalidateProductCache(params.tenantId).catch(() => {});
       return created;
     } catch (e: unknown) {
-      const err = e as { code?: string };
-      if (err?.code === "P2002" && !desiredSku) continue;
+      const err = e as { code?: string; meta?: { target?: unknown } };
+      if (err?.code === "P2002") {
+        const target = Array.isArray(err.meta?.target) ? (err.meta.target as string[]).join(",") : String(err.meta?.target ?? "");
+        if (!desiredSku && target.includes("sku")) continue;
+        if (target.includes("sku")) throw Errors.badRequest("SKU sudah dipakai di tenant ini.");
+        if (target.includes("qrCode")) throw Errors.badRequest("QR Code sudah dipakai.");
+        if (target.includes("slug")) throw Errors.badRequest("Slug sudah dipakai.");
+        throw Errors.badRequest("Data produk duplikat: " + target);
+      }
+      if (err?.code === "P2003") throw Errors.badRequest("Relasi kategori/brand/supplier/satuan tidak valid.");
       throw e;
     }
   }
@@ -158,62 +184,105 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
   const exists = await repo.findProductById(params.tenantId, params.id);
   if (!exists) throw Errors.notFound("Produk tidak ditemukan.");
 
-  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const product = await repo.updateProductById(tx, params.id, {
-      sku: params.input.sku?.trim() || undefined,
-      name: params.input.name,
-      slug: params.input.slug === "" ? null : params.input.slug ? slugify(params.input.slug) : undefined,
-      description: params.input.description === "" ? null : params.input.description,
-      barcode: params.input.barcode === "" ? null : params.input.barcode,
-      qrCode: params.input.qrCode === "" ? null : params.input.qrCode,
-      categoryId: params.input.categoryId === "" ? null : params.input.categoryId,
-      brandId: params.input.brandId === "" ? null : params.input.brandId,
-      supplierId: params.input.supplierId === "" ? null : params.input.supplierId,
-      unitId: params.input.unitId === "" ? null : params.input.unitId,
-      costPrice: params.input.costPrice,
-      sellingPrice: params.input.sellingPrice,
-      marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
-      taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
-      weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
-      volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
-      minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
-      reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
-      wholesalePrice: typeof params.input.wholesalePrice === "number" ? params.input.wholesalePrice : undefined,
-      wholesaleDiscountPercent: typeof params.input.wholesaleDiscountPercent === "number" ? params.input.wholesaleDiscountPercent : undefined,
-      wholesaleMinQty: typeof params.input.wholesaleMinQty === "number" ? params.input.wholesaleMinQty : undefined,
-      isActive: typeof params.input.isActive === "boolean" ? params.input.isActive : undefined,
-      isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
-      isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
-      type: params.input.type ?? undefined,
-    } as unknown as Prisma.ProductUpdateInput);
+  // Validasi FK bila diubah
+  const fkChecks: Promise<unknown>[] = [];
+  if (params.input.categoryId && params.input.categoryId !== "") fkChecks.push(prisma.productCategory.findFirst({ where: { id: params.input.categoryId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Kategori tidak ditemukan."); }));
+  if (params.input.brandId && params.input.brandId !== "") fkChecks.push(prisma.productBrand.findFirst({ where: { id: params.input.brandId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Brand tidak ditemukan."); }));
+  if (params.input.supplierId && params.input.supplierId !== "") fkChecks.push(prisma.supplier.findFirst({ where: { id: params.input.supplierId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Supplier tidak ditemukan."); }));
+  if (params.input.unitId && params.input.unitId !== "") fkChecks.push(prisma.productUnit.findFirst({ where: { id: params.input.unitId, tenantId: params.tenantId }, select: { id: true } }).then(r => { if (!r) throw Errors.badRequest("Satuan tidak ditemukan."); }));
+  if (fkChecks.length) await Promise.all(fkChecks);
 
-    const initialStock = params.input.initialStock;
-    if (typeof initialStock === "number" && initialStock >= 0) {
-      let warehouse = await repo.findFirstWarehouse(params.tenantId);
-      if (!warehouse) warehouse = await repo.createWarehouse(params.tenantId);
+  try {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const product = await tx.product.update({
+        where: { id: params.id },
+        data: {
+          sku: params.input.sku?.trim() || undefined,
+          name: params.input.name,
+          slug: params.input.slug === "" ? null : params.input.slug ? slugify(params.input.slug) : undefined,
+          description: params.input.description === "" ? null : params.input.description,
+          barcode: params.input.barcode === "" ? null : params.input.barcode,
+          qrCode: params.input.qrCode === "" ? null : params.input.qrCode,
+          categoryId: params.input.categoryId === "" ? null : params.input.categoryId,
+          brandId: params.input.brandId === "" ? null : params.input.brandId,
+          supplierId: params.input.supplierId === "" ? null : params.input.supplierId,
+          unitId: params.input.unitId === "" ? null : params.input.unitId,
+          costPrice: params.input.costPrice,
+          sellingPrice: params.input.sellingPrice,
+          marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
+          taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
+          weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
+          volume: typeof params.input.volume === "number" ? params.input.volume : undefined,
+          minStock: typeof params.input.minStock === "number" ? params.input.minStock : undefined,
+          reorderPoint: typeof params.input.reorderPoint === "number" ? params.input.reorderPoint : undefined,
+          wholesalePrice: typeof params.input.wholesalePrice === "number" ? params.input.wholesalePrice : undefined,
+          wholesaleDiscountPercent: typeof params.input.wholesaleDiscountPercent === "number" ? params.input.wholesaleDiscountPercent : undefined,
+          wholesaleMinQty: typeof params.input.wholesaleMinQty === "number" ? params.input.wholesaleMinQty : undefined,
+          isActive: typeof params.input.isActive === "boolean" ? params.input.isActive : undefined,
+          isFeatured: typeof params.input.isFeatured === "boolean" ? params.input.isFeatured : undefined,
+          isConsignment: typeof params.input.isConsignment === "boolean" ? params.input.isConsignment : undefined,
+          type: params.input.type ?? undefined,
+        },
+        select: { id: true },
+      });
 
-      const existingStock = await repo.findExistingProductStock(params.tenantId, warehouse.id, product.id);
-      if (existingStock) {
-        await repo.updateProductStock(existingStock.id, initialStock);
-      } else if (initialStock > 0) {
-        await repo.createProductStock(tx, { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, qty: initialStock });
+      const initialStock = params.input.initialStock;
+      if (typeof initialStock === "number" && initialStock >= 0) {
+        let warehouse = await tx.warehouse.findFirst({ where: { tenantId: params.tenantId, isActive: true }, orderBy: { createdAt: "asc" }, select: { id: true } });
+        if (!warehouse) {
+          warehouse = await tx.warehouse.create({ data: { tenantId: params.tenantId, name: "Main Warehouse", type: "BRANCH", isActive: true }, select: { id: true } });
+        }
+        const existingStock = await tx.productWarehouseStock.findFirst({ where: { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, variantId: null, batchId: null }, select: { id: true } });
+        if (existingStock) {
+          await tx.productWarehouseStock.update({ where: { id: existingStock.id }, data: { qty: initialStock }, select: { id: true } });
+        } else if (initialStock > 0) {
+          await tx.productWarehouseStock.create({ data: { tenantId: params.tenantId, warehouseId: warehouse.id, productId: product.id, variantId: null, batchId: null, qty: initialStock }, select: { id: true } });
+        }
       }
+
+      return product;
+    });
+
+    await invalidateProductCache(params.tenantId).catch(() => {});
+    return updated;
+  } catch (e: unknown) {
+    const err = e as { code?: string; meta?: { target?: unknown } };
+    if (err?.code === "P2002") {
+      const target = Array.isArray(err.meta?.target) ? (err.meta.target as string[]).join(",") : String(err.meta?.target ?? "");
+      if (target.includes("sku")) throw Errors.badRequest("SKU sudah dipakai di tenant ini.");
+      if (target.includes("qrCode")) throw Errors.badRequest("QR Code sudah dipakai.");
+      if (target.includes("slug")) throw Errors.badRequest("Slug sudah dipakai.");
+      throw Errors.badRequest("Data produk duplikat: " + target);
     }
-
-    return product;
-  });
-
-  return updated;
+    if (err?.code === "P2003") throw Errors.badRequest("Relasi kategori/brand/supplier/satuan tidak valid.");
+    throw e;
+  }
 }
 
 export async function deleteProduct(params: { tenantId: string; id: string }) {
   const exists = await repo.findProductById(params.tenantId, params.id);
   if (!exists) throw Errors.notFound("Produk tidak ditemukan.");
-  await repo.deleteProductById(params.id);
+  try {
+    await repo.deleteProductById(params.id);
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err?.code === "P2003") throw Errors.badRequest("Produk masih dipakai di transaksi/stok. Nonaktifkan saja.");
+    throw e;
+  }
+  await invalidateProductCache(params.tenantId).catch(() => {});
 }
 
 export async function deleteManyProducts(params: { tenantId: string; ids: string[] }) {
-  return repo.deleteManyProductsByIds(params.tenantId, params.ids);
+  if (!params.ids.length) return { count: 0 };
+  try {
+    const res = await repo.deleteManyProductsByIds(params.tenantId, params.ids);
+    await invalidateProductCache(params.tenantId).catch(() => {});
+    return res;
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err?.code === "P2003") throw Errors.badRequest("Beberapa produk masih dipakai. Nonaktifkan saja.");
+    throw e;
+  }
 }
 
 export async function listProductMeta(params: { tenantId: string }): Promise<ProductMeta> {

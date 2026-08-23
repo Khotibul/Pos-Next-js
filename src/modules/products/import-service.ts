@@ -49,11 +49,24 @@ async function ensureDefaultWarehouse(params: { tenantId: string; branchId: stri
   });
   if (existing) return existing.id;
 
-  const created = await prisma.warehouse.create({
-    data: { tenantId: params.tenantId, branchId: params.branchId, name: "Main Warehouse", type: "BRANCH", isActive: true },
-    select: { id: true },
-  });
-  return created.id;
+  try {
+    const created = await prisma.warehouse.create({
+      data: { tenantId: params.tenantId, branchId: params.branchId, name: "Main Warehouse", type: "BRANCH", isActive: true },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (e: unknown) {
+    const err = e as { code?: string };
+    if (err?.code === "P2002") {
+      const again = await prisma.warehouse.findFirst({
+        where: { tenantId: params.tenantId, OR: [{ branchId: params.branchId }, { branchId: null }], isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (again) return again.id;
+    }
+    throw e;
+  }
 }
 
 async function upsertStock(params: {
@@ -101,6 +114,9 @@ export async function importProducts(params: {
 }) {
   const chunkSize = Math.min(50, Math.max(5, params.chunkSize ?? 20));
   if (params.rows.length === 0) throw Errors.badRequest("Tidak ada data untuk diimport.");
+  if (!params.branchId) throw Errors.badRequest("Branch tidak valid.");
+  const branch = await prisma.branch.findFirst({ where: { id: params.branchId, tenantId: params.tenantId }, select: { id: true } });
+  if (!branch) throw Errors.badRequest("Cabang tidak ditemukan.");
 
   const warehouseId = await ensureDefaultWarehouse({ tenantId: params.tenantId, branchId: params.branchId });
 
