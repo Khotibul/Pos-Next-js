@@ -24,7 +24,6 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     await requirePermission(PERMISSIONS.sales_write);
     const ctx = await requireActiveTenant();
     endAuth();
-
     const endValidate = createDevTimer("pos.createSaleAction.validate");
     const parsed = createSaleSchema.safeParse(payload);
     if (!parsed.success) return actionFail("Validasi gagal.");
@@ -33,18 +32,19 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     const endIdempotency = createDevTimer("pos.createSaleAction.idempotency");
     const idempotencyRaw = parsed.data.payment.reference?.trim() || crypto.randomUUID();
     const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
-    idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
-    const allowed = await checkIdempotencyKey(ctx.tenantId, idempotencyKey);
+    // Cepat: idempotency (Redis) & cek shift (DB) berjalan paralel, bukan berurutan
+    const [allowed, openShift] = await Promise.all([
+      checkIdempotencyKey(ctx.tenantId, idempotencyKey),
+      getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId }),
+    ]);
     if (!allowed) return actionFail("Transaksi sedang diproses. Harap tunggu.");
-    endIdempotency();
-
-    const endShiftCheck = createDevTimer("pos.createSaleAction.shiftCheck");
-    const openShift = await getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId });
     if (!openShift) {
       await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
       return actionFail("Shift belum dibuka. Silakan buka shift terlebih dahulu.");
     }
-    endShiftCheck();
+    // Kunci aktif: bila usecase gagal, catch di bawah melepas kunci agar retry user tidak terblokir 60s
+    idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
+    endIdempotency();
 
     const created = await createSaleUseCase({
       tenantId: ctx.tenantId,

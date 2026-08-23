@@ -79,11 +79,14 @@ export const ReceiptView = memo(function ReceiptView({
   printer,
   autoPrint,
   showPrintButton = true,
+  printOnly = false,
 }: {
   sale: ReceiptSale;
   printer: PrinterSettings;
   autoPrint: boolean;
   showPrintButton?: boolean;
+  /** Mount tersembunyi di layar, hanya muncul saat mencetak (untuk print langsung tanpa preview) */
+  printOnly?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const profile = useMemo(() => getPaperProfile(printer), [printer]);
@@ -116,7 +119,7 @@ export const ReceiptView = memo(function ReceiptView({
       : `@page { size: ${profile.widthMm}mm auto; margin: 0; }`;
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className={printOnly ? "receipt-print-only-host" : undefined}>
       <style>{`
         :root { color-scheme: light; }
         .receipt-print-root {
@@ -271,6 +274,19 @@ export const ReceiptView = memo(function ReceiptView({
             box-shadow: none !important;
           }
           .no-print { display: none !important; }
+        }
+        .receipt-print-only-host {
+          position: fixed;
+          top: 0;
+          left: -10000px;
+          width: var(--receipt-width-px);
+          pointer-events: none;
+        }
+        @media print {
+          .receipt-print-only-host {
+            position: static !important;
+            left: auto !important;
+          }
         }
       `}</style>
 

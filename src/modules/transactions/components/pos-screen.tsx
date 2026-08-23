@@ -11,8 +11,8 @@ import { ScanLine } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { VoiceInputButton } from "@/components/pos/voice-input-button";
 import { TransactionSuccessDialog } from "@/components/pos/transaction-success-dialog";
+import { requestPrint, ReceiptView } from "@/modules/transactions/components/receipt-view";
 import type { ReceiptSale } from "@/modules/transactions/components/receipt-view";
-import { PrintReceiptDialog } from "@/modules/transactions/components/print-receipt-dialog";
 import { CartSidebar } from "./cart/cart-sidebar";
 import { MobileCartSheet } from "./cart/mobile-cart-sheet";
 import { ProductCard } from "./product-card";
@@ -59,7 +59,6 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
   } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<ReceiptSale | null>(null);
-  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
 
   useEffect(() => {
@@ -502,7 +501,11 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
           <TransactionSuccessDialog
             open
             onOpenChange={(v) => {
-              if (!v) setSuccessDialog(null);
+              if (!v) {
+                setSuccessDialog(null);
+                setLastReceipt(null);
+                setInvoice(null);
+              }
             }}
             invoiceNo={successDialog.invoiceNo}
             total={successDialog.total}
@@ -516,28 +519,22 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             printing={printing}
             onPrint={() => {
               if (!lastReceipt) return;
-              // Buka preview struk (ReceiptView ter-mount) agar CSS cetak rapat/center + presisi kertas berlaku
-              setPrinting(false);
-              setPrintPreviewOpen(true);
+              setPrinting(true);
+              // Print langsung: ReceiptView sudah ter-mount tersembunyi (printOnly) sehingga CSS cetak berlaku
+              requestPrint(settings, lastReceipt);
+              window.setTimeout(() => {
+                setPrinting(false);
+                setSuccessDialog(null);
+                setLastReceipt(null);
+                setInvoice(null);
+              }, 1200);
             }}
           />
         ) : null}
 
-        {printPreviewOpen && lastReceipt ? (
-          <PrintReceiptDialog
-            sale={lastReceipt}
-            printer={settings}
-            triggerLabel={null}
-            open={printPreviewOpen}
-            onOpenChange={(v) => {
-              setPrintPreviewOpen(v);
-              if (!v) {
-                setSuccessDialog(null);
-                setLastReceipt(null);
-                setInvoice(null);
-              }
-            }}
-          />
+        {/* Mount struk tersembunyi untuk print langsung tanpa preview kedua */}
+        {lastReceipt ? (
+          <ReceiptView sale={lastReceipt} printer={settings} autoPrint={false} showPrintButton={false} printOnly />
         ) : null}
 
         <QrScannerDialog
