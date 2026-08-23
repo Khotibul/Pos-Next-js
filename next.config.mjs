@@ -15,6 +15,9 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   reactStrictMode: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   // Use a dedicated build directory for desktop builds to avoid collisions with `next dev`
   // (and Windows AV/file lock issues) that can corrupt `.next` during packaging.
   distDir: isDesktopBuild ? ".next-desktop" : ".next",
