@@ -37,7 +37,9 @@ class CustomerDao extends DatabaseAccessor<AppDatabase> with _$CustomerDaoMixin 
     await into(customersTable).insert(customer);
   }
 
-  Future<bool> updateCustomer(CustomersTableCompanion customer) {
+  Future<void> upsertCustomer(CustomersTableCompanion customer) async {
+    await into(customersTable).insertOnConflictUpdate(customer);
+  }  Future<bool> updateCustomer(CustomersTableCompanion customer) {
     return update(customersTable).replace(customer);
   }
 

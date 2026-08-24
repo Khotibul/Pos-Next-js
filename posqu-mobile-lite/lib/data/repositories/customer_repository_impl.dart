@@ -1,51 +1,95 @@
 import 'package:dartz/dartz.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../datasources/local/database/app_database.dart';
 import '../datasources/remote/customer_remote_datasource.dart';
+import '../models/customer_model.dart';
 
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
   return CustomerRepositoryImpl(
     remoteDataSource: ref.read(customerRemoteDataSourceProvider),
     database: ref.read(appDatabaseProvider),
+    networkInfo: ref.read(networkInfoProvider),
   );
 });
 
 class CustomerRepositoryImpl implements CustomerRepository {
   final CustomerRemoteDataSource remoteDataSource;
   final AppDatabase database;
+  final NetworkInfo networkInfo;
 
   CustomerRepositoryImpl({
     required this.remoteDataSource,
     required this.database,
+    required this.networkInfo,
   });
+
+  Future<void> _syncFromServer() async {
+    if (!await networkInfo.isConnected) return;
+    try {
+      final remote = await remoteDataSource.getCustomers();
+      for (final model in remote) {
+        await database.customerDao.upsertCustomer(
+          CustomersTableCompanion(
+            id: Value(model.id),
+            name: Value(model.name),
+            email: Value(model.email),
+            phone: Value(model.phone),
+            address: Value(model.address),
+            isActive: Value(model.isActive),
+          ),
+        );
+      }
+    } catch (_) {
+      // Endpoint belum tersedia / offline -> tetap pakai SQLite lokal.
+    }
+  }
 
   @override
   Future<Either<Failure, Customer>> createCustomer(Customer customer) async {
     try {
-      final created = await remoteDataSource.createCustomer({
-        'name': customer.name,
-        'phone': customer.phone,
-        'email': customer.email,
-        'address': customer.address,
-        'city': customer.city,
-      });
-      return Right(created.toEntity());
+      await database.customerDao.upsertCustomer(
+        CustomersTableCompanion(
+          id: Value(customer.id),
+          name: Value(customer.name),
+          email: Value(customer.email),
+          phone: Value(customer.phone),
+          address: Value(customer.address),
+          city: Value(customer.city),
+          totalPurchase: Value(customer.totalPurchase),
+          purchaseCount: Value(customer.purchaseCount),
+          points: Value(customer.points),
+          isActive: Value(customer.isActive),
+        ),
+      );
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.createCustomer(CustomerModel.fromEntity(customer).toJson());
+        } catch (_) {}
+      }
+      return Right(customer);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal membuat pelanggan'));
+      return Left(DatabaseFailure(message: 'Gagal membuat pelanggan: $e'));
     }
   }
 
   @override
   Future<Either<Failure, void>> deleteCustomer(String id) async {
     try {
-      await remoteDataSource.deleteCustomer(id);
+      await database.customerDao.deleteCustomer(id);
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.deleteCustomer(id);
+        } catch (_) {}
+      }
       return const Right(null);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal menghapus pelanggan'));
+      return Left(DatabaseFailure(message: 'Gagal menghapus pelanggan: $e'));
     }
   }
 
@@ -70,6 +114,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
     int limit = 20,
   }) async {
     try {
+      await _syncFromServer();
       final customers = await database.customerDao.getAll(
         activeOnly: activeOnly,
         search: search,
@@ -83,16 +128,29 @@ class CustomerRepositoryImpl implements CustomerRepository {
   @override
   Future<Either<Failure, Customer>> updateCustomer(Customer customer) async {
     try {
-      await remoteDataSource.updateCustomer(customer.id, {
-        'name': customer.name,
-        'phone': customer.phone,
-        'email': customer.email,
-        'address': customer.address,
-        'city': customer.city,
-      });
+      await database.customerDao.updateCustomer(
+        CustomersTableCompanion(
+          id: Value(customer.id),
+          name: Value(customer.name),
+          email: Value(customer.email),
+          phone: Value(customer.phone),
+          address: Value(customer.address),
+          city: Value(customer.city),
+          totalPurchase: Value(customer.totalPurchase),
+          purchaseCount: Value(customer.purchaseCount),
+          points: Value(customer.points),
+          isActive: Value(customer.isActive),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.updateCustomer(customer.id, CustomerModel.fromEntity(customer).toJson());
+        } catch (_) {}
+      }
       return Right(customer);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal mengupdate pelanggan'));
+      return Left(DatabaseFailure(message: 'Gagal mengupdate pelanggan: $e'));
     }
   }
 

@@ -14,12 +14,12 @@ class ApiConstants {
   static const String mobileGoogleLogin = '/mobile/auth/google';
   static const String logout = '/auth/logout';
   static const String refreshToken = '/auth/refresh';
-  static const String products = '/products';
-  static const String categories = '/categories';
-  static const String suppliers = '/suppliers';
-  static const String customers = '/customers';
+  static const String products = '/mobile/products';
+  static const String categories = '/mobile/categories';
+  static const String suppliers = '/mobile/suppliers';
+  static const String customers = '/mobile/customers';
   static const String purchases = '/purchases';
-  static const String sales = '/sales';
+  static const String sales = '/mobile/sales';
   static const String returns = '/returns';
   static const String cashierShifts = '/cashier-shifts';
   static const String cashTransactions = '/cash-transactions';

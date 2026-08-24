@@ -1,53 +1,94 @@
 import 'package:dartz/dartz.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/supplier.dart';
 import '../../domain/repositories/supplier_repository.dart';
 import '../datasources/local/database/app_database.dart';
 import '../datasources/remote/supplier_remote_datasource.dart';
+import '../models/supplier_model.dart';
 
 final supplierRepositoryProvider = Provider<SupplierRepository>((ref) {
   return SupplierRepositoryImpl(
     remoteDataSource: ref.read(supplierRemoteDataSourceProvider),
     database: ref.read(appDatabaseProvider),
+    networkInfo: ref.read(networkInfoProvider),
   );
 });
 
 class SupplierRepositoryImpl implements SupplierRepository {
   final SupplierRemoteDataSource remoteDataSource;
   final AppDatabase database;
+  final NetworkInfo networkInfo;
 
   SupplierRepositoryImpl({
     required this.remoteDataSource,
     required this.database,
+    required this.networkInfo,
   });
+
+  Future<void> _syncFromServer() async {
+    if (!await networkInfo.isConnected) return;
+    try {
+      final remote = await remoteDataSource.getSuppliers();
+      for (final model in remote) {
+        await database.supplierDao.upsertSupplier(
+          SuppliersTableCompanion(
+            id: Value(model.id),
+            name: Value(model.name),
+            email: Value(model.email),
+            phone: Value(model.phone),
+            address: Value(model.address),
+            isActive: Value(model.isActive),
+          ),
+        );
+      }
+    } catch (_) {
+      // Endpoint belum tersedia / offline -> tetap pakai SQLite lokal.
+    }
+  }
 
   @override
   Future<Either<Failure, Supplier>> createSupplier(Supplier supplier) async {
     try {
-      final created = await remoteDataSource.createSupplier({
-        'name': supplier.name,
-        'phone': supplier.phone,
-        'email': supplier.email,
-        'address': supplier.address,
-        'city': supplier.city,
-        'contact_person': supplier.contactPerson,
-        'npwp': supplier.npwp,
-      });
-      return Right(created.toEntity());
+      await database.supplierDao.upsertSupplier(
+        SuppliersTableCompanion(
+          id: Value(supplier.id),
+          name: Value(supplier.name),
+          email: Value(supplier.email),
+          phone: Value(supplier.phone),
+          address: Value(supplier.address),
+          city: Value(supplier.city),
+          contactPerson: Value(supplier.contactPerson),
+          npwp: Value(supplier.npwp),
+          isActive: Value(supplier.isActive),
+        ),
+      );
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.createSupplier(SupplierModel.fromEntity(supplier).toJson());
+        } catch (_) {}
+      }
+      return Right(supplier);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal membuat supplier'));
+      return Left(DatabaseFailure(message: 'Gagal membuat supplier: $e'));
     }
   }
 
   @override
   Future<Either<Failure, void>> deleteSupplier(String id) async {
     try {
-      await remoteDataSource.deleteSupplier(id);
+      await database.supplierDao.deleteSupplier(id);
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.deleteSupplier(id);
+        } catch (_) {}
+      }
       return const Right(null);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal menghapus supplier'));
+      return Left(DatabaseFailure(message: 'Gagal menghapus supplier: $e'));
     }
   }
 
@@ -70,6 +111,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
     String? search,
   }) async {
     try {
+      await _syncFromServer();
       final suppliers = await database.supplierDao.getAll(
         activeOnly: activeOnly,
         search: search,
@@ -83,18 +125,28 @@ class SupplierRepositoryImpl implements SupplierRepository {
   @override
   Future<Either<Failure, Supplier>> updateSupplier(Supplier supplier) async {
     try {
-      await remoteDataSource.updateSupplier(supplier.id, {
-        'name': supplier.name,
-        'phone': supplier.phone,
-        'email': supplier.email,
-        'address': supplier.address,
-        'city': supplier.city,
-        'contact_person': supplier.contactPerson,
-        'npwp': supplier.npwp,
-      });
+      await database.supplierDao.updateSupplier(
+        SuppliersTableCompanion(
+          id: Value(supplier.id),
+          name: Value(supplier.name),
+          email: Value(supplier.email),
+          phone: Value(supplier.phone),
+          address: Value(supplier.address),
+          city: Value(supplier.city),
+          contactPerson: Value(supplier.contactPerson),
+          npwp: Value(supplier.npwp),
+          isActive: Value(supplier.isActive),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      if (await networkInfo.isConnected) {
+        try {
+          await remoteDataSource.updateSupplier(supplier.id, SupplierModel.fromEntity(supplier).toJson());
+        } catch (_) {}
+      }
       return Right(supplier);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal mengupdate supplier'));
+      return Left(DatabaseFailure(message: 'Gagal mengupdate supplier: $e'));
     }
   }
 

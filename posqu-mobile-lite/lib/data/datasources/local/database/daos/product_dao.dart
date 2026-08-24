@@ -49,7 +49,9 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
     await into(productsTable).insert(product);
   }
 
-  Future<bool> updateProduct(ProductsTableCompanion product) {
+  Future<void> upsertProduct(ProductsTableCompanion product) async {
+    await into(productsTable).insertOnConflictUpdate(product);
+  }  Future<bool> updateProduct(ProductsTableCompanion product) {
     return update(productsTable).replace(product);
   }
 

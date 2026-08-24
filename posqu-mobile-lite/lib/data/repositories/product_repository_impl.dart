@@ -3,6 +3,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../datasources/local/database/app_database.dart';
@@ -13,17 +14,61 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepositoryImpl(
     remoteDataSource: ref.read(productRemoteDataSourceProvider),
     database: ref.read(appDatabaseProvider),
+    networkInfo: ref.read(networkInfoProvider),
   );
 });
 
 class ProductRepositoryImpl implements ProductRepository {
   final ProductRemoteDataSource remoteDataSource;
   final AppDatabase database;
+  final NetworkInfo networkInfo;
 
   ProductRepositoryImpl({
     required this.remoteDataSource,
     required this.database,
+    required this.networkInfo,
   });
+
+  Future<void> _syncFromServer() async {
+    if (!await networkInfo.isConnected) return;
+    try {
+      final remote = await remoteDataSource.getProducts(limit: 500);
+      for (final model in remote) {
+        await database.productDao.upsertProduct(
+          ProductsTableCompanion(
+            id: Value(model.id),
+            sku: Value(model.sku),
+            slug: Value(model.slug),
+            name: Value(model.name),
+            description: Value(model.description),
+            barcode: Value(model.barcode),
+            qrCode: Value(model.qrCode),
+            categoryId: Value(model.categoryId),
+            brandId: Value(model.brandId),
+            supplierId: Value(model.supplierId),
+            unitId: Value(model.unitId),
+            costPrice: Value(model.costPrice),
+            sellingPrice: Value(model.sellingPrice),
+            marginPct: Value(model.marginPct),
+            taxRate: Value(model.taxRate),
+            minStock: Value(model.minStock),
+            reorderPoint: Value(model.reorderPoint),
+            wholesalePrice: Value(model.wholesalePrice),
+            wholesaleDiscountPercent: Value(model.wholesaleDiscountPercent),
+            wholesaleMinQty: Value(model.wholesaleMinQty),
+            isActive: Value(model.isActive),
+            isFeatured: Value(model.isFeatured),
+            isConsignment: Value(model.isConsignment),
+            type: Value(model.type),
+            unit: Value(model.unit),
+            imageUrl: Value(model.imageUrl),
+          ),
+        );
+      }
+    } catch (_) {
+      // Server tidak tersedia / endpoint belum ada -> tetap pakai SQLite lokal.
+    }
+  }
 
   @override
   Future<Either<Failure, Product>> createProduct(Product product) async {
@@ -114,6 +159,7 @@ class ProductRepositoryImpl implements ProductRepository {
     bool? activeOnly,
   }) async {
     try {
+      await _syncFromServer();
       final rows = await database.productDao.getAll(
         search: search,
         categoryId: categoryId,

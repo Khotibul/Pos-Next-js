@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/local/database/app_database.dart';
@@ -20,6 +21,7 @@ final authRepositoryProvider = Provider<AuthRepositoryImpl>((ref) {
     remoteDataSource: ref.read(authRemoteDataSourceProvider),
     cache: ref.read(hiveCacheProvider),
     database: ref.read(appDatabaseProvider),
+    networkInfo: ref.read(networkInfoProvider),
   );
 });
 
@@ -27,11 +29,13 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
   final HiveCache cache;
   final AppDatabase database;
+  final NetworkInfo networkInfo;
 
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.cache,
     required this.database,
+    required this.networkInfo,
   });
 
   static const String _localTokenPrefix = 'local.';
@@ -41,6 +45,11 @@ class AuthRepositoryImpl implements AuthRepository {
     final normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.isEmpty || password.isEmpty) {
       return const Left(ServerFailure(message: 'Email dan password wajib diisi.'));
+    }
+
+    final online = await networkInfo.isConnected;
+    if (!online) {
+      return _loginLocally(normalizedEmail, password);
     }
 
     Failure? remoteFailure;

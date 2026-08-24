@@ -3,16 +3,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 
 import 'core/constants/app_constants.dart';
 import 'data/datasources/local/hive_cache.dart';
 import 'presentation/providers/theme_provider.dart';
 import 'presentation/routers/app_router.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: '.env');
+
+  await initializeDateFormatting('id', null);
+  await initializeDateFormatting('en', null);
+  Intl.defaultLocale = 'id';
 
   await Hive.initFlutter();
   await HiveCache().init();

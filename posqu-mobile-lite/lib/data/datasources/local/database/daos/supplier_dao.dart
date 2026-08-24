@@ -37,7 +37,9 @@ class SupplierDao extends DatabaseAccessor<AppDatabase> with _$SupplierDaoMixin 
     await into(suppliersTable).insert(supplier);
   }
 
-  Future<bool> updateSupplier(SuppliersTableCompanion supplier) {
+  Future<void> upsertSupplier(SuppliersTableCompanion supplier) async {
+    await into(suppliersTable).insertOnConflictUpdate(supplier);
+  }  Future<bool> updateSupplier(SuppliersTableCompanion supplier) {
     return update(suppliersTable).replace(supplier);
   }
 

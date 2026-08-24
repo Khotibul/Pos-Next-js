@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/repositories/sale_repository.dart';
 import '../datasources/local/database/app_database.dart';
@@ -14,32 +15,44 @@ final saleRepositoryProvider = Provider<SaleRepository>((ref) {
   return SaleRepositoryImpl(
     remoteDataSource: ref.read(saleRemoteDataSourceProvider),
     database: ref.read(appDatabaseProvider),
+    networkInfo: ref.read(networkInfoProvider),
   );
 });
 
 class SaleRepositoryImpl implements SaleRepository {
   final SaleRemoteDataSource remoteDataSource;
   final AppDatabase database;
+  final NetworkInfo networkInfo;
 
   SaleRepositoryImpl({
     required this.remoteDataSource,
     required this.database,
+    required this.networkInfo,
   });
 
   @override
   Future<Either<Failure, Sale>> createSale(Sale sale) async {
     try {
-      final saleModel = SaleModel.fromEntity(sale);
-      final created = await remoteDataSource.createSale(saleModel.toJson());
-      return Right(created.toEntity());
-    } catch (e) {
+      await _saveSaleLocally(sale);
+    } catch (localError) {
+      return Left(DatabaseFailure(message: 'Gagal menyimpan penjualan: $localError'));
+    }
+
+    if (await networkInfo.isConnected) {
       try {
-        await _saveSaleLocally(sale);
-        return Right(sale);
-      } catch (localError) {
-        return Left(DatabaseFailure(message: 'Gagal menyimpan penjualan: $localError'));
+        final payload = Map<String, dynamic>.from(SaleModel.fromEntity(sale).toJson());
+        payload['paidAmount'] = sale.paidAmount;
+        payload['changeAmount'] = sale.changeAmount;
+        payload['paymentMethod'] = sale.paymentMethod;
+        payload['paymentReference'] = sale.paymentReference;
+        await remoteDataSource.createSale(payload);
+        await database.saleDao.markSynced([sale.id]);
+      } catch (_) {
+        // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
       }
     }
+
+    return Right(sale);
   }
 
   Future<void> _saveSaleLocally(Sale sale) async {

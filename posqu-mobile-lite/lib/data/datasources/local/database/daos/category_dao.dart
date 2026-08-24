@@ -28,7 +28,9 @@ class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin 
     await into(categoriesTable).insert(category);
   }
 
-  Future<bool> updateCategory(CategoriesTableCompanion category) {
+  Future<void> upsertCategory(CategoriesTableCompanion category) async {
+    await into(categoriesTable).insertOnConflictUpdate(category);
+  }  Future<bool> updateCategory(CategoriesTableCompanion category) {
     return update(categoriesTable).replace(category);
   }
 
