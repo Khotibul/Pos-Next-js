@@ -358,14 +358,27 @@ class KasirNotifier extends StateNotifier<KasirState> {
     await _writeSavedCarts(carts);
   }
 
-  void scanBarcode(String barcode) async {
+  /// Scan barcode/SKU -> cari produk -> langsung masuk keranjang.
+  /// Mengembalikan produk yang ditemukan, atau null bila tidak ada.
+  Future<Product?> scanBarcode(String code) async {
     state = state.copyWith(isScanning: true);
-    final result = await _productRepository.getProductByBarcode(barcode);
-    result.fold(
-      (failure) => state = state.copyWith(isScanning: false, errorMessage: failure.message),
+    final result = await _productRepository.getProductByBarcode(code);
+    return result.fold(
+      (failure) {
+        state = state.copyWith(
+          isScanning: false,
+          errorMessage: failure.message,
+        );
+        return null;
+      },
       (product) {
         addProduct(product);
-        state = state.copyWith(isScanning: false, scannedProduct: product);
+        state = state.copyWith(
+          isScanning: false,
+          scannedProduct: product,
+          errorMessage: null,
+        );
+        return product;
       },
     );
   }

@@ -1,10 +1,8 @@
-import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../providers/kasir/kasir_provider.dart';
 import '../../providers/kasir/kasir_state.dart';
@@ -12,6 +10,7 @@ import '../../providers/product/product_provider.dart';
 import '../../../core/widgets/receipt_preview.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/barcode_scanner_sheet.dart';
 import '../../../core/widgets/product_image.dart';
 import '../../../domain/entities/product.dart';
 
@@ -24,10 +23,7 @@ class KasirScreen extends ConsumerStatefulWidget {
 
 class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _searchController = TextEditingController();
-  bool _showScanner = false;
   String _query = '';
-  String? _lastScannedCode;
-  DateTime _lastScanTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void dispose() {
@@ -55,18 +51,11 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         title: const Text('Kasir'),
         automaticallyImplyLeading: false,
         actions: [
-          if (Platform.isAndroid || Platform.isIOS)
-            IconButton(
-              tooltip: 'Scan Barcode',
-              icon: Icon(_showScanner ? Icons.close : Icons.qr_code_scanner),
-              onPressed: () => setState(() => _showScanner = !_showScanner),
-            )
-          else
-            IconButton(
-              tooltip: 'Input Barcode Manual',
-              icon: const Icon(Icons.qr_code_scanner),
-              onPressed: _showManualBarcodeDialog,
-            ),
+          IconButton(
+            tooltip: 'Scan Barcode',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _scanAndAddToCart,
+          ),
           IconButton(
             tooltip: 'Simpan Keranjang',
             icon: const Icon(Icons.bookmark_add_outlined),
@@ -90,7 +79,6 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   Widget _buildPortrait(KasirState kasirState, List<Product> products) {
     return Column(
       children: [
-        if (_showScanner) _buildScanner(),
         _buildSearchBar(),
         Expanded(
           child: _buildProductList(products, compact: true),
@@ -284,7 +272,6 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   Widget _buildLandscape(KasirState kasirState, List<Product> products) {
     return Column(
       children: [
-        if (_showScanner) _buildScanner(),
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -394,114 +381,41 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   // ================= KOMPONEN BERSAMA =================
 
-  Widget _buildScanner() {
-    final canUseCamera = Platform.isAndroid || Platform.isIOS;
-    if (!canUseCamera) {
-      return Padding(
-        padding: const EdgeInsets.all(12),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: Colors.blue),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Kamera scanner hanya tersedia di Android/iOS. Gunakan input manual.',
-                  ),
-                ),
-                TextButton(
-                  onPressed: _showManualBarcodeDialog,
-                  child: const Text('Input Manual'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return SizedBox(
-      height: 180,
-      child: Stack(
-        children: [
-          MobileScanner(
-            onDetect: _onBarcodeDetected,
-          ),
-          Positioned(
-            right: 8,
-            top: 8,
-            child: IconButton(
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.black54,
-                foregroundColor: Colors.white,
-              ),
-              tooltip: 'Input Manual',
-              icon: const Icon(Icons.keyboard, size: 20),
-              onPressed: _showManualBarcodeDialog,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    final barcode = capture.barcodes.firstOrNull?.rawValue;
-    if (barcode == null || barcode.isEmpty) return;
+  // ================= SCAN -> AUTO MASUK KERANJANG =================
 
-    final now = DateTime.now();
-    if (barcode == _lastScannedCode &&
-        now.difference(_lastScanTime).inMilliseconds < 2500) {
-      return;
-    }
-    _lastScannedCode = barcode;
-    _lastScanTime = now;
+  /// Buka scanner kamera (Android/iOS) / input manual (desktop).
+  /// Barcode yang cocok dengan produk langsung ditambahkan ke keranjang.
+  Future<void> _scanAndAddToCart() async {
+    final code = await showBarcodeScannerSheet(context);
+    if (code == null || code.trim().isEmpty || !mounted) return;
 
-    SystemSound.play(SystemSoundType.alert);
-    ref.read(kasirStateProvider.notifier).scanBarcode(barcode);
-    if (mounted) {
-      setState(() => _showScanner = false);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Barcode: $barcode'),
-          duration: const Duration(milliseconds: 900),
-        ),
-      );
-    }
-  }
+    final notifier = ref.read(kasirStateProvider.notifier);
+    final product = await notifier.scanBarcode(code.trim());
+    if (!mounted) return;
 
-  Future<void> _showManualBarcodeDialog() async {
-    final controller = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Input Barcode Manual'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Kode Barcode / SKU',
-            prefixIcon: Icon(Icons.qr_code),
+    if (product != null) {
+      SystemSound.play(SystemSoundType.alert);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('${product.name} masuk keranjang'),
+            duration: const Duration(milliseconds: 1200),
           ),
-          onSubmitted: (v) => Navigator.pop(dialogContext, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Batal'),
+        );
+    } else {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content:
+                Text('Produk dengan barcode "${code.trim()}" tidak ditemukan'),
+            backgroundColor: Colors.orange,
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Cari'),
-          ),
-        ],
-      ),
-    );
-    if (code != null && code.trim().isNotEmpty && mounted) {
-      ref.read(kasirStateProvider.notifier).scanBarcode(code.trim());
+        );
     }
+    setState(() {});
   }
 
   // ================= SIMPAN KERANJANG =================
