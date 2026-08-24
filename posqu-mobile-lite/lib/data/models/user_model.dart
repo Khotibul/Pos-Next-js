@@ -4,24 +4,34 @@ import '../../domain/entities/user.dart';
 
 part 'user_model.g.dart';
 
+DateTime _safeDateTime(Object? value) {
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.now();
+  }
+  if (value is int) {
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+  return DateTime.now();
+}
+
 @JsonSerializable()
 class UserModel {
   final String id;
-  final String name;
-  final String email;
+  final String? name;
+  final String? email;
   @JsonKey(name: 'image')
   final String? avatarUrl;
-  final String role;
-  final bool isActive;
-  
+  final String? role;
+  final bool? isActive;
+  @JsonKey(fromJson: _safeDateTime)
   final DateTime createdAt;
-  
+  @JsonKey(fromJson: _safeDateTime)
   final DateTime updatedAt;
 
   const UserModel({
     required this.id,
-    required this.name,
-    required this.email,
+    this.name,
+    this.email,
     this.avatarUrl,
     this.role = 'USER',
     this.isActive = true,
@@ -35,13 +45,19 @@ class UserModel {
   Map<String, dynamic> toJson() => _$UserModelToJson(this);
 
   User toEntity() {
+    final resolvedEmail = email ?? '';
+    final resolvedName = (name != null && name!.trim().isNotEmpty)
+        ? name!.trim()
+        : (resolvedEmail.isNotEmpty
+            ? resolvedEmail.split('@').first
+            : 'Pengguna');
     return User(
       id: id,
-      name: name,
-      email: email,
+      name: resolvedName,
+      email: resolvedEmail,
       avatarUrl: avatarUrl,
-      role: role,
-      isActive: isActive,
+      role: (role != null && role!.isNotEmpty) ? role! : 'USER',
+      isActive: isActive ?? true,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
