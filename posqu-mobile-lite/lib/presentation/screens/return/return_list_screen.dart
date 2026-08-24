@@ -57,7 +57,7 @@ class ReturnListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/returns/add'),
+        onPressed: () => context.push('/returns/add'),
         child: const Icon(Icons.add),
       ),
     );

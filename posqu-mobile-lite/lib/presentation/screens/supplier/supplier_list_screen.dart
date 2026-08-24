@@ -38,7 +38,7 @@ class SupplierListScreen extends ConsumerWidget {
                   title: Text(supplier.name),
                   subtitle: Text(supplier.phone ?? supplier.city ?? ''),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/suppliers/edit/${supplier.id}'),
+                  onTap: () => context.push('/suppliers/edit/${supplier.id}'),
                 ),
               );
             },
@@ -51,7 +51,7 @@ class SupplierListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/suppliers/add'),
+        onPressed: () => context.push('/suppliers/add'),
         child: const Icon(Icons.add),
       ),
     );

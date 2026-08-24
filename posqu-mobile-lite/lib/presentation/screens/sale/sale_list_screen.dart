@@ -67,7 +67,7 @@ class SaleListScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    onTap: () => context.go('/sales/${sale.id}'),
+                    onTap: () => context.push('/sales/${sale.id}'),
                   ),
                 );
               },

@@ -38,7 +38,7 @@ class CategoryListScreen extends ConsumerWidget {
                   title: Text(category.name),
                   subtitle: Text('${category.productCount} produk'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/categories/edit/${category.id}'),
+                  onTap: () => context.push('/categories/edit/${category.id}'),
                 ),
               );
             },
@@ -51,7 +51,7 @@ class CategoryListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/categories/add'),
+        onPressed: () => context.push('/categories/add'),
         child: const Icon(Icons.add),
       ),
     );

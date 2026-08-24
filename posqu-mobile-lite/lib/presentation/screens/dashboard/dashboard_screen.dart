@@ -35,11 +35,11 @@ class DashboardScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.sync),
-            onPressed: () => context.go('/sync'),
+            onPressed: () => context.push('/sync'),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.go('/settings'),
+            onPressed: () => context.push('/settings'),
           ),
         ],
       ),
@@ -49,31 +49,9 @@ class DashboardScreen extends ConsumerWidget {
         error: (_, __) => _buildContent(context, ref, null),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/kasir'),
+        onPressed: () => context.push('/kasir'),
         icon: const Icon(Icons.point_of_sale),
         label: const Text('Kasir'),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          final routes = [
-            '/dashboard',
-            '/kasir',
-            '/products',
-            '/sales',
-            '/more',
-          ];
-          if (index < routes.length) {
-            context.go(routes[index]);
-          }
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Beranda'),
-          NavigationDestination(icon: Icon(Icons.point_of_sale_outlined), label: 'Kasir'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Produk'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Penjualan'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Lainnya'),
-        ],
       ),
     );
   }
@@ -155,32 +133,32 @@ class DashboardScreen extends ConsumerWidget {
                 _QuickMenuItem(
                   icon: Icons.add_shopping_cart,
                   label: 'Pembelian',
-                  onTap: () => context.go('/purchases/add'),
+                  onTap: () => context.push('/purchases/add'),
                 ),
                 _QuickMenuItem(
                   icon: Icons.assignment_return,
                   label: 'Retur',
-                  onTap: () => context.go('/returns/add'),
+                  onTap: () => context.push('/returns/add'),
                 ),
                 _QuickMenuItem(
                   icon: Icons.people_outline,
                   label: 'Pelanggan',
-                  onTap: () => context.go('/customers'),
+                  onTap: () => context.push('/customers'),
                 ),
                 _QuickMenuItem(
                   icon: Icons.local_shipping_outlined,
                   label: 'Supplier',
-                  onTap: () => context.go('/suppliers'),
+                  onTap: () => context.push('/suppliers'),
                 ),
                 _QuickMenuItem(
                   icon: Icons.category_outlined,
                   label: 'Kategori',
-                  onTap: () => context.go('/categories'),
+                  onTap: () => context.push('/categories'),
                 ),
                 _QuickMenuItem(
                   icon: Icons.assessment_outlined,
                   label: 'Laporan',
-                  onTap: () => context.go('/reports'),
+                  onTap: () => context.push('/reports'),
                 ),
               ],
             ),
@@ -212,7 +190,7 @@ class DashboardScreen extends ConsumerWidget {
             title: const Text('Shift Kasir'),
             subtitle: const Text('Belum ada shift aktif'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/shifts'),
+            onTap: () => context.push('/shifts'),
           ),
         ),
       ],

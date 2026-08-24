@@ -6,6 +6,7 @@ import '../providers/auth/auth_provider.dart';
 import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_shell.dart';
+import '../screens/more/more_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/kasir/kasir_screen.dart';
 import '../screens/product/product_list_screen.dart';
@@ -77,6 +78,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/kasir',
             builder: (context, state) => const KasirScreen(),
+          ),
+          GoRoute(
+            path: '/more',
+            builder: (context, state) => const MoreScreen(),
           ),
           GoRoute(
             path: '/products',

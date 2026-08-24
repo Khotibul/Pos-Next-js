@@ -61,7 +61,7 @@ class PurchaseListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/purchases/add'),
+        onPressed: () => context.push('/purchases/add'),
         child: const Icon(Icons.add),
       ),
     );

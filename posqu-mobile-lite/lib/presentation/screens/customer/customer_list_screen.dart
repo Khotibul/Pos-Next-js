@@ -50,7 +50,7 @@ class CustomerListScreen extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
-                  onTap: () => context.go('/customers/edit/${customer.id}'),
+                  onTap: () => context.push('/customers/edit/${customer.id}'),
                 ),
               );
             },
@@ -63,7 +63,7 @@ class CustomerListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/customers/add'),
+        onPressed: () => context.push('/customers/add'),
         child: const Icon(Icons.add),
       ),
     );

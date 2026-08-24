@@ -1,8 +1,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'POSQU Mobile Lite';
-  static const String appVersion = '1.0.0';
+  static const String appName = 'POSQU Pro';
+  static const String appVersion = '1.0.2';
   static const String dbName = 'posqu_mobile_lite.db';
 
   // Pagination
