@@ -60,7 +60,10 @@ async function main() {
       }),
       prisma.product.findMany({
         where: { tenantId: tenant.id },
-        include: { category: { select: { name: true } } },
+        include: {
+          category: { select: { name: true } },
+          images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { url: true } },
+        },
         orderBy: { name: "asc" },
       }),
       prisma.customer.findMany({ where: { tenantId: tenant.id }, orderBy: { name: "asc" } }),
@@ -114,6 +117,7 @@ async function main() {
       type: p.type,
       unit: p.unit?.name ?? "pcs",
       stock: stockMap.get(p.id) ?? 0,
+      imageUrl: p.images && p.images.length > 0 ? p.images[0].url : null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     })),

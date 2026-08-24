@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +6,7 @@ import '../../providers/product/product_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/widgets/product_image.dart';
 
 class ProductListScreen extends ConsumerWidget {
   const ProductListScreen({super.key});
@@ -45,7 +44,7 @@ class ProductListScreen extends ConsumerWidget {
                 final product = products[index];
                 return Card(
                   child: ListTile(
-                    leading: _ProductPhoto(url: product.imageUrl, lowStock: product.isLowStock),
+                    leading: ProductImageThumb(url: product.imageUrl, size: 48),
                     title: Text(product.name),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,34 +106,3 @@ class ProductListScreen extends ConsumerWidget {
   }
 }
 
-class _ProductPhoto extends StatelessWidget {
-  final String? url;
-  final bool lowStock;
-
-  const _ProductPhoto({this.url, required this.lowStock});
-
-  @override
-  Widget build(BuildContext context) {
-    final path = url;
-    final hasFile = path != null && path.isNotEmpty && File(path).existsSync();
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: lowStock
-            ? Colors.orange.withValues(alpha: 0.1)
-            : Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: hasFile
-          ? Image.file(
-              File(path),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  Icon(Icons.inventory_2, color: lowStock ? Colors.orange : null),
-            )
-          : Icon(Icons.inventory_2, color: lowStock ? Colors.orange : null),
-    );
-  }
-}

@@ -12,6 +12,7 @@ import '../../providers/product/product_provider.dart';
 import '../../../core/widgets/receipt_preview.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/product_image.dart';
 import '../../../domain/entities/product.dart';
 
 class KasirScreen extends ConsumerStatefulWidget {
@@ -713,7 +714,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
     return ListTile(
       dense: true,
-      leading: _ProductThumb(url: product?.imageUrl, size: 40),
+      leading: ProductImageThumb(url: product?.imageUrl, size: 40),
       title: Text(
         item.name.isEmpty ? 'Produk' : item.name,
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -915,7 +916,7 @@ class _ProductTile extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: ListTile(
         dense: compact,
-        leading: _ProductThumb(url: product.imageUrl, size: 48),
+        leading: ProductImageThumb(url: product.imageUrl, size: 48),
         title: Text(
           product.name,
           maxLines: 1,
@@ -956,39 +957,7 @@ class _ProductTile extends StatelessWidget {
   }
 }
 
-class _ProductThumb extends StatelessWidget {
-  final String? url;
-  final double size;
 
-  const _ProductThumb({this.url, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    final file = url;
-    Widget child;
-    if (file != null && file.isNotEmpty && File(file).existsSync()) {
-      child = Image.file(
-        File(file),
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2),
-      );
-    } else {
-      child = const Icon(Icons.inventory_2);
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: child,
-    );
-  }
-}
 
 class _PaymentChip extends StatelessWidget {
   final String label;

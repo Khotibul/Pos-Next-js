@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +8,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
 import '../../../core/utils/product_utils.dart';
+import '../../../core/widgets/product_image.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../providers/category/category_provider.dart';
 import '../../providers/product/product_provider.dart';
@@ -492,7 +491,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Widget _buildPhotoSection() {
     final path = _imageUrlController.text.trim();
-    final hasFile = path.isNotEmpty && File(path).existsSync();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -515,23 +513,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: hasFile
-                    ? Image.file(
-                        File(path),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image_outlined),
-                      )
-                    : const Icon(Icons.image_outlined, color: Colors.grey),
-              ),
+              ProductImageThumb(url: path.isEmpty ? null : path, size: 72),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

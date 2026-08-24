@@ -24,7 +24,10 @@ export const GET = withApiHandler(async (req: Request) => {
       tenantId: ctx.tenantId,
       ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { sku: { contains: search, mode: "insensitive" } }, { barcode: { contains: search } }] } : {}),
     },
-    include: { category: { select: { name: true } } },
+    include: {
+      category: { select: { name: true } },
+      images: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }], select: { url: true } },
+    },
     orderBy: { name: "asc" },
     take: limit,
   });
@@ -59,6 +62,7 @@ export const GET = withApiHandler(async (req: Request) => {
       isConsignment: p.isConsignment,
       type: p.type,
       stock: stockMap.get(p.id) ?? 0,
+      imageUrl: p.images.length > 0 ? p.images[0].url : null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     })),
