@@ -1,8 +1,10 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/repositories/category_repository.dart';
@@ -31,6 +33,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
 
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
+    if (MobileApiGate.isDisabled('categories')) return;
     try {
       final remote = await remoteDataSource.getCategories();
       for (final model in remote) {
@@ -41,8 +44,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
           ),
         );
       }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+        MobileApiGate.disable('categories');
+      }
     } catch (_) {
-      // Endpoint belum tersedia / offline -> tetap pakai SQLite lokal.
+      // Offline / gangguan lain -> tetap pakai SQLite lokal.
     }
   }
 

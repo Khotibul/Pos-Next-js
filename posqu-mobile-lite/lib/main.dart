@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,34 +15,47 @@ import 'presentation/providers/theme_provider.dart';
 import 'presentation/routers/app_router.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  await runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+      };
 
-  await initializeDateFormatting('id', null);
-  await initializeDateFormatting('en', null);
-  Intl.defaultLocale = 'id';
+      await dotenv.load(fileName: '.env');
 
-  await Hive.initFlutter();
-  await HiveCache().init();
+      await initializeDateFormatting('id', null);
+      await initializeDateFormatting('en', null);
+      Intl.defaultLocale = 'id';
 
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+      await Hive.initFlutter();
+      await HiveCache().init();
 
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
 
-  runApp(
-    const ProviderScope(
-      child: POSQUApp(),
-    ),
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+      );
+
+      runApp(
+        const ProviderScope(
+          child: POSQUApp(),
+        ),
+      );
+    },
+    (error, stack) {
+      if (kDebugMode) {
+        debugPrint('Uncaught app error: $error');
+      }
+    },
   );
 }
 

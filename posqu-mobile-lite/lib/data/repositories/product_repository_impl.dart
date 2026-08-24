@@ -1,8 +1,10 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/repositories/product_repository.dart';
@@ -31,6 +33,7 @@ class ProductRepositoryImpl implements ProductRepository {
 
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
+    if (MobileApiGate.isDisabled('products')) return;
     try {
       final remote = await remoteDataSource.getProducts(limit: 500);
       for (final model in remote) {
@@ -65,8 +68,12 @@ class ProductRepositoryImpl implements ProductRepository {
           ),
         );
       }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+        MobileApiGate.disable('products');
+      }
     } catch (_) {
-      // Server tidak tersedia / endpoint belum ada -> tetap pakai SQLite lokal.
+      // Offline / gangguan lain -> tetap pakai SQLite lokal.
     }
   }
 

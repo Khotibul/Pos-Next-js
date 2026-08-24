@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -29,8 +30,7 @@ class DioClient {
 
     dio.interceptors.addAll([
       _authInterceptor(),
-      _loggingInterceptor(),
-      _errorInterceptor(),
+      if (kDebugMode) _loggingInterceptor(),
     ]);
 
     return dio;
@@ -42,7 +42,9 @@ class DioClient {
         try {
           final box = await Hive.openBox('auth');
           final token = box.get('token');
-          if (token != null) {
+          if (token != null &&
+              options.path != ApiConstants.mobileLogin &&
+              options.path != ApiConstants.login) {
             options.headers[ApiConstants.authorization] =
                 '${ApiConstants.bearer}$token';
           }
@@ -50,29 +52,15 @@ class DioClient {
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
+        final token = error.requestOptions.headers[ApiConstants.authorization]
+                as String? ??
+            '';
+        final isLocalSession = token.startsWith('${ApiConstants.bearer}local.');
+        if (error.response?.statusCode == 401 && !isLocalSession) {
           try {
             final box = await Hive.openBox('auth');
-            final refreshToken = box.get('refreshToken');
-            if (refreshToken != null) {
-              final response = await _dio.post(ApiConstants.refreshToken, data: {
-                'refreshToken': refreshToken,
-              });
-              final newToken = response.data['token'];
-              await box.put('token', newToken);
-              error.requestOptions.headers[ApiConstants.authorization] =
-                  '${ApiConstants.bearer}$newToken';
-              final retryResponse = await _dio.fetch(error.requestOptions);
-              handler.resolve(retryResponse);
-              return;
-            }
-          } catch (_) {
-            // If refresh token fails, clear auth data and proceed with error
-            try {
-              final box = await Hive.openBox('auth');
-              await box.clear();
-            } catch (_) {}
-          }
+            await box.delete('token');
+          } catch (_) {}
         }
         handler.next(error);
       },
@@ -81,16 +69,19 @@ class DioClient {
 
   LogInterceptor _loggingInterceptor() {
     return LogInterceptor(
-      requestBody: true,
-      responseBody: true,
+      requestHeader: false,
+      request: true,
+      requestBody: false,
+      responseHeader: false,
+      responseBody: false,
       error: true,
-    );
-  }
-
-  InterceptorsWrapper _errorInterceptor() {
-    return InterceptorsWrapper(
-      onError: (error, handler) {
-        handler.next(error);
+      logPrint: (obj) {
+        final text = obj.toString();
+        if (text.length > 300) {
+          debugPrint('${text.substring(0, 300)}…');
+        } else {
+          debugPrint(text);
+        }
       },
     );
   }
