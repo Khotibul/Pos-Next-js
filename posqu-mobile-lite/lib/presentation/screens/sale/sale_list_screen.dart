@@ -48,9 +48,9 @@ class SaleListScreen extends ConsumerWidget {
                         color: _getPaymentColor(sale.paymentMethod),
                       ),
                     ),
-                    title: Text(sale.invoiceNumber),
+                    title: Text(sale.invoiceNo),
                     subtitle: Text(
-                      '${DateFormatter.formatDateTime(sale.saleDate)} | ${_getPaymentLabel(sale.paymentMethod)}',
+                      '${DateFormatter.formatDateTime(sale.createdAt)} | ${_getPaymentLabel(sale.paymentMethod)}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     trailing: Column(

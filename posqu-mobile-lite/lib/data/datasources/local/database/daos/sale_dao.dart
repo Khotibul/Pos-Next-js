@@ -4,9 +4,16 @@ import '../tables/sales_table.dart';
 
 part 'sale_dao.g.dart';
 
-@DriftAccessor(tables: [SalesTable, SaleItemsTable])
+@DriftAccessor(tables: [SalesTable, SaleItemsTable, PaymentsTable])
 class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
   SaleDao(super.db);
+
+  Expression<bool> _paymentMethodFilter(String paymentMethod) {
+    final subquery = selectOnly(paymentsTable)
+      ..addColumns([paymentsTable.saleId])
+      ..where(paymentsTable.method.equals(paymentMethod));
+    return salesTable.id.isInQuery(subquery);
+  }
 
   Future<List<SalesTableData>> getAll({
     String? search,
@@ -15,20 +22,20 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
     String? paymentMethod,
   }) {
     return (select(salesTable)
-          ..orderBy([(t) => OrderingTerm(expression: t.saleDate, mode: OrderingMode.desc)])
+          ..orderBy([(t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc)])
           ..where((t) {
             final exprs = <Expression<bool>>[];
             if (search != null && search.isNotEmpty) {
-              exprs.add(t.invoiceNumber.like('%$search%'));
+              exprs.add(t.invoiceNo.like('%$search%'));
             }
             if (startDate != null) {
-              exprs.add(t.saleDate.isBiggerThanValue(startDate));
+              exprs.add(t.createdAt.isBiggerThanValue(startDate));
             }
             if (endDate != null) {
-              exprs.add(t.saleDate.isSmallerThanValue(endDate));
+              exprs.add(t.createdAt.isSmallerThanValue(endDate));
             }
-            if (paymentMethod != null) {
-              exprs.add(t.paymentMethod.equals(paymentMethod));
+            if (paymentMethod != null && paymentMethod.isNotEmpty) {
+              exprs.add(_paymentMethodFilter(paymentMethod));
             }
             if (exprs.isNotEmpty) {
               return exprs.reduce((a, b) => a & b);
@@ -38,28 +45,28 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
         .get();
   }
 
-  Future<SalesTableData?> getById(int id) {
+  Future<SalesTableData?> getById(String id) {
     return (select(salesTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<SalesTableData?> getByInvoice(String invoiceNumber) {
-    return (select(salesTable)..where((t) => t.invoiceNumber.equals(invoiceNumber)))
+  Future<SalesTableData?> getByInvoice(String invoiceNo) {
+    return (select(salesTable)..where((t) => t.invoiceNo.equals(invoiceNo)))
         .getSingleOrNull();
   }
 
-  Future<List<SaleItemsTableData>> getItems(int saleId) {
+  Future<List<SaleItemsTableData>> getItems(String saleId) {
     return (select(saleItemsTable)..where((t) => t.saleId.equals(saleId))).get();
   }
 
-  Future<int> insertSale(SalesTableCompanion sale) {
-    return into(salesTable).insert(sale);
+  Future<void> insertSale(SalesTableCompanion sale) async {
+    await into(salesTable).insert(sale);
   }
 
-  Future<int> insertSaleItem(SaleItemsTableCompanion item) {
-    return into(saleItemsTable).insert(item);
+  Future<void> insertSaleItem(SaleItemsTableCompanion item) async {
+    await into(saleItemsTable).insert(item);
   }
 
-  Future<int> deleteSale(int id) {
+  Future<int> deleteSale(String id) {
     return (delete(salesTable)..where((t) => t.id.equals(id))).go();
   }
 
@@ -71,17 +78,33 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
     return (select(salesTable)
-          ..where((t) => t.saleDate.isBiggerThanValue(startOfDay)))
+          ..where((t) => t.createdAt.isBiggerThanValue(startOfDay)))
         .map((s) => s.total)
-        .getSingle();
+        .get()
+        .then((rows) => rows.fold<double>(0, (sum, t) => sum + t));
   }
 
   Future<int> getTodayTransactionCount() {
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
     return (select(salesTable)
-          ..where((t) => t.saleDate.isBiggerThanValue(startOfDay)))
+          ..where((t) => t.createdAt.isBiggerThanValue(startOfDay)))
         .get()
         .then((rows) => rows.length);
+  }
+
+  Future<double> sumTotalsBetween(DateTime start, DateTime end) {
+    return (select(salesTable)
+          ..where((t) =>
+              t.createdAt.isBiggerOrEqualValue(start) &
+              t.createdAt.isSmallerThanValue(end)))
+        .map((s) => s.total)
+        .get()
+        .then((rows) => rows.fold<double>(0, (sum, t) => sum + t));
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(salesTable)..where((t) => t.id.isIn(ids)))
+        .write(const SalesTableCompanion(isSynced: Value(true)));
   }
 }

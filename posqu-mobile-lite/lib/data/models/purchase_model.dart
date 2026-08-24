@@ -6,45 +6,29 @@ part 'purchase_model.g.dart';
 
 @JsonSerializable()
 class PurchaseModel {
-  final int id;
-  @JsonKey(name: 'invoice_number')
-  final String invoiceNumber;
-  @JsonKey(name: 'supplier_id')
-  final int supplierId;
-  @JsonKey(name: 'supplier_name')
+  final String id;
+  final String orderNo;
+  final String? supplierId;
   final String? supplierName;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  @JsonKey(name: 'purchase_date')
-  final DateTime purchaseDate;
   final String status;
+  final String? notes;
   final double subtotal;
-  final double discount;
   final double tax;
   final double total;
-  final String? notes;
   final List<PurchaseItemModel> items;
-  @JsonKey(name: 'created_at')
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const PurchaseModel({
     required this.id,
-    required this.invoiceNumber,
-    required this.supplierId,
+    required this.orderNo,
+    this.supplierId,
     this.supplierName,
-    required this.userId,
-    this.userName,
-    required this.purchaseDate,
-    required this.status,
+    this.status = 'DRAFT',
+    this.notes,
     required this.subtotal,
-    this.discount = 0,
     this.tax = 0,
     required this.total,
-    this.notes,
     this.items = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -58,54 +42,58 @@ class PurchaseModel {
   Purchase toEntity() {
     return Purchase(
       id: id,
-      invoiceNumber: invoiceNumber,
+      orderNo: orderNo,
       supplierId: supplierId,
       supplierName: supplierName,
-      userId: userId,
-      userName: userName,
-      purchaseDate: purchaseDate,
       status: status,
+      notes: notes,
       subtotal: subtotal,
-      discount: discount,
       tax: tax,
       total: total,
-      notes: notes,
       items: items.map((e) => e.toEntity()).toList(),
       createdAt: createdAt,
       updatedAt: updatedAt,
+    );
+  }
+
+  factory PurchaseModel.fromEntity(Purchase purchase) {
+    return PurchaseModel(
+      id: purchase.id,
+      orderNo: purchase.orderNo,
+      supplierId: purchase.supplierId,
+      supplierName: purchase.supplierName,
+      status: purchase.status,
+      notes: purchase.notes,
+      subtotal: purchase.subtotal,
+      tax: purchase.tax,
+      total: purchase.total,
+      items: purchase.items.map((i) => PurchaseItemModel.fromEntity(i)).toList(),
+      createdAt: purchase.createdAt,
+      updatedAt: purchase.updatedAt,
     );
   }
 }
 
 @JsonSerializable()
 class PurchaseItemModel {
-  final int id;
-  @JsonKey(name: 'purchase_id')
-  final int purchaseId;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  @JsonKey(name: 'product_code')
-  final String? productCode;
-  final String? barcode;
-  final double quantity;
-  @JsonKey(name: 'purchase_price')
-  final double purchasePrice;
-  final double subtotal;
-  final int? unit;
+  final String id;
+  final String purchaseOrderId;
+  final String productId;
+  final String name;
+  final String sku;
+  final double qty;
+  final double costPrice;
+  final double lineTotal;
 
   const PurchaseItemModel({
     required this.id,
-    required this.purchaseId,
+    required this.purchaseOrderId,
     required this.productId,
-    this.productName,
-    this.productCode,
-    this.barcode,
-    required this.quantity,
-    required this.purchasePrice,
-    required this.subtotal,
-    this.unit,
+    this.name = '',
+    this.sku = '',
+    required this.qty,
+    required this.costPrice,
+    required this.lineTotal,
   });
 
   factory PurchaseItemModel.fromJson(Map<String, dynamic> json) =>
@@ -116,15 +104,26 @@ class PurchaseItemModel {
   PurchaseItem toEntity() {
     return PurchaseItem(
       id: id,
-      purchaseId: purchaseId,
+      purchaseOrderId: purchaseOrderId,
       productId: productId,
-      productName: productName,
-      productCode: productCode,
-      barcode: barcode,
-      quantity: quantity,
-      purchasePrice: purchasePrice,
-      subtotal: subtotal,
-      unit: unit,
+      name: name,
+      sku: sku,
+      qty: qty,
+      costPrice: costPrice,
+      lineTotal: lineTotal,
+    );
+  }
+
+  factory PurchaseItemModel.fromEntity(PurchaseItem item) {
+    return PurchaseItemModel(
+      id: item.id,
+      purchaseOrderId: item.purchaseOrderId,
+      productId: item.productId,
+      name: item.name,
+      sku: item.sku,
+      qty: item.qty,
+      costPrice: item.costPrice,
+      lineTotal: item.lineTotal,
     );
   }
 }

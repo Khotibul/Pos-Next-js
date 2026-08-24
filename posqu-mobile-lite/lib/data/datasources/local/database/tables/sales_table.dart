@@ -1,20 +1,18 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 class SalesTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get invoiceNumber => text().unique()();
-  IntColumn get customerId => integer().nullable()();
-  IntColumn get userId => integer()();
-  DateTimeColumn get saleDate => dateTime()();
-  TextColumn get status => text()();
-  TextColumn get paymentMethod => text()();
-  TextColumn get paymentReference => text().nullable()();
-  RealColumn get subtotal => real()();
-  RealColumn get discount => real().withDefault(const Constant(0.0))();
-  RealColumn get tax => real().withDefault(const Constant(0.0))();
-  RealColumn get total => real()();
-  RealColumn get paidAmount => real()();
-  RealColumn get changeAmount => real().withDefault(const Constant(0.0))();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get tenantId => text().nullable()();
+  TextColumn get invoiceNo => text().unique()();
+  TextColumn get cashierId => text().nullable()();
+  TextColumn get shiftId => text().nullable()();
+  TextColumn get customerId => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('PAID'))();
+  RealColumn get subtotal => real().withDefault(const Constant(0))();
+  RealColumn get tax => real().withDefault(const Constant(0))();
+  RealColumn get discount => real().withDefault(const Constant(0))();
+  RealColumn get total => real().withDefault(const Constant(0))();
   TextColumn get notes => text().nullable()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -25,19 +23,40 @@ class SalesTable extends Table {
 }
 
 class SaleItemsTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get saleId => integer()();
-  IntColumn get productId => integer()();
-  RealColumn get quantity => real()();
-  RealColumn get sellingPrice => real()();
-  RealColumn get discount => real().withDefault(const Constant(0.0))();
-  RealColumn get subtotal => real()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get saleId => text()();
+  TextColumn get productId => text()();
+  TextColumn get name => text().withDefault(const Constant(''))();
+  TextColumn get sku => text().withDefault(const Constant(''))();
+  RealColumn get price => real().withDefault(const Constant(0))();
+  RealColumn get qty => real().withDefault(const Constant(1))();
+  RealColumn get lineTotal => real().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
 
   @override
   List<String> get customConstraints => [
-        'FOREIGN KEY (saleId) REFERENCES sales(id) ON DELETE CASCADE',
+        'FOREIGN KEY (sale_id) REFERENCES sales_table(id) ON DELETE CASCADE',
+      ];
+}
+
+class PaymentsTable extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get tenantId => text().nullable()();
+  TextColumn get saleId => text()();
+  TextColumn get method => text()();
+  RealColumn get amount => real().withDefault(const Constant(0))();
+  RealColumn get receivedAmount => real().withDefault(const Constant(0))();
+  RealColumn get changeAmount => real().withDefault(const Constant(0))();
+  TextColumn get reference => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => [
+        'FOREIGN KEY (sale_id) REFERENCES sales_table(id) ON DELETE CASCADE',
       ];
 }

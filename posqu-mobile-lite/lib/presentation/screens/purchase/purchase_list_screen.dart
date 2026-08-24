@@ -40,9 +40,9 @@ class PurchaseListScreen extends ConsumerWidget {
                       child: Icon(Icons.shopping_cart,
                           color: Theme.of(context).colorScheme.secondary),
                     ),
-                    title: Text(purchase.invoiceNumber),
+                    title: Text(purchase.orderNo),
                     subtitle: Text(
-                      purchase.supplierName ?? DateFormatter.formatDate(purchase.purchaseDate),
+                      purchase.supplierName ?? DateFormatter.formatDate(purchase.createdAt),
                     ),
                     trailing: Text(
                       CurrencyFormatter.format(purchase.total),

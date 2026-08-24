@@ -8,7 +8,7 @@ part 'product_dao.g.dart';
 class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
   ProductDao(super.db);
 
-  Future<List<ProductsTableData>> getAll({String? search, int? categoryId}) {
+  Future<List<ProductsTableData>> getAll({String? search, String? categoryId}) {
     return (select(productsTable)
           ..orderBy([(t) => OrderingTerm(expression: t.name)])
           ..where((t) {
@@ -16,11 +16,11 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
             if (search != null && search.isNotEmpty) {
               exprs.add(
                 t.name.like('%$search%') |
-                    t.code.like('%$search%') |
+                    t.sku.like('%$search%') |
                     t.barcode.like('%$search%'),
               );
             }
-            if (categoryId != null) {
+            if (categoryId != null && categoryId.isNotEmpty) {
               exprs.add(t.categoryId.equals(categoryId));
             }
             if (exprs.isNotEmpty) {
@@ -31,7 +31,7 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
         .get();
   }
 
-  Future<ProductsTableData?> getById(int id) {
+  Future<ProductsTableData?> getById(String id) {
     return (select(productsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
@@ -40,20 +40,20 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
         .getSingleOrNull();
   }
 
-  Future<ProductsTableData?> getByCode(String code) {
-    return (select(productsTable)..where((t) => t.code.equals(code)))
+  Future<ProductsTableData?> getBySku(String sku) {
+    return (select(productsTable)..where((t) => t.sku.equals(sku)))
         .getSingleOrNull();
   }
 
-  Future<int> insertProduct(ProductsTableCompanion product) {
-    return into(productsTable).insert(product);
+  Future<void> insertProduct(ProductsTableCompanion product) async {
+    await into(productsTable).insert(product);
   }
 
   Future<bool> updateProduct(ProductsTableCompanion product) {
     return update(productsTable).replace(product);
   }
 
-  Future<int> deleteProduct(int id) {
+  Future<int> deleteProduct(String id) {
     return (delete(productsTable)..where((t) => t.id.equals(id))).go();
   }
 
@@ -61,22 +61,21 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
     return (select(productsTable)
           ..where((t) =>
               t.name.like('%$query%') |
-              t.code.like('%$query%') |
+              t.sku.like('%$query%') |
               t.barcode.like('%$query%'))
           ..orderBy([(t) => OrderingTerm(expression: t.name)])
           ..limit(20))
         .get();
   }
 
-  Future<List<ProductsTableData>> getLowStock() {
-    return (select(productsTable)
-          ..where((t) => t.stock.isNotNull() & t.minStock.isNotNull())
-          ..orderBy([(t) => OrderingTerm(expression: t.stock)])
-          ..limit(50))
+  Future<List<ProductsTableData>> getLowStock() async {
+    final rows = await (select(productsTable)
+          ..orderBy([(t) => OrderingTerm(expression: t.stock)]))
         .get();
+    return rows.where((r) => r.stock <= r.minStock).take(50).toList();
   }
 
-  Future<int> updateStock(int id, int quantity) {
+  Future<int> updateStock(String id, int quantity) {
     return (update(productsTable)..where((t) => t.id.equals(id)))
         .write(ProductsTableCompanion(stock: Value(quantity)));
   }

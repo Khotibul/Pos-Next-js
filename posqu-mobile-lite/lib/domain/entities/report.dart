@@ -78,7 +78,7 @@ class MonthlyReport extends Equatable {
 }
 
 class ProductReport extends Equatable {
-  final int productId;
+  final String productId;
   final String productName;
   final String productCode;
   final double quantitySold;

@@ -37,12 +37,12 @@ class CustomerRemoteDataSource {
     return CustomerModel.fromJson(response.data['data']);
   }
 
-  Future<CustomerModel> updateCustomer(int id, Map<String, dynamic> data) async {
+  Future<CustomerModel> updateCustomer(String id, Map<String, dynamic> data) async {
     final response = await _dio.put('${ApiConstants.customers}/$id', data: data);
     return CustomerModel.fromJson(response.data['data']);
   }
 
-  Future<void> deleteCustomer(int id) async {
+  Future<void> deleteCustomer(String id) async {
     await _dio.delete('${ApiConstants.customers}/$id');
   }
 }

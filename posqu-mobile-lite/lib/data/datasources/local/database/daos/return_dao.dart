@@ -38,20 +38,20 @@ class ReturnDao extends DatabaseAccessor<AppDatabase> with _$ReturnDaoMixin {
         .get();
   }
 
-  Future<ReturnsTableData?> getById(int id) {
+  Future<ReturnsTableData?> getById(String id) {
     return (select(returnsTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<List<ReturnItemsTableData>> getItems(int returnId) {
+  Future<List<ReturnItemsTableData>> getItems(String returnId) {
     return (select(returnItemsTable)..where((t) => t.returnId.equals(returnId)))
         .get();
   }
 
-  Future<int> insertReturn(ReturnsTableCompanion returnData) {
-    return into(returnsTable).insert(returnData);
+  Future<void> insertReturn(ReturnsTableCompanion returnData) async {
+    await into(returnsTable).insert(returnData);
   }
 
-  Future<int> insertReturnItem(ReturnItemsTableCompanion item) {
-    return into(returnItemsTable).insert(item);
+  Future<void> insertReturnItem(ReturnItemsTableCompanion item) async {
+    await into(returnItemsTable).insert(item);
   }
 }

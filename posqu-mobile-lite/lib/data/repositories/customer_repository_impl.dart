@@ -40,7 +40,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
   }
 
   @override
-  Future<Either<Failure, void>> deleteCustomer(int id) async {
+  Future<Either<Failure, void>> deleteCustomer(String id) async {
     try {
       await remoteDataSource.deleteCustomer(id);
       return const Right(null);
@@ -50,7 +50,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
   }
 
   @override
-  Future<Either<Failure, Customer>> getCustomer(int id) async {
+  Future<Either<Failure, Customer>> getCustomer(String id) async {
     try {
       final customer = await database.customerDao.getById(id);
       if (customer == null) {

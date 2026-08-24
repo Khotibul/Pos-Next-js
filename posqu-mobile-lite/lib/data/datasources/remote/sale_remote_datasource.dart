@@ -41,7 +41,7 @@ class SaleRemoteDataSource {
     return SaleModel.fromJson(response.data['data']);
   }
 
-  Future<void> deleteSale(int id) async {
+  Future<void> deleteSale(String id) async {
     await _dio.delete('${ApiConstants.sales}/$id');
   }
 }

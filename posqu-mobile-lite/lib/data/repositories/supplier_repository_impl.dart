@@ -42,7 +42,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
   }
 
   @override
-  Future<Either<Failure, void>> deleteSupplier(int id) async {
+  Future<Either<Failure, void>> deleteSupplier(String id) async {
     try {
       await remoteDataSource.deleteSupplier(id);
       return const Right(null);
@@ -52,7 +52,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
   }
 
   @override
-  Future<Either<Failure, Supplier>> getSupplier(int id) async {
+  Future<Either<Failure, Supplier>> getSupplier(String id) async {
     try {
       final supplier = await database.supplierDao.getById(id);
       if (supplier == null) {

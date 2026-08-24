@@ -29,19 +29,19 @@ class SupplierDao extends DatabaseAccessor<AppDatabase> with _$SupplierDaoMixin 
         .get();
   }
 
-  Future<SuppliersTableData?> getById(int id) {
+  Future<SuppliersTableData?> getById(String id) {
     return (select(suppliersTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<int> insertSupplier(SuppliersTableCompanion supplier) {
-    return into(suppliersTable).insert(supplier);
+  Future<void> insertSupplier(SuppliersTableCompanion supplier) async {
+    await into(suppliersTable).insert(supplier);
   }
 
   Future<bool> updateSupplier(SuppliersTableCompanion supplier) {
     return update(suppliersTable).replace(supplier);
   }
 
-  Future<int> deleteSupplier(int id) {
+  Future<int> deleteSupplier(String id) {
     return (delete(suppliersTable)..where((t) => t.id.equals(id))).go();
   }
 }

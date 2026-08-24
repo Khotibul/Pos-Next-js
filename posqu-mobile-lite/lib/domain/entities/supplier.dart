@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 class Supplier extends Equatable {
-  final int id;
+  final String id;
   final String name;
   final String? phone;
   final String? email;
@@ -28,7 +28,7 @@ class Supplier extends Equatable {
   });
 
   Supplier copyWith({
-    int? id,
+    String? id,
     String? name,
     String? phone,
     String? email,

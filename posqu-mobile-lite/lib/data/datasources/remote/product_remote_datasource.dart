@@ -34,7 +34,7 @@ class ProductRemoteDataSource {
         .toList();
   }
 
-  Future<ProductModel> getProduct(int id) async {
+  Future<ProductModel> getProduct(String id) async {
     final response = await _dio.get('${ApiConstants.products}/$id');
     return ProductModel.fromJson(response.data['data']);
   }
@@ -49,12 +49,12 @@ class ProductRemoteDataSource {
     return ProductModel.fromJson(response.data['data']);
   }
 
-  Future<ProductModel> updateProduct(int id, Map<String, dynamic> data) async {
+  Future<ProductModel> updateProduct(String id, Map<String, dynamic> data) async {
     final response = await _dio.put('${ApiConstants.products}/$id', data: data);
     return ProductModel.fromJson(response.data['data']);
   }
 
-  Future<void> deleteProduct(int id) async {
+  Future<void> deleteProduct(String id) async {
     await _dio.delete('${ApiConstants.products}/$id');
   }
 }

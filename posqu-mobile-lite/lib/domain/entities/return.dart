@@ -1,18 +1,20 @@
 import 'package:equatable/equatable.dart';
 
 class Return extends Equatable {
-  final int id;
+  final String id;
+
+  final String? tenantId;
   final String returnNumber;
-  final int? saleId;
+  final String? saleId;
   final String? saleInvoice;
-  final int? purchaseId;
+  final String? purchaseId;
   final String? purchaseInvoice;
   final String type;
-  final int userId;
+  final String userId;
   final String? userName;
-  final int? customerId;
+  final String? customerId;
   final String? customerName;
-  final int? supplierId;
+  final String? supplierId;
   final String? supplierName;
   final DateTime returnDate;
   final String reason;
@@ -45,11 +47,44 @@ class Return extends Equatable {
     this.items = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.tenantId,
   });
+
+  Return copyWith({
+    String? id,
+    String? tenantId,
+    String? returnNumber,
+  }) {
+    return Return(
+      id: id ?? this.id,
+      tenantId: tenantId ?? this.tenantId,
+      returnNumber: returnNumber ?? this.returnNumber,
+      saleId: saleId,
+      saleInvoice: saleInvoice,
+      purchaseId: purchaseId,
+      purchaseInvoice: purchaseInvoice,
+      type: type,
+      userId: userId,
+      userName: userName,
+      customerId: customerId,
+      customerName: customerName,
+      supplierId: supplierId,
+      supplierName: supplierName,
+      returnDate: returnDate,
+      reason: reason,
+      status: status,
+      total: total,
+      notes: notes,
+      items: items,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
 
   @override
   List<Object?> get props => [
         id,
+        tenantId,
         returnNumber,
         saleId,
         saleInvoice,
@@ -74,9 +109,9 @@ class Return extends Equatable {
 }
 
 class ReturnItem extends Equatable {
-  final int id;
-  final int returnId;
-  final int productId;
+  final String id;
+  final String returnId;
+  final String productId;
   final String? productName;
   final String? productCode;
   final double quantity;

@@ -7,7 +7,7 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/loading_widget.dart';
 
 class SaleDetailScreen extends ConsumerWidget {
-  final int saleId;
+  final String saleId;
 
   const SaleDetailScreen({super.key, required this.saleId});
 
@@ -33,20 +33,20 @@ class SaleDetailScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       Text(
-                        sale.invoiceNumber,
+                        sale.invoiceNo,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        DateFormatter.formatFullDate(sale.saleDate),
+                        DateFormatter.formatFullDate(sale.createdAt),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                       ),
                       const Divider(height: 24),
-                      _DetailRow('Status', sale.status == 'completed' ? 'Selesai' : sale.status),
+                      _DetailRow('Status', sale.status == 'PAID' ? 'Selesai' : sale.status),
                       _DetailRow('Pembayaran', _getPaymentLabel(sale.paymentMethod)),
                       if (sale.customerName != null)
                         _DetailRow('Pelanggan', sale.customerName!),
@@ -74,16 +74,16 @@ class SaleDetailScreen extends ConsumerWidget {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(item.productName ?? 'Produk'),
+                                      Text(item.name.isEmpty ? 'Produk' : item.name),
                                       Text(
-                                        '${item.quantity} x ${CurrencyFormatter.format(item.sellingPrice)}',
+                                        '${item.qty} x ${CurrencyFormatter.format(item.price)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
                                   ),
                                 ),
                                 Text(
-                                  CurrencyFormatter.format(item.subtotal),
+                                  CurrencyFormatter.format(item.lineTotal),
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ],

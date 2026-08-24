@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import 'tables/users_table.dart';
 import 'tables/categories_table.dart';
@@ -22,6 +23,7 @@ import 'daos/supplier_dao.dart';
 import 'daos/customer_dao.dart';
 import 'daos/purchase_dao.dart';
 import 'daos/sale_dao.dart';
+import 'daos/payment_dao.dart';
 import 'daos/return_dao.dart';
 import 'daos/cashier_shift_dao.dart';
 import 'daos/cash_transaction_dao.dart';
@@ -40,6 +42,7 @@ part 'app_database.g.dart';
     PurchaseItemsTable,
     SalesTable,
     SaleItemsTable,
+    PaymentsTable,
     ReturnsTable,
     ReturnItemsTable,
     CashierShiftsTable,
@@ -54,6 +57,7 @@ part 'app_database.g.dart';
     CustomerDao,
     PurchaseDao,
     SaleDao,
+    PaymentDao,
     ReturnDao,
     CashierShiftDao,
     CashTransactionDao,
@@ -64,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -72,7 +76,23 @@ class AppDatabase extends _$AppDatabase {
       onCreate: (m) async {
         await m.createAll();
       },
-      onUpgrade: (m, from, to) async {},
+      onUpgrade: (m, from, to) async {
+        if (from < 2) {
+          await m.deleteTable('users_table');
+          await m.deleteTable('categories_table');
+          await m.deleteTable('products_table');
+          await m.deleteTable('suppliers_table');
+          await m.deleteTable('customers_table');
+          await m.deleteTable('purchases_table');
+          await m.deleteTable('purchase_items_table');
+          await m.deleteTable('sales_table');
+          await m.deleteTable('sale_items_table');
+          await m.deleteTable('returns_table');
+          await m.deleteTable('return_items_table');
+          await m.deleteTable('cashier_shifts_table');
+          await m.createAll();
+        }
+      },
       beforeOpen: (details) async {
         if (details.wasCreated) {
           await _seedInitialData();
@@ -83,20 +103,20 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _seedInitialData() async {
     await into(usersTable).insert(
-      const UsersTableCompanion(
-        username: Value('admin'),
-        passwordHash: Value(
+      UsersTableCompanion.insert(
+        id: Value(const Uuid().v4()),
+        email: const Value('admin@posqu.local'),
+        name: const Value('Administrator'),
+        passwordHash: const Value(
           '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9',
         ),
-        fullName: Value('Administrator'),
-        role: Value('admin'),
-        isActive: Value(true),
+        isActive: const Value(true),
       ),
     );
     await into(categoriesTable).insert(
-      const CategoriesTableCompanion(
-        name: Value('Umum'),
-        isActive: Value(true),
+      CategoriesTableCompanion.insert(
+        id: Value(const Uuid().v4()),
+        name: 'Umum',
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class CategoryFormScreen extends StatefulWidget {
-  final int? categoryId;
+  final String? categoryId;
 
   const CategoryFormScreen({super.key, this.categoryId});
 

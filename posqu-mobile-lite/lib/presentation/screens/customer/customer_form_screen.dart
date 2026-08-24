@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class CustomerFormScreen extends StatefulWidget {
-  final int? customerId;
+  final String? customerId;
 
   const CustomerFormScreen({super.key, this.customerId});
 

@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
 import '../../domain/entities/return.dart';
@@ -19,7 +20,10 @@ class ReturnRepositoryImpl implements ReturnRepository {
   @override
   Future<Either<Failure, Return>> createReturn(Return returnData) async {
     try {
+      final returnId = returnData.id.isEmpty ? const Uuid().v4() : returnData.id;
       final companion = ReturnsTableCompanion(
+        id: Value(returnId),
+        tenantId: Value(returnData.tenantId),
         returnNumber: Value(returnData.returnNumber),
         saleId: Value(returnData.saleId),
         purchaseId: Value(returnData.purchaseId),
@@ -34,10 +38,11 @@ class ReturnRepositoryImpl implements ReturnRepository {
         notes: Value(returnData.notes),
         isSynced: const Value(false),
       );
-      final returnId = await database.returnDao.insertReturn(companion);
+      await database.returnDao.insertReturn(companion);
       for (final item in returnData.items) {
         await database.returnDao.insertReturnItem(
           ReturnItemsTableCompanion(
+            id: Value(item.id.isEmpty ? const Uuid().v4() : item.id),
             returnId: Value(returnId),
             productId: Value(item.productId),
             quantity: Value(item.quantity),
@@ -47,14 +52,14 @@ class ReturnRepositoryImpl implements ReturnRepository {
           ),
         );
       }
-      return Right(returnData);
+      return Right(returnData.copyWith(id: returnId));
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal menyimpan retur'));
+      return Left(DatabaseFailure(message: 'Gagal menyimpan retur: $e'));
     }
   }
 
   @override
-  Future<Either<Failure, Return>> getReturn(int id) async {
+  Future<Either<Failure, Return>> getReturn(String id) async {
     try {
       final returnData = await database.returnDao.getById(id);
       if (returnData == null) {
@@ -97,6 +102,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
   Return _toEntity(ReturnsTableData r, List<ReturnItemsTableData> items) {
     return Return(
       id: r.id,
+      tenantId: r.tenantId,
       returnNumber: r.returnNumber,
       saleId: r.saleId,
       purchaseId: r.purchaseId,

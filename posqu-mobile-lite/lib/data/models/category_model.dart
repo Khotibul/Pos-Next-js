@@ -6,18 +6,14 @@ part 'category_model.g.dart';
 
 @JsonSerializable()
 class CategoryModel {
-  final int id;
+  final String id;
   final String name;
   final String? description;
   final String? icon;
   final String? color;
-  @JsonKey(name: 'is_active')
   final bool isActive;
-  @JsonKey(name: 'product_count')
   final int productCount;
-  @JsonKey(name: 'created_at')
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const CategoryModel({

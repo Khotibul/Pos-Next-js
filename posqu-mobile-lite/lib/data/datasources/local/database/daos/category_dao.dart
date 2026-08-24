@@ -20,19 +20,19 @@ class CategoryDao extends DatabaseAccessor<AppDatabase> with _$CategoryDaoMixin 
         .get();
   }
 
-  Future<CategoriesTableData?> getById(int id) {
+  Future<CategoriesTableData?> getById(String id) {
     return (select(categoriesTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<int> insertCategory(CategoriesTableCompanion category) {
-    return into(categoriesTable).insert(category);
+  Future<void> insertCategory(CategoriesTableCompanion category) async {
+    await into(categoriesTable).insert(category);
   }
 
   Future<bool> updateCategory(CategoriesTableCompanion category) {
     return update(categoriesTable).replace(category);
   }
 
-  Future<int> deleteCategory(int id) {
+  Future<int> deleteCategory(String id) {
     return (delete(categoriesTable)..where((t) => t.id.equals(id))).go();
   }
 }

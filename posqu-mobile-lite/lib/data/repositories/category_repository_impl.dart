@@ -37,7 +37,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
   }
 
   @override
-  Future<Either<Failure, void>> deleteCategory(int id) async {
+  Future<Either<Failure, void>> deleteCategory(String id) async {
     try {
       await remoteDataSource.deleteCategory(id);
       return const Right(null);
@@ -57,7 +57,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
   }
 
   @override
-  Future<Either<Failure, Category>> getCategory(int id) async {
+  Future<Either<Failure, Category>> getCategory(String id) async {
     try {
       final category = await database.categoryDao.getById(id);
       if (category == null) {

@@ -1,17 +1,16 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 class PurchasesTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get invoiceNumber => text().unique()();
-  IntColumn get supplierId => integer()();
-  IntColumn get userId => integer()();
-  DateTimeColumn get purchaseDate => dateTime()();
-  TextColumn get status => text()();
-  RealColumn get subtotal => real()();
-  RealColumn get discount => real().withDefault(const Constant(0.0))();
-  RealColumn get tax => real().withDefault(const Constant(0.0))();
-  RealColumn get total => real()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get tenantId => text().nullable()();
+  TextColumn get orderNo => text().unique()();
+  TextColumn get supplierId => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('DRAFT'))();
   TextColumn get notes => text().nullable()();
+  RealColumn get subtotal => real().withDefault(const Constant(0))();
+  RealColumn get tax => real().withDefault(const Constant(0))();
+  RealColumn get total => real().withDefault(const Constant(0))();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -21,18 +20,20 @@ class PurchasesTable extends Table {
 }
 
 class PurchaseItemsTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get purchaseId => integer()();
-  IntColumn get productId => integer()();
-  RealColumn get quantity => real()();
-  RealColumn get purchasePrice => real()();
-  RealColumn get subtotal => real()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get purchaseOrderId => text()();
+  TextColumn get productId => text()();
+  TextColumn get name => text().withDefault(const Constant(''))();
+  TextColumn get sku => text().withDefault(const Constant(''))();
+  RealColumn get costPrice => real().withDefault(const Constant(0))();
+  RealColumn get qty => real().withDefault(const Constant(1))();
+  RealColumn get lineTotal => real().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
 
   @override
   List<String> get customConstraints => [
-        'FOREIGN KEY (purchaseId) REFERENCES purchases(id) ON DELETE CASCADE',
+        'FOREIGN KEY (purchase_order_id) REFERENCES purchases_table(id) ON DELETE CASCADE',
       ];
 }

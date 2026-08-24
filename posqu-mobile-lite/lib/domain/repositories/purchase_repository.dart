@@ -11,7 +11,7 @@ abstract class PurchaseRepository {
     DateTime? startDate,
     DateTime? endDate,
   });
-  Future<Either<Failure, Purchase>> getPurchase(int id);
+  Future<Either<Failure, Purchase>> getPurchase(String id);
   Future<Either<Failure, Purchase>> createPurchase(Purchase purchase);
-  Future<Either<Failure, void>> deletePurchase(int id);
+  Future<Either<Failure, void>> deletePurchase(String id);
 }

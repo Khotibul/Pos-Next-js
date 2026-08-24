@@ -7,7 +7,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../providers/category/category_provider.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
-  final int? productId;
+  final String? productId;
 
   const ProductFormScreen({super.key, this.productId});
 
@@ -21,12 +21,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _barcodeController = TextEditingController();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _purchasePriceController = TextEditingController();
+  final _costPriceController = TextEditingController();
   final _sellingPriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
   final _unitController = TextEditingController();
-  int? _selectedCategoryId;
+  String? _selectedCategoryId;
   bool _isLoading = false;
 
   bool get isEditing => widget.productId != null;
@@ -78,7 +78,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ),
               const SizedBox(height: 16),
               categoriesAsync.when(
-                data: (categories) => DropdownButtonFormField<int>(
+                data: (categories) => DropdownButtonFormField<String>(
                   initialValue: _selectedCategoryId,
                   decoration: const InputDecoration(
                     labelText: 'Kategori',
@@ -101,7 +101,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       hint: '0',
                       prefixIcon: Icons.shopping_cart,
                       keyboardType: TextInputType.number,
-                      controller: _purchasePriceController,
+                      controller: _costPriceController,
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -10,8 +10,8 @@ abstract class CashierShiftRepository {
     DateTime? startDate,
     DateTime? endDate,
   });
-  Future<Either<Failure, CashierShift>> getActiveShift(int userId);
+  Future<Either<Failure, CashierShift>> getActiveShift(String cashierId);
   Future<Either<Failure, CashierShift>> openShift(CashierShift shift);
   Future<Either<Failure, CashierShift>> closeShift(CashierShift shift);
-  Future<Either<Failure, CashierShift>> getShift(int id);
+  Future<Either<Failure, CashierShift>> getShift(String id);
 }

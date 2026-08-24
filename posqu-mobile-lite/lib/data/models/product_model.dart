@@ -6,56 +6,74 @@ part 'product_model.g.dart';
 
 @JsonSerializable()
 class ProductModel {
-  final int id;
-  final String code;
+  final String id;
+  final String sku;
+  final String? slug;
   final String? barcode;
+  final String? qrCode;
   final String name;
   final String? description;
-  @JsonKey(name: 'category_id')
-  final int categoryId;
-  @JsonKey(name: 'category_name')
+  final String? categoryId;
   final String? categoryName;
-  @JsonKey(name: 'supplier_id')
-  final int? supplierId;
-  @JsonKey(name: 'supplier_name')
+  final String? brandId;
+  final String? supplierId;
   final String? supplierName;
-  @JsonKey(name: 'purchase_price')
-  final double purchasePrice;
-  @JsonKey(name: 'selling_price')
+  final String? unitId;
+  final double costPrice;
   final double sellingPrice;
-  @JsonKey(name: 'wholesale_price')
-  final double? wholesalePrice;
-  final int stock;
-  @JsonKey(name: 'min_stock')
-  final int minStock;
-  final String unit;
-  @JsonKey(name: 'image_url')
-  final String? imageUrl;
-  @JsonKey(name: 'is_active')
+  final double marginPct;
+  final double taxRate;
+  final double weight;
+  final double volume;
+  final double minStock;
+  final double reorderPoint;
+  final double wholesalePrice;
+  final double wholesaleDiscountPercent;
+  final int wholesaleMinQty;
   final bool isActive;
-  @JsonKey(name: 'created_at')
+  final bool isFeatured;
+  final bool isConsignment;
+  final String type;
+
+  final int stock;
+  final String unit;
+  final String? imageUrl;
+
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const ProductModel({
     required this.id,
-    required this.code,
+    required this.sku,
+    this.slug,
     this.barcode,
+    this.qrCode,
     required this.name,
     this.description,
-    required this.categoryId,
+    this.categoryId,
     this.categoryName,
+    this.brandId,
     this.supplierId,
     this.supplierName,
-    required this.purchasePrice,
-    required this.sellingPrice,
-    this.wholesalePrice,
-    required this.stock,
+    this.unitId,
+    this.costPrice = 0,
+    this.sellingPrice = 0,
+    this.marginPct = 0,
+    this.taxRate = 0,
+    this.weight = 0,
+    this.volume = 0,
     this.minStock = 0,
-    required this.unit,
-    this.imageUrl,
+    this.reorderPoint = 0,
+    this.wholesalePrice = 0,
+    this.wholesaleDiscountPercent = 0,
+    this.wholesaleMinQty = 0,
     this.isActive = true,
+    this.isFeatured = false,
+    this.isConsignment = false,
+    this.type = 'SINGLE',
+    this.stock = 0,
+    this.unit = 'pcs',
+    this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -68,22 +86,36 @@ class ProductModel {
   Product toEntity() {
     return Product(
       id: id,
-      code: code,
+      sku: sku,
+      slug: slug,
       barcode: barcode,
+      qrCode: qrCode,
       name: name,
       description: description,
       categoryId: categoryId,
       categoryName: categoryName,
+      brandId: brandId,
       supplierId: supplierId,
       supplierName: supplierName,
-      purchasePrice: purchasePrice,
+      unitId: unitId,
+      costPrice: costPrice,
       sellingPrice: sellingPrice,
-      wholesalePrice: wholesalePrice,
-      stock: stock,
+      marginPct: marginPct,
+      taxRate: taxRate,
+      weight: weight,
+      volume: volume,
       minStock: minStock,
+      reorderPoint: reorderPoint,
+      wholesalePrice: wholesalePrice,
+      wholesaleDiscountPercent: wholesaleDiscountPercent,
+      wholesaleMinQty: wholesaleMinQty,
+      isActive: isActive,
+      isFeatured: isFeatured,
+      isConsignment: isConsignment,
+      type: type,
+      stock: stock,
       unit: unit,
       imageUrl: imageUrl,
-      isActive: isActive,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -92,22 +124,36 @@ class ProductModel {
   factory ProductModel.fromEntity(Product product) {
     return ProductModel(
       id: product.id,
-      code: product.code,
+      sku: product.sku,
+      slug: product.slug,
       barcode: product.barcode,
+      qrCode: product.qrCode,
       name: product.name,
       description: product.description,
       categoryId: product.categoryId,
       categoryName: product.categoryName,
+      brandId: product.brandId,
       supplierId: product.supplierId,
       supplierName: product.supplierName,
-      purchasePrice: product.purchasePrice,
+      unitId: product.unitId,
+      costPrice: product.costPrice,
       sellingPrice: product.sellingPrice,
-      wholesalePrice: product.wholesalePrice,
-      stock: product.stock,
+      marginPct: product.marginPct,
+      taxRate: product.taxRate,
+      weight: product.weight,
+      volume: product.volume,
       minStock: product.minStock,
+      reorderPoint: product.reorderPoint,
+      wholesalePrice: product.wholesalePrice,
+      wholesaleDiscountPercent: product.wholesaleDiscountPercent,
+      wholesaleMinQty: product.wholesaleMinQty,
+      isActive: product.isActive,
+      isFeatured: product.isFeatured,
+      isConsignment: product.isConsignment,
+      type: product.type,
+      stock: product.stock,
       unit: product.unit,
       imageUrl: product.imageUrl,
-      isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     );

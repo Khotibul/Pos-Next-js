@@ -1,13 +1,14 @@
 import 'package:equatable/equatable.dart';
 
 class Sale extends Equatable {
-  final int id;
-  final String invoiceNumber;
-  final int? customerId;
+  final String id;
+  final String invoiceNo;
+  final String? cashierId;
+  final String? cashierName;
+  final String? shiftId;
+  final String? customerId;
   final String? customerName;
-  final int userId;
-  final String? userName;
-  final DateTime saleDate;
+  final DateTime createdAt;
   final String status;
   final String paymentMethod;
   final String? paymentReference;
@@ -19,41 +20,41 @@ class Sale extends Equatable {
   final double changeAmount;
   final String? notes;
   final List<SaleItem> items;
-  final DateTime createdAt;
   final DateTime updatedAt;
 
   const Sale({
     required this.id,
-    required this.invoiceNumber,
+    required this.invoiceNo,
+    this.cashierId,
+    this.cashierName,
+    this.shiftId,
     this.customerId,
     this.customerName,
-    required this.userId,
-    this.userName,
-    required this.saleDate,
-    required this.status,
-    required this.paymentMethod,
+    required this.createdAt,
+    this.status = 'PAID',
+    this.paymentMethod = 'cash',
     this.paymentReference,
     required this.subtotal,
     this.discount = 0,
     this.tax = 0,
     required this.total,
-    required this.paidAmount,
+    this.paidAmount = 0,
     this.changeAmount = 0,
     this.notes,
     this.items = const [],
-    required this.createdAt,
     required this.updatedAt,
   });
 
   @override
   List<Object?> get props => [
         id,
-        invoiceNumber,
+        invoiceNo,
+        cashierId,
+        cashierName,
+        shiftId,
         customerId,
         customerName,
-        userId,
-        userName,
-        saleDate,
+        createdAt,
         status,
         paymentMethod,
         paymentReference,
@@ -65,50 +66,72 @@ class Sale extends Equatable {
         changeAmount,
         notes,
         items,
-        createdAt,
         updatedAt,
       ];
 }
 
 class SaleItem extends Equatable {
-  final int id;
-  final int saleId;
-  final int productId;
-  final String? productName;
-  final String? productCode;
+  final String id;
+  final String saleId;
+  final String productId;
+  final String name;
+  final String sku;
   final String? barcode;
-  final double quantity;
-  final double sellingPrice;
-  final double discount;
-  final double subtotal;
+  final double qty;
+  final double price;
+  final double lineTotal;
   final String? unit;
 
   const SaleItem({
     required this.id,
     required this.saleId,
     required this.productId,
-    this.productName,
-    this.productCode,
+    this.name = '',
+    this.sku = '',
     this.barcode,
-    required this.quantity,
-    required this.sellingPrice,
-    this.discount = 0,
-    required this.subtotal,
+    required this.qty,
+    required this.price,
+    required this.lineTotal,
     this.unit,
   });
+
+  SaleItem copyWith({
+    String? id,
+    String? saleId,
+    String? productId,
+    String? name,
+    String? sku,
+    String? barcode,
+    double? qty,
+    double? price,
+    double? lineTotal,
+    String? unit,
+  }) {
+    return SaleItem(
+      id: id ?? this.id,
+      saleId: saleId ?? this.saleId,
+      productId: productId ?? this.productId,
+      name: name ?? this.name,
+      sku: sku ?? this.sku,
+      barcode: barcode ?? this.barcode,
+      qty: qty ?? this.qty,
+      price: price ?? this.price,
+      lineTotal: lineTotal ?? this.lineTotal,
+      unit: unit ?? this.unit,
+    );
+  }
 
   @override
   List<Object?> get props => [
         id,
         saleId,
         productId,
-        productName,
-        productCode,
+        name,
+        sku,
         barcode,
-        quantity,
-        sellingPrice,
-        discount,
-        subtotal,
+        qty,
+        price,
+        lineTotal,
         unit,
       ];
 }

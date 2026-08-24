@@ -59,7 +59,7 @@ class ProductListScreen extends ConsumerWidget {
                     ),
                     title: Text(product.name),
                     subtitle: Text(
-                      '${product.code} | Stok: ${product.stock} ${product.unit}',
+                      '${product.sku} | Stok: ${product.stock} ${product.unit}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     trailing: Column(

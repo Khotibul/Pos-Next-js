@@ -1,87 +1,146 @@
 import 'package:equatable/equatable.dart';
 
 class Product extends Equatable {
-  final int id;
-  final String code;
+  final String id;
+  final String sku;
+  final String? slug;
   final String? barcode;
+  final String? qrCode;
   final String name;
   final String? description;
-  final int categoryId;
+  final String? categoryId;
   final String? categoryName;
-  final int? supplierId;
+  final String? brandId;
+  final String? supplierId;
   final String? supplierName;
-  final double purchasePrice;
+  final String? unitId;
+  final double costPrice;
   final double sellingPrice;
-  final double? wholesalePrice;
+  final double marginPct;
+  final double taxRate;
+  final double weight;
+  final double volume;
+  final double minStock;
+  final double reorderPoint;
+  final double wholesalePrice;
+  final double wholesaleDiscountPercent;
+  final int wholesaleMinQty;
+  final bool isActive;
+  final bool isFeatured;
+  final bool isConsignment;
+  final String type;
+
   final int stock;
-  final int minStock;
   final String unit;
   final String? imageUrl;
-  final bool isActive;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
   const Product({
     required this.id,
-    required this.code,
+    required this.sku,
+    this.slug,
     this.barcode,
+    this.qrCode,
     required this.name,
     this.description,
-    required this.categoryId,
+    this.categoryId,
     this.categoryName,
+    this.brandId,
     this.supplierId,
     this.supplierName,
-    required this.purchasePrice,
-    required this.sellingPrice,
-    this.wholesalePrice,
-    required this.stock,
+    this.unitId,
+    this.costPrice = 0,
+    this.sellingPrice = 0,
+    this.marginPct = 0,
+    this.taxRate = 0,
+    this.weight = 0,
+    this.volume = 0,
     this.minStock = 0,
-    required this.unit,
-    this.imageUrl,
+    this.reorderPoint = 0,
+    this.wholesalePrice = 0,
+    this.wholesaleDiscountPercent = 0,
+    this.wholesaleMinQty = 0,
     this.isActive = true,
+    this.isFeatured = false,
+    this.isConsignment = false,
+    this.type = 'SINGLE',
+    this.stock = 0,
+    this.unit = 'pcs',
+    this.imageUrl,
     required this.createdAt,
     required this.updatedAt,
   });
 
   Product copyWith({
-    int? id,
-    String? code,
+    String? id,
+    String? sku,
+    String? slug,
     String? barcode,
+    String? qrCode,
     String? name,
     String? description,
-    int? categoryId,
+    String? categoryId,
     String? categoryName,
-    int? supplierId,
+    String? brandId,
+    String? supplierId,
     String? supplierName,
-    double? purchasePrice,
+    String? unitId,
+    double? costPrice,
     double? sellingPrice,
+    double? marginPct,
+    double? taxRate,
+    double? weight,
+    double? volume,
+    double? minStock,
+    double? reorderPoint,
     double? wholesalePrice,
+    double? wholesaleDiscountPercent,
+    int? wholesaleMinQty,
+    bool? isActive,
+    bool? isFeatured,
+    bool? isConsignment,
+    String? type,
     int? stock,
-    int? minStock,
     String? unit,
     String? imageUrl,
-    bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Product(
       id: id ?? this.id,
-      code: code ?? this.code,
+      sku: sku ?? this.sku,
+      slug: slug ?? this.slug,
       barcode: barcode ?? this.barcode,
+      qrCode: qrCode ?? this.qrCode,
       name: name ?? this.name,
       description: description ?? this.description,
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
+      brandId: brandId ?? this.brandId,
       supplierId: supplierId ?? this.supplierId,
       supplierName: supplierName ?? this.supplierName,
-      purchasePrice: purchasePrice ?? this.purchasePrice,
+      unitId: unitId ?? this.unitId,
+      costPrice: costPrice ?? this.costPrice,
       sellingPrice: sellingPrice ?? this.sellingPrice,
-      wholesalePrice: wholesalePrice ?? this.wholesalePrice,
-      stock: stock ?? this.stock,
+      marginPct: marginPct ?? this.marginPct,
+      taxRate: taxRate ?? this.taxRate,
+      weight: weight ?? this.weight,
+      volume: volume ?? this.volume,
       minStock: minStock ?? this.minStock,
+      reorderPoint: reorderPoint ?? this.reorderPoint,
+      wholesalePrice: wholesalePrice ?? this.wholesalePrice,
+      wholesaleDiscountPercent:
+          wholesaleDiscountPercent ?? this.wholesaleDiscountPercent,
+      wholesaleMinQty: wholesaleMinQty ?? this.wholesaleMinQty,
+      isActive: isActive ?? this.isActive,
+      isFeatured: isFeatured ?? this.isFeatured,
+      isConsignment: isConsignment ?? this.isConsignment,
+      type: type ?? this.type,
+      stock: stock ?? this.stock,
       unit: unit ?? this.unit,
       imageUrl: imageUrl ?? this.imageUrl,
-      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -93,22 +152,36 @@ class Product extends Equatable {
   @override
   List<Object?> get props => [
         id,
-        code,
+        sku,
+        slug,
         barcode,
+        qrCode,
         name,
         description,
         categoryId,
         categoryName,
+        brandId,
         supplierId,
         supplierName,
-        purchasePrice,
+        unitId,
+        costPrice,
         sellingPrice,
-        wholesalePrice,
-        stock,
+        marginPct,
+        taxRate,
+        weight,
+        volume,
         minStock,
+        reorderPoint,
+        wholesalePrice,
+        wholesaleDiscountPercent,
+        wholesaleMinQty,
+        isActive,
+        isFeatured,
+        isConsignment,
+        type,
+        stock,
         unit,
         imageUrl,
-        isActive,
         createdAt,
         updatedAt,
       ];

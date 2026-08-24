@@ -6,40 +6,26 @@ part 'return_model.g.dart';
 
 @JsonSerializable()
 class ReturnModel {
-  final int id;
-  @JsonKey(name: 'return_number')
+  final String id;
   final String returnNumber;
-  @JsonKey(name: 'sale_id')
-  final int? saleId;
-  @JsonKey(name: 'sale_invoice')
+  final String? saleId;
   final String? saleInvoice;
-  @JsonKey(name: 'purchase_id')
-  final int? purchaseId;
-  @JsonKey(name: 'purchase_invoice')
+  final String? purchaseId;
   final String? purchaseInvoice;
   final String type;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
+  final String userId;
   final String? userName;
-  @JsonKey(name: 'customer_id')
-  final int? customerId;
-  @JsonKey(name: 'customer_name')
+  final String? customerId;
   final String? customerName;
-  @JsonKey(name: 'supplier_id')
-  final int? supplierId;
-  @JsonKey(name: 'supplier_name')
+  final String? supplierId;
   final String? supplierName;
-  @JsonKey(name: 'return_date')
   final DateTime returnDate;
   final String reason;
   final String status;
   final double total;
   final String? notes;
   final List<ReturnItemModel> items;
-  @JsonKey(name: 'created_at')
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const ReturnModel({
@@ -96,18 +82,40 @@ class ReturnModel {
       updatedAt: updatedAt,
     );
   }
+
+  factory ReturnModel.fromEntity(domain.Return r) {
+    return ReturnModel(
+      id: r.id,
+      returnNumber: r.returnNumber,
+      saleId: r.saleId,
+      saleInvoice: r.saleInvoice,
+      purchaseId: r.purchaseId,
+      purchaseInvoice: r.purchaseInvoice,
+      type: r.type,
+      userId: r.userId,
+      userName: r.userName,
+      customerId: r.customerId,
+      customerName: r.customerName,
+      supplierId: r.supplierId,
+      supplierName: r.supplierName,
+      returnDate: r.returnDate,
+      reason: r.reason,
+      status: r.status,
+      total: r.total,
+      notes: r.notes,
+      items: r.items.map((i) => ReturnItemModel.fromEntity(i)).toList(),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    );
+  }
 }
 
 @JsonSerializable()
 class ReturnItemModel {
-  final int id;
-  @JsonKey(name: 'return_id')
-  final int returnId;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
+  final String id;
+  final String returnId;
+  final String productId;
   final String? productName;
-  @JsonKey(name: 'product_code')
   final String? productCode;
   final double quantity;
   final double price;
@@ -142,6 +150,20 @@ class ReturnItemModel {
       price: price,
       subtotal: subtotal,
       reason: reason,
+    );
+  }
+
+  factory ReturnItemModel.fromEntity(domain.ReturnItem item) {
+    return ReturnItemModel(
+      id: item.id,
+      returnId: item.returnId,
+      productId: item.productId,
+      productName: item.productName,
+      productCode: item.productCode,
+      quantity: item.quantity,
+      price: item.price,
+      subtotal: item.subtotal,
+      reason: item.reason,
     );
   }
 }

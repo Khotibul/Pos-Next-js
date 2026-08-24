@@ -37,8 +37,8 @@ class CashTransactionDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  Future<int> insertTransaction(CashTransactionsTableCompanion transaction) {
-    return into(cashTransactionsTable).insert(transaction);
+  Future<void> insertTransaction(CashTransactionsTableCompanion transaction) async {
+    await into(cashTransactionsTable).insert(transaction);
   }
 
   Future<double> getBalance() {

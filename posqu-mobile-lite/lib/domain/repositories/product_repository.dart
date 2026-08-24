@@ -8,15 +8,15 @@ abstract class ProductRepository {
     int page = 1,
     int limit = 20,
     String? search,
-    int? categoryId,
+    String? categoryId,
     bool? activeOnly,
   });
-  Future<Either<Failure, Product>> getProduct(int id);
+  Future<Either<Failure, Product>> getProduct(String id);
   Future<Either<Failure, Product>> getProductByBarcode(String barcode);
   Future<Either<Failure, Product>> createProduct(Product product);
   Future<Either<Failure, Product>> updateProduct(Product product);
-  Future<Either<Failure, void>> deleteProduct(int id);
+  Future<Either<Failure, void>> deleteProduct(String id);
   Future<Either<Failure, List<Product>>> searchProducts(String query);
   Future<Either<Failure, List<Product>>> getLowStockProducts();
-  Future<Either<Failure, void>> updateStock(int productId, int quantity);
+  Future<Either<Failure, void>> updateStock(String productId, int quantity);
 }

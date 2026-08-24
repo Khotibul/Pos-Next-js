@@ -19,43 +19,50 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
   @override
   Future<Either<Failure, Purchase>> createPurchase(Purchase purchase) async {
     try {
-      final companion = PurchasesTableCompanion(
-        invoiceNumber: Value(purchase.invoiceNumber),
-        supplierId: Value(purchase.supplierId),
-        userId: Value(purchase.userId),
-        purchaseDate: Value(purchase.purchaseDate),
-        status: Value(purchase.status),
-        subtotal: Value(purchase.subtotal),
-        discount: Value(purchase.discount),
-        tax: Value(purchase.tax),
-        total: Value(purchase.total),
-        notes: Value(purchase.notes),
-        isSynced: const Value(false),
-      );
-      final purchaseId = await database.purchaseDao.insertPurchase(companion);
-      for (final item in purchase.items) {
-        await database.purchaseDao.insertPurchaseItem(
-          PurchaseItemsTableCompanion(
-            purchaseId: Value(purchaseId),
-            productId: Value(item.productId),
-            quantity: Value(item.quantity),
-            purchasePrice: Value(item.purchasePrice),
-            subtotal: Value(item.subtotal),
+      await database.transaction(() async {
+        await database.purchaseDao.insertPurchase(
+          PurchasesTableCompanion(
+            id: Value(purchase.id),
+            orderNo: Value(purchase.orderNo),
+            supplierId: Value(purchase.supplierId),
+            status: Value(purchase.status),
+            subtotal: Value(purchase.subtotal),
+            tax: Value(purchase.tax),
+            total: Value(purchase.total),
+            notes: Value(purchase.notes),
+            isSynced: const Value(false),
           ),
         );
-        await database.productDao.updateStock(
-          item.productId,
-          item.quantity.toInt(),
-        );
-      }
+        for (final item in purchase.items) {
+          await database.purchaseDao.insertPurchaseItem(
+            PurchaseItemsTableCompanion(
+              id: Value(item.id),
+              purchaseOrderId: Value(purchase.id),
+              productId: Value(item.productId),
+              name: Value(item.name),
+              sku: Value(item.sku),
+              costPrice: Value(item.costPrice),
+              qty: Value(item.qty),
+              lineTotal: Value(item.lineTotal),
+            ),
+          );
+          final product = await database.productDao.getById(item.productId);
+          if (product != null) {
+            await database.productDao.updateStock(
+              item.productId,
+              product.stock + item.qty.toInt(),
+            );
+          }
+        }
+      });
       return Right(purchase);
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal menyimpan pembelian'));
+      return Left(DatabaseFailure(message: 'Gagal menyimpan pembelian: $e'));
     }
   }
 
   @override
-  Future<Either<Failure, void>> deletePurchase(int id) async {
+  Future<Either<Failure, void>> deletePurchase(String id) async {
     try {
       await database.purchaseDao.deletePurchase(id);
       return const Right(null);
@@ -65,14 +72,20 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
   }
 
   @override
-  Future<Either<Failure, Purchase>> getPurchase(int id) async {
+  Future<Either<Failure, Purchase>> getPurchase(String id) async {
     try {
       final purchase = await database.purchaseDao.getById(id);
       if (purchase == null) {
         return const Left(DatabaseFailure(message: 'Pembelian tidak ditemukan'));
       }
       final items = await database.purchaseDao.getItems(id);
-      return Right(_toEntity(purchase, items));
+      String? supplierName;
+      if (purchase.supplierId != null) {
+        final supplier =
+            await database.supplierDao.getById(purchase.supplierId!);
+        supplierName = supplier?.name;
+      }
+      return Right(_toEntity(purchase, items, supplierName));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil pembelian'));
     }
@@ -95,7 +108,7 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
       final result = <Purchase>[];
       for (final p in purchases) {
         final items = await database.purchaseDao.getItems(p.id);
-        result.add(_toEntity(p, items));
+        result.add(_toEntity(p, items, null));
       }
       return Right(result);
     } catch (e) {
@@ -103,26 +116,30 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
     }
   }
 
-  Purchase _toEntity(PurchasesTableData p, List<PurchaseItemsTableData> items) {
+  Purchase _toEntity(
+    PurchasesTableData p,
+    List<PurchaseItemsTableData> items,
+    String? supplierName,
+  ) {
     return Purchase(
       id: p.id,
-      invoiceNumber: p.invoiceNumber,
+      orderNo: p.orderNo,
       supplierId: p.supplierId,
-      userId: p.userId,
-      purchaseDate: p.purchaseDate,
+      supplierName: supplierName,
       status: p.status,
       subtotal: p.subtotal,
-      discount: p.discount,
       tax: p.tax,
       total: p.total,
       notes: p.notes,
       items: items.map((i) => PurchaseItem(
         id: i.id,
-        purchaseId: i.purchaseId,
+        purchaseOrderId: i.purchaseOrderId,
         productId: i.productId,
-        quantity: i.quantity,
-        purchasePrice: i.purchasePrice,
-        subtotal: i.subtotal,
+        name: i.name,
+        sku: i.sku,
+        qty: i.qty,
+        costPrice: i.costPrice,
+        lineTotal: i.lineTotal,
       )).toList(),
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,

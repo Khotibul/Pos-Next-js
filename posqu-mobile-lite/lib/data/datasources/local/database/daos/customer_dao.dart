@@ -29,19 +29,19 @@ class CustomerDao extends DatabaseAccessor<AppDatabase> with _$CustomerDaoMixin 
         .get();
   }
 
-  Future<CustomersTableData?> getById(int id) {
+  Future<CustomersTableData?> getById(String id) {
     return (select(customersTable)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<int> insertCustomer(CustomersTableCompanion customer) {
-    return into(customersTable).insert(customer);
+  Future<void> insertCustomer(CustomersTableCompanion customer) async {
+    await into(customersTable).insert(customer);
   }
 
   Future<bool> updateCustomer(CustomersTableCompanion customer) {
     return update(customersTable).replace(customer);
   }
 
-  Future<int> deleteCustomer(int id) {
+  Future<int> deleteCustomer(String id) {
     return (delete(customersTable)..where((t) => t.id.equals(id))).go();
   }
 }

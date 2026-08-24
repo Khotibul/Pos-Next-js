@@ -12,8 +12,8 @@ abstract class SaleRepository {
     DateTime? endDate,
     String? paymentMethod,
   });
-  Future<Either<Failure, Sale>> getSale(int id);
+  Future<Either<Failure, Sale>> getSale(String id);
   Future<Either<Failure, Sale>> getSaleByInvoice(String invoiceNumber);
   Future<Either<Failure, Sale>> createSale(Sale sale);
-  Future<Either<Failure, void>> deleteSale(int id);
+  Future<Either<Failure, void>> deleteSale(String id);
 }

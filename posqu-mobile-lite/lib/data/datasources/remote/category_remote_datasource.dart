@@ -30,12 +30,12 @@ class CategoryRemoteDataSource {
     return CategoryModel.fromJson(response.data['data']);
   }
 
-  Future<CategoryModel> updateCategory(int id, Map<String, dynamic> data) async {
+  Future<CategoryModel> updateCategory(String id, Map<String, dynamic> data) async {
     final response = await _dio.put('${ApiConstants.categories}/$id', data: data);
     return CategoryModel.fromJson(response.data['data']);
   }
 
-  Future<void> deleteCategory(int id) async {
+  Future<void> deleteCategory(String id) async {
     await _dio.delete('${ApiConstants.categories}/$id');
   }
 }

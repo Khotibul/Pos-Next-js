@@ -89,7 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'edit/:id',
                 builder: (context, state) => ProductFormScreen(
-                  productId: int.tryParse(state.pathParameters['id'] ?? ''),
+                  productId: state.pathParameters['id'] ?? '',
                 ),
               ),
             ],
@@ -105,7 +105,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'edit/:id',
                 builder: (context, state) => CategoryFormScreen(
-                  categoryId: int.tryParse(state.pathParameters['id'] ?? ''),
+                  categoryId: state.pathParameters['id'] ?? '',
                 ),
               ),
             ],
@@ -121,7 +121,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'edit/:id',
                 builder: (context, state) => SupplierFormScreen(
-                  supplierId: int.tryParse(state.pathParameters['id'] ?? ''),
+                  supplierId: state.pathParameters['id'] ?? '',
                 ),
               ),
             ],
@@ -137,7 +137,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'edit/:id',
                 builder: (context, state) => CustomerFormScreen(
-                  customerId: int.tryParse(state.pathParameters['id'] ?? ''),
+                  customerId: state.pathParameters['id'] ?? '',
                 ),
               ),
             ],
@@ -159,7 +159,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: ':id',
                 builder: (context, state) => SaleDetailScreen(
-                  saleId: int.parse(state.pathParameters['id'] ?? '0'),
+                  saleId: state.pathParameters['id'] ?? '',
                 ),
               ),
             ],

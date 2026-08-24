@@ -6,55 +6,43 @@ part 'sale_model.g.dart';
 
 @JsonSerializable()
 class SaleModel {
-  final int id;
-  @JsonKey(name: 'invoice_number')
-  final String invoiceNumber;
-  @JsonKey(name: 'customer_id')
-  final int? customerId;
-  @JsonKey(name: 'customer_name')
+  final String id;
+  final String invoiceNo;
+  final String? cashierId;
+  final String? cashierName;
+  final String? shiftId;
+  final String? customerId;
   final String? customerName;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  @JsonKey(name: 'sale_date')
-  final DateTime saleDate;
   final String status;
-  @JsonKey(name: 'payment_method')
   final String paymentMethod;
-  @JsonKey(name: 'payment_reference')
   final String? paymentReference;
   final double subtotal;
   final double discount;
   final double tax;
   final double total;
-  @JsonKey(name: 'paid_amount')
   final double paidAmount;
-  @JsonKey(name: 'change_amount')
   final double changeAmount;
   final String? notes;
   final List<SaleItemModel> items;
-  @JsonKey(name: 'created_at')
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const SaleModel({
     required this.id,
-    required this.invoiceNumber,
+    required this.invoiceNo,
+    this.cashierId,
+    this.cashierName,
+    this.shiftId,
     this.customerId,
     this.customerName,
-    required this.userId,
-    this.userName,
-    required this.saleDate,
-    required this.status,
-    required this.paymentMethod,
+    this.status = 'PAID',
+    this.paymentMethod = 'cash',
     this.paymentReference,
     required this.subtotal,
     this.discount = 0,
     this.tax = 0,
     required this.total,
-    required this.paidAmount,
+    this.paidAmount = 0,
     this.changeAmount = 0,
     this.notes,
     this.items = const [],
@@ -70,12 +58,12 @@ class SaleModel {
   Sale toEntity() {
     return Sale(
       id: id,
-      invoiceNumber: invoiceNumber,
+      invoiceNo: invoiceNo,
+      cashierId: cashierId,
+      cashierName: cashierName,
+      shiftId: shiftId,
       customerId: customerId,
       customerName: customerName,
-      userId: userId,
-      userName: userName,
-      saleDate: saleDate,
       status: status,
       paymentMethod: paymentMethod,
       paymentReference: paymentReference,
@@ -91,38 +79,56 @@ class SaleModel {
       updatedAt: updatedAt,
     );
   }
+
+  factory SaleModel.fromEntity(Sale sale) {
+    return SaleModel(
+      id: sale.id,
+      invoiceNo: sale.invoiceNo,
+      cashierId: sale.cashierId,
+      cashierName: sale.cashierName,
+      shiftId: sale.shiftId,
+      customerId: sale.customerId,
+      customerName: sale.customerName,
+      status: sale.status,
+      paymentMethod: sale.paymentMethod,
+      paymentReference: sale.paymentReference,
+      subtotal: sale.subtotal,
+      discount: sale.discount,
+      tax: sale.tax,
+      total: sale.total,
+      paidAmount: sale.paidAmount,
+      changeAmount: sale.changeAmount,
+      notes: sale.notes,
+      items: sale.items.map((i) => SaleItemModel.fromEntity(i)).toList(),
+      createdAt: sale.createdAt,
+      updatedAt: sale.updatedAt,
+    );
+  }
 }
 
 @JsonSerializable()
 class SaleItemModel {
-  final int id;
-  @JsonKey(name: 'sale_id')
-  final int saleId;
-  @JsonKey(name: 'product_id')
-  final int productId;
-  @JsonKey(name: 'product_name')
-  final String? productName;
-  @JsonKey(name: 'product_code')
-  final String? productCode;
+  final String id;
+  final String saleId;
+  final String productId;
+  final String name;
+  final String sku;
   final String? barcode;
-  final double quantity;
-  @JsonKey(name: 'selling_price')
-  final double sellingPrice;
-  final double discount;
-  final double subtotal;
+  final double qty;
+  final double price;
+  final double lineTotal;
   final String? unit;
 
   const SaleItemModel({
     required this.id,
     required this.saleId,
     required this.productId,
-    this.productName,
-    this.productCode,
+    this.name = '',
+    this.sku = '',
     this.barcode,
-    required this.quantity,
-    required this.sellingPrice,
-    this.discount = 0,
-    required this.subtotal,
+    required this.qty,
+    required this.price,
+    required this.lineTotal,
     this.unit,
   });
 
@@ -136,14 +142,56 @@ class SaleItemModel {
       id: id,
       saleId: saleId,
       productId: productId,
-      productName: productName,
-      productCode: productCode,
+      name: name,
+      sku: sku,
       barcode: barcode,
-      quantity: quantity,
-      sellingPrice: sellingPrice,
-      discount: discount,
-      subtotal: subtotal,
+      qty: qty,
+      price: price,
+      lineTotal: lineTotal,
       unit: unit,
     );
   }
+
+  factory SaleItemModel.fromEntity(SaleItem item) {
+    return SaleItemModel(
+      id: item.id,
+      saleId: item.saleId,
+      productId: item.productId,
+      name: item.name,
+      sku: item.sku,
+      barcode: item.barcode,
+      qty: item.qty,
+      price: item.price,
+      lineTotal: item.lineTotal,
+      unit: item.unit,
+    );
+  }
+}
+
+@JsonSerializable()
+class PaymentModel {
+  final String id;
+  final String saleId;
+  final String method;
+  final double amount;
+  final double receivedAmount;
+  final double changeAmount;
+  final String? reference;
+  final DateTime createdAt;
+
+  const PaymentModel({
+    required this.id,
+    required this.saleId,
+    required this.method,
+    required this.amount,
+    this.receivedAmount = 0,
+    this.changeAmount = 0,
+    this.reference,
+    required this.createdAt,
+  });
+
+  factory PaymentModel.fromJson(Map<String, dynamic> json) =>
+      _$PaymentModelFromJson(json);
+
+  Map<String, dynamic> toJson() => _$PaymentModelToJson(this);
 }

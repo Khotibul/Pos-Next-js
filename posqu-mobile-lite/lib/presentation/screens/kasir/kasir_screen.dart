@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../providers/kasir/kasir_provider.dart';
 import '../../providers/kasir/kasir_state.dart';
@@ -165,14 +166,14 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                             ref.read(kasirStateProvider.notifier).removeItem(index),
                         child: ListTile(
                           dense: true,
-                          title: Text(item.productName ?? 'Produk',
+                          title: Text(item.name.isEmpty ? 'Produk' : item.name,
                               style: const TextStyle(fontSize: 14)),
                           subtitle: Text(
-                            '${CurrencyFormatter.format(item.sellingPrice)} x${item.quantity}',
+                            '${CurrencyFormatter.format(item.price)} x${item.qty}',
                             style: const TextStyle(fontSize: 12),
                           ),
                           trailing: Text(
-                            CurrencyFormatter.format(item.subtotal),
+                            CurrencyFormatter.format(item.lineTotal),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -308,7 +309,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   }
 
   Future<void> _processPayment(KasirState state) async {
-    final success = await ref.read(kasirStateProvider.notifier).checkout(1);
+    final success = await ref.read(kasirStateProvider.notifier).checkout('');
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pembayaran berhasil!')),
@@ -317,18 +318,18 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   }
 
   Product _dummyProduct(int index) {
+    final now = DateTime.now();
     return Product(
-      id: index + 1,
-      code: 'PRD${1000 + index}',
+      id: const Uuid().v4(),
+      sku: 'PRD${1000 + index}',
       barcode: '899${1000000 + index}',
       name: 'Produk ${index + 1}',
-      categoryId: 1,
-      purchasePrice: 10000.0 + (index * 1000),
+      costPrice: 10000.0 + (index * 1000),
       sellingPrice: 15000.0 + (index * 1000),
       stock: 100,
       unit: 'pcs',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: now,
+      updatedAt: now,
     );
   }
 }

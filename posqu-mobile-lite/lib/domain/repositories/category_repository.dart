@@ -5,8 +5,8 @@ import '../../core/errors/failures.dart';
 
 abstract class CategoryRepository {
   Future<Either<Failure, List<Category>>> getCategories({bool? activeOnly});
-  Future<Either<Failure, Category>> getCategory(int id);
+  Future<Either<Failure, Category>> getCategory(String id);
   Future<Either<Failure, Category>> createCategory(Category category);
   Future<Either<Failure, Category>> updateCategory(Category category);
-  Future<Either<Failure, void>> deleteCategory(int id);
+  Future<Either<Failure, void>> deleteCategory(String id);
 }

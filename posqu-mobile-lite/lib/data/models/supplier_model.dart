@@ -6,20 +6,16 @@ part 'supplier_model.g.dart';
 
 @JsonSerializable()
 class SupplierModel {
-  final int id;
+  final String id;
   final String name;
   final String? phone;
   final String? email;
   final String? address;
   final String? city;
-  @JsonKey(name: 'contact_person')
   final String? contactPerson;
   final String? npwp;
-  @JsonKey(name: 'is_active')
   final bool isActive;
-  @JsonKey(name: 'created_at')
   final DateTime createdAt;
-  @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   const SupplierModel({

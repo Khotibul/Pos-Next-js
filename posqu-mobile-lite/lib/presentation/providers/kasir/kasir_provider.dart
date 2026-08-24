@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
@@ -38,13 +39,12 @@ class KasirNotifier extends StateNotifier<KasirState> {
         id: existing.id,
         saleId: existing.saleId,
         productId: existing.productId,
-        productName: existing.productName,
-        productCode: existing.productCode,
+        name: existing.name,
+        sku: existing.sku,
         barcode: existing.barcode,
-        quantity: existing.quantity + quantity,
-        sellingPrice: existing.sellingPrice,
-        discount: existing.discount,
-        subtotal: (existing.quantity + quantity) * existing.sellingPrice - existing.discount,
+        qty: existing.qty + quantity,
+        price: existing.price,
+        lineTotal: (existing.qty + quantity) * existing.price,
         unit: existing.unit,
       );
       state = state.copyWith(items: newItems);
@@ -52,16 +52,15 @@ class KasirNotifier extends StateNotifier<KasirState> {
       state = state.copyWith(items: [
         ...state.items,
         SaleItem(
-          id: 0,
-          saleId: 0,
+          id: const Uuid().v4(),
+          saleId: '',
           productId: product.id,
-          productName: product.name,
-          productCode: product.code,
+          name: product.name,
+          sku: product.sku,
           barcode: product.barcode,
-          quantity: quantity,
-          sellingPrice: product.sellingPrice,
-          discount: 0,
-          subtotal: quantity * product.sellingPrice,
+          qty: quantity,
+          price: product.sellingPrice,
+          lineTotal: quantity * product.sellingPrice,
           unit: product.unit,
         ),
       ]);
@@ -77,7 +76,7 @@ class KasirNotifier extends StateNotifier<KasirState> {
     }
   }
 
-  void updateQuantity(int index, double quantity) {
+  void updateQuantity(int index, double qty) {
     if (index >= 0 && index < state.items.length) {
       final item = state.items[index];
       final newItems = List<SaleItem>.from(state.items);
@@ -85,13 +84,12 @@ class KasirNotifier extends StateNotifier<KasirState> {
         id: item.id,
         saleId: item.saleId,
         productId: item.productId,
-        productName: item.productName,
-        productCode: item.productCode,
+        name: item.name,
+        sku: item.sku,
         barcode: item.barcode,
-        quantity: quantity,
-        sellingPrice: item.sellingPrice,
-        discount: item.discount,
-        subtotal: quantity * item.sellingPrice - item.discount,
+        qty: qty,
+        price: item.price,
+        lineTotal: qty * item.price,
         unit: item.unit,
       );
       state = state.copyWith(items: newItems);
@@ -115,16 +113,21 @@ class KasirNotifier extends StateNotifier<KasirState> {
     );
   }
 
-  Future<bool> checkout(int userId) async {
+  Future<bool> checkout(String cashierId) async {
     state = state.copyWith(isLoading: true);
     try {
-      final invoiceNumber = 'INV-${DateTime.now().millisecondsSinceEpoch}';
+      final now = DateTime.now();
+      final invoiceNo = 'INV-${now.millisecondsSinceEpoch}';
+      final saleId = const Uuid().v4();
+      final items = state.items
+          .map((item) => item.copyWith(saleId: saleId))
+          .toList();
       final sale = Sale(
-        id: 0,
-        invoiceNumber: invoiceNumber,
-        userId: userId,
-        saleDate: DateTime.now(),
-        status: 'completed',
+        id: saleId,
+        invoiceNo: invoiceNo,
+        cashierId: cashierId.isEmpty ? null : cashierId,
+        createdAt: now,
+        status: 'PAID',
         paymentMethod: state.paymentMethod,
         subtotal: state.subtotal,
         discount: state.discount,
@@ -132,9 +135,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
         total: state.total,
         paidAmount: state.paidAmount,
         changeAmount: state.changeAmount,
-        items: List.from(state.items),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        items: items,
+        updatedAt: now,
       );
 
       final result = await _saleRepository.createSale(sale);
@@ -167,7 +169,7 @@ class KasirNotifier extends StateNotifier<KasirState> {
   }
 
   void _recalculate() {
-    final subtotal = state.items.fold<double>(0, (sum, item) => sum + item.subtotal);
+    final subtotal = state.items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final discountAmount = subtotal * (state.discount / 100);
     final taxAmount = (subtotal - discountAmount) * (state.tax / 100);
     final total = subtotal - discountAmount + taxAmount;

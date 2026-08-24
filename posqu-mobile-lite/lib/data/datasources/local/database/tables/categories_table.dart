@@ -1,7 +1,9 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 class CategoriesTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get tenantId => text().nullable()();
   TextColumn get name => text()();
   TextColumn get description => text().nullable()();
   TextColumn get icon => text().nullable()();

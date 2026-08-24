@@ -19,16 +19,22 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
   @override
   Future<Either<Failure, CashierShift>> openShift(CashierShift shift) async {
     try {
-      final companion = CashierShiftsTableCompanion(
-        userId: Value(shift.userId),
-        openTime: Value(shift.openTime),
-        status: const Value('open'),
-        openingBalance: Value(shift.openingBalance),
+      final now = DateTime.now();
+      final data = shift.copyWith(openedAt: now, createdAt: now, updatedAt: now);
+      await database.cashierShiftDao.insertShift(
+        CashierShiftsTableCompanion(
+          id: Value(data.id),
+          branchId: Value(data.branchId),
+          cashierId: Value(data.cashierId),
+          openedAt: Value(data.openedAt),
+          status: const Value('OPEN'),
+          openingCash: Value(data.openingCash),
+          openNote: Value(data.openNote),
+        ),
       );
-      await database.cashierShiftDao.insertShift(companion);
-      return Right(shift);
+      return Right(data);
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal membuka shift'));
+      return Left(DatabaseFailure(message: 'Gagal membuka shift: $e'));
     }
   }
 
@@ -38,29 +44,34 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
       await database.cashierShiftDao.updateShift(
         CashierShiftsTableCompanion(
           id: Value(shift.id),
-          closeTime: Value(shift.closeTime),
-          status: const Value('closed'),
-          closingBalance: Value(shift.closingBalance),
-          expectedBalance: Value(shift.expectedBalance),
-          difference: Value(shift.difference),
+          closedAt: Value(shift.closedAt),
+          status: const Value('CLOSED'),
+          cashSystem: Value(shift.cashSystem),
+          cashCounted: Value(shift.cashCounted),
+          cashDifference: Value(shift.cashDifference),
           totalSales: Value(shift.totalSales),
           totalCash: Value(shift.totalCash),
           totalQris: Value(shift.totalQris),
           totalTransfer: Value(shift.totalTransfer),
+          totalEwallet: Value(shift.totalEwallet),
+          transactionCount: Value(shift.transactionCount),
+          closingBalance: Value(shift.closingBalance),
+          expectedBalance: Value(shift.expectedBalance),
           totalExpenses: Value(shift.totalExpenses),
-          notes: Value(shift.notes),
+          closeNote: Value(shift.closeNote ?? shift.openNote),
+          updatedAt: Value(DateTime.now()),
         ),
       );
       return Right(shift);
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal menutup shift'));
+      return Left(DatabaseFailure(message: 'Gagal menutup shift: $e'));
     }
   }
 
   @override
-  Future<Either<Failure, CashierShift>> getActiveShift(int userId) async {
+  Future<Either<Failure, CashierShift>> getActiveShift(String cashierId) async {
     try {
-      final shift = await database.cashierShiftDao.getActiveShift(userId);
+      final shift = await database.cashierShiftDao.getActiveShift(cashierId);
       if (shift == null) {
         return const Left(DatabaseFailure(message: 'Tidak ada shift aktif'));
       }
@@ -71,7 +82,7 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
   }
 
   @override
-  Future<Either<Failure, CashierShift>> getShift(int id) async {
+  Future<Either<Failure, CashierShift>> getShift(String id) async {
     try {
       final shift = await database.cashierShiftDao.getById(id);
       if (shift == null) {
@@ -104,20 +115,31 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
   CashierShift _toEntity(CashierShiftsTableData s) {
     return CashierShift(
       id: s.id,
-      userId: s.userId,
-      openTime: s.openTime,
-      closeTime: s.closeTime,
+      branchId: s.branchId,
+      cashierId: s.cashierId,
+      openedAt: s.openedAt,
+      closedAt: s.closedAt,
       status: s.status,
-      openingBalance: s.openingBalance,
-      closingBalance: s.closingBalance,
-      expectedBalance: s.expectedBalance,
-      difference: s.difference,
+      openingCash: s.openingCash,
+      cashSystem: s.cashSystem,
+      cashCounted: s.cashCounted,
+      cashDifference: s.cashDifference,
       totalSales: s.totalSales,
       totalCash: s.totalCash,
       totalQris: s.totalQris,
       totalTransfer: s.totalTransfer,
+      totalEwallet: s.totalEwallet,
+      transactionCount: s.transactionCount,
+      openNote: s.openNote,
+      closeNote: s.closeNote,
+      approvedById: s.approvedById,
+      approvedAt: s.approvedAt,
+      closingBalance: s.closingBalance,
+      expectedBalance: s.expectedBalance,
       totalExpenses: s.totalExpenses,
-      notes: s.notes,
+      isSynced: s.isSynced,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
     );
   }
 }

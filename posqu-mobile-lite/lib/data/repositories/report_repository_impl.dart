@@ -55,7 +55,10 @@ class ReportRepositoryImpl implements ReportRepository {
 
       for (final sale in sales) {
         totalSales += sale.total;
-        switch (sale.paymentMethod) {
+        final payments = await database.paymentDao.getBySaleId(sale.id);
+        final method =
+            payments.isNotEmpty ? payments.first.method.toLowerCase() : 'cash';
+        switch (method) {
           case 'cash':
             totalCash += sale.total;
             break;
@@ -138,17 +141,17 @@ class ReportRepositoryImpl implements ReportRepository {
         endDate: endDate,
       );
 
-      final productMap = <int, double>{};
-      final productInfo = <int, String>{};
-      final productName = <int, String>{};
+      final productMap = <String, double>{};
+      final productInfo = <String, String>{};
+      final productName = <String, String>{};
 
       for (final sale in sales) {
         final items = await database.saleDao.getItems(sale.id);
         for (final item in items) {
           productMap[item.productId] =
-              (productMap[item.productId] ?? 0) + item.quantity;
-          productInfo[item.productId] = '';
-          productName[item.productId] = '';
+              (productMap[item.productId] ?? 0) + item.qty;
+          productInfo[item.productId] = item.name;
+          productName[item.productId] = item.sku;
         }
       }
 
@@ -157,8 +160,8 @@ class ReportRepositoryImpl implements ReportRepository {
 
       final results = sorted.take(limit).map((e) => ProductReport(
         productId: e.key,
-        productName: productName[e.key] ?? '',
-        productCode: productInfo[e.key] ?? '',
+        productName: productInfo[e.key] ?? '',
+        productCode: productName[e.key] ?? '',
         quantitySold: e.value,
       )).toList();
 
@@ -175,7 +178,7 @@ class ReportRepositoryImpl implements ReportRepository {
       return Right(products.map((p) => ProductReport(
         productId: p.id,
         productName: p.name,
-        productCode: p.code,
+        productCode: p.sku,
         stock: p.stock,
       )).toList());
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
@@ -31,37 +32,76 @@ class ProductRepositoryImpl implements ProductRepository {
       final created = await remoteDataSource.createProduct(model.toJson());
       return Right(created.toEntity());
     } catch (e) {
-      return Left(ServerFailure(message: 'Gagal membuat produk: $e'));
+      try {
+        await _saveLocally(product);
+        return Right(product);
+      } catch (localError) {
+        return Left(DatabaseFailure(message: 'Gagal membuat produk: $e'));
+      }
     }
   }
 
+  Future<void> _saveLocally(Product p) async {
+    await database.productDao.insertProduct(
+      ProductsTableCompanion(
+        id: Value(p.id),
+        sku: Value(p.sku),
+        name: Value(p.name),
+        barcode: Value(p.barcode),
+        description: Value(p.description),
+        categoryId: Value(p.categoryId),
+        supplierId: Value(p.supplierId),
+        costPrice: Value(p.costPrice),
+        sellingPrice: Value(p.sellingPrice),
+        wholesalePrice: Value(p.wholesalePrice),
+        stock: Value(p.stock),
+        minStock: Value(p.minStock),
+        unit: Value(p.unit),
+        imageUrl: Value(p.imageUrl),
+        isActive: Value(p.isActive),
+      ),
+    );
+  }
+
   @override
-  Future<Either<Failure, void>> deleteProduct(int id) async {
+  Future<Either<Failure, void>> deleteProduct(String id) async {
     try {
       await remoteDataSource.deleteProduct(id);
       return const Right(null);
     } catch (e) {
-      return Left(ServerFailure(message: 'Gagal menghapus produk: $e'));
+      try {
+        await database.productDao.deleteProduct(id);
+        return const Right(null);
+      } catch (localError) {
+        return Left(ServerFailure(message: 'Gagal menghapus produk: $e'));
+      }
     }
   }
 
   @override
-  Future<Either<Failure, Product>> getProduct(int id) async {
+  Future<Either<Failure, Product>> getProduct(String id) async {
     try {
-      final product = await remoteDataSource.getProduct(id);
-      return Right(product.toEntity());
+      final row = await database.productDao.getById(id);
+      if (row == null) {
+        final product = await remoteDataSource.getProduct(id);
+        return Right(product.toEntity());
+      }
+      return Right(await _toEntity(row));
     } catch (e) {
-      return Left(ServerFailure(message: 'Gagal mendapatkan produk: $e'));
+      return Left(DatabaseFailure(message: 'Gagal mendapatkan produk: $e'));
     }
   }
 
   @override
   Future<Either<Failure, Product>> getProductByBarcode(String barcode) async {
     try {
+      final row = await database.productDao.getByBarcode(barcode);
+      if (row != null) return Right(await _toEntity(row));
       final product = await remoteDataSource.getProductByBarcode(barcode);
       return Right(product.toEntity());
     } catch (e) {
-      return Left(ServerFailure(message: 'Produk dengan barcode $barcode tidak ditemukan'));
+      return Left(DatabaseFailure(
+          message: 'Produk dengan barcode $barcode tidak ditemukan'));
     }
   }
 
@@ -70,19 +110,21 @@ class ProductRepositoryImpl implements ProductRepository {
     int page = 1,
     int limit = 20,
     String? search,
-    int? categoryId,
+    String? categoryId,
     bool? activeOnly,
   }) async {
     try {
-      final products = await remoteDataSource.getProducts(
-        page: page,
-        limit: limit,
+      final rows = await database.productDao.getAll(
         search: search,
         categoryId: categoryId,
       );
-      return Right(products.map((e) => e.toEntity()).toList());
+      final entities = <Product>[];
+      for (final row in rows) {
+        entities.add(await _toEntity(row));
+      }
+      return Right(entities);
     } catch (e) {
-      return const Left(ServerFailure(message: 'Gagal mengambil data produk'));
+      return const Left(DatabaseFailure(message: 'Gagal mengambil data produk'));
     }
   }
 
@@ -90,7 +132,11 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, List<Product>>> searchProducts(String query) async {
     try {
       final results = await database.productDao.search(query);
-      return Right(results.map((e) => _toEntity(e)).toList());
+      final entities = <Product>[];
+      for (final row in results) {
+        entities.add(await _toEntity(row));
+      }
+      return Right(entities);
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mencari produk'));
     }
@@ -103,7 +149,30 @@ class ProductRepositoryImpl implements ProductRepository {
       final updated = await remoteDataSource.updateProduct(product.id, model.toJson());
       return Right(updated.toEntity());
     } catch (e) {
-      return Left(ServerFailure(message: 'Gagal mengupdate produk: $e'));
+      try {
+        await database.productDao.updateProduct(
+          ProductsTableCompanion(
+            id: Value(product.id),
+            sku: Value(product.sku),
+            name: Value(product.name),
+            barcode: Value(product.barcode),
+            description: Value(product.description),
+            categoryId: Value(product.categoryId),
+            supplierId: Value(product.supplierId),
+            costPrice: Value(product.costPrice),
+            sellingPrice: Value(product.sellingPrice),
+            wholesalePrice: Value(product.wholesalePrice),
+            stock: Value(product.stock),
+            minStock: Value(product.minStock),
+            unit: Value(product.unit),
+            imageUrl: Value(product.imageUrl),
+            isActive: Value(product.isActive),
+          ),
+        );
+        return Right(product);
+      } catch (localError) {
+        return Left(ServerFailure(message: 'Gagal update produk: $e'));
+      }
     }
   }
 
@@ -111,14 +180,18 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, List<Product>>> getLowStockProducts() async {
     try {
       final products = await database.productDao.getLowStock();
-      return Right(products.map((e) => _toEntity(e)).toList());
+      final entities = <Product>[];
+      for (final row in products) {
+        entities.add(await _toEntity(row));
+      }
+      return Right(entities);
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil produk stok rendah'));
     }
   }
 
   @override
-  Future<Either<Failure, void>> updateStock(int productId, int quantity) async {
+  Future<Either<Failure, void>> updateStock(String productId, int quantity) async {
     try {
       await database.productDao.updateStock(productId, quantity);
       return const Right(null);
@@ -127,25 +200,44 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
-  Product _toEntity(ProductsTableData p) {
+  Future<Product> _toEntity(ProductsTableData p) async {
+    String? categoryName;
+    if (p.categoryId != null) {
+      final category = await database.categoryDao.getById(p.categoryId!);
+      categoryName = category?.name;
+    }
     return Product(
       id: p.id,
-      code: p.code,
+      sku: p.sku,
+      slug: p.slug,
       barcode: p.barcode,
+      qrCode: p.qrCode,
       name: p.name,
       description: p.description,
       categoryId: p.categoryId,
-      categoryName: null,
+      categoryName: categoryName,
+      brandId: p.brandId,
       supplierId: p.supplierId,
       supplierName: null,
-      purchasePrice: p.purchasePrice,
+      unitId: p.unitId,
+      costPrice: p.costPrice,
       sellingPrice: p.sellingPrice,
-      wholesalePrice: p.wholesalePrice,
-      stock: p.stock,
+      marginPct: p.marginPct,
+      taxRate: p.taxRate,
+      weight: p.weight,
+      volume: p.volume,
       minStock: p.minStock,
+      reorderPoint: p.reorderPoint,
+      wholesalePrice: p.wholesalePrice,
+      wholesaleDiscountPercent: p.wholesaleDiscountPercent,
+      wholesaleMinQty: p.wholesaleMinQty,
+      isActive: p.isActive,
+      isFeatured: p.isFeatured,
+      isConsignment: p.isConsignment,
+      type: p.type,
+      stock: p.stock,
       unit: p.unit,
       imageUrl: p.imageUrl,
-      isActive: p.isActive,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     );

@@ -12,6 +12,6 @@ abstract class ReturnRepository {
     DateTime? endDate,
     String? type,
   });
-  Future<Either<Failure, Return>> getReturn(int id);
+  Future<Either<Failure, Return>> getReturn(String id);
   Future<Either<Failure, Return>> createReturn(Return returnData);
 }

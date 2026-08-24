@@ -11,14 +11,14 @@ class CashierShiftDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<CashierShiftsTableData>> getAll({DateTime? startDate, DateTime? endDate}) {
     return (select(cashierShiftsTable)
-          ..orderBy([(t) => OrderingTerm(expression: t.openTime, mode: OrderingMode.desc)])
+          ..orderBy([(t) => OrderingTerm(expression: t.openedAt, mode: OrderingMode.desc)])
           ..where((t) {
             final exprs = <Expression<bool>>[];
             if (startDate != null) {
-              exprs.add(t.openTime.isBiggerThanValue(startDate));
+              exprs.add(t.openedAt.isBiggerThanValue(startDate));
             }
             if (endDate != null) {
-              exprs.add(t.openTime.isSmallerThanValue(endDate));
+              exprs.add(t.openedAt.isSmallerThanValue(endDate));
             }
             if (exprs.isNotEmpty) {
               return exprs.reduce((a, b) => a & b);
@@ -28,19 +28,20 @@ class CashierShiftDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  Future<CashierShiftsTableData?> getActiveShift(int userId) {
+  Future<CashierShiftsTableData?> getActiveShift(String cashierId) {
     return (select(cashierShiftsTable)
-          ..where((t) => t.userId.equals(userId) & t.status.equals('open')))
+          ..where((t) =>
+              t.cashierId.equals(cashierId) & t.status.equals('OPEN')))
         .getSingleOrNull();
   }
 
-  Future<CashierShiftsTableData?> getById(int id) {
+  Future<CashierShiftsTableData?> getById(String id) {
     return (select(cashierShiftsTable)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
   }
 
-  Future<int> insertShift(CashierShiftsTableCompanion shift) {
-    return into(cashierShiftsTable).insert(shift);
+  Future<void> insertShift(CashierShiftsTableCompanion shift) async {
+    await into(cashierShiftsTable).insert(shift);
   }
 
   Future<bool> updateShift(CashierShiftsTableCompanion shift) {

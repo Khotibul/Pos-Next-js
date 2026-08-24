@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class SupplierFormScreen extends StatefulWidget {
-  final int? supplierId;
+  final String? supplierId;
 
   const SupplierFormScreen({super.key, this.supplierId});
 

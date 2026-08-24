@@ -6,52 +6,55 @@ part 'cashier_shift_model.g.dart';
 
 @JsonSerializable()
 class CashierShiftModel {
-  final int id;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'user_name')
-  final String? userName;
-  @JsonKey(name: 'open_time')
-  final DateTime openTime;
-  @JsonKey(name: 'close_time')
-  final DateTime? closeTime;
+  final String id;
+  final String? branchId;
+  final String cashierId;
+  final DateTime openedAt;
+  final DateTime? closedAt;
   final String status;
-  @JsonKey(name: 'opening_balance')
-  final double openingBalance;
-  @JsonKey(name: 'closing_balance')
-  final double closingBalance;
-  @JsonKey(name: 'expected_balance')
-  final double expectedBalance;
-  final double difference;
-  @JsonKey(name: 'total_sales')
+  final double openingCash;
+  final double cashSystem;
+  final double? cashCounted;
+  final double cashDifference;
   final double totalSales;
-  @JsonKey(name: 'total_cash')
   final double totalCash;
-  @JsonKey(name: 'total_qris')
   final double totalQris;
-  @JsonKey(name: 'total_transfer')
   final double totalTransfer;
-  @JsonKey(name: 'total_expenses')
+  final double totalEwallet;
+  final int transactionCount;
+  final String? openNote;
+  final String? closeNote;
+
+  final double closingBalance;
+  final double expectedBalance;
   final double totalExpenses;
-  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   const CashierShiftModel({
     required this.id,
-    required this.userId,
-    this.userName,
-    required this.openTime,
-    this.closeTime,
-    required this.status,
-    required this.openingBalance,
-    this.closingBalance = 0,
-    this.expectedBalance = 0,
-    this.difference = 0,
+    this.branchId,
+    required this.cashierId,
+    required this.openedAt,
+    this.closedAt,
+    this.status = 'OPEN',
+    this.openingCash = 0,
+    this.cashSystem = 0,
+    this.cashCounted,
+    this.cashDifference = 0,
     this.totalSales = 0,
     this.totalCash = 0,
     this.totalQris = 0,
     this.totalTransfer = 0,
+    this.totalEwallet = 0,
+    this.transactionCount = 0,
+    this.openNote,
+    this.closeNote,
+    this.closingBalance = 0,
+    this.expectedBalance = 0,
     this.totalExpenses = 0,
-    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   factory CashierShiftModel.fromJson(Map<String, dynamic> json) =>
@@ -62,43 +65,72 @@ class CashierShiftModel {
   CashierShift toEntity() {
     return CashierShift(
       id: id,
-      userId: userId,
-      userName: userName,
-      openTime: openTime,
-      closeTime: closeTime,
+      branchId: branchId,
+      cashierId: cashierId,
+      openedAt: openedAt,
+      closedAt: closedAt,
       status: status,
-      openingBalance: openingBalance,
-      closingBalance: closingBalance,
-      expectedBalance: expectedBalance,
-      difference: difference,
+      openingCash: openingCash,
+      cashSystem: cashSystem,
+      cashCounted: cashCounted,
+      cashDifference: cashDifference,
       totalSales: totalSales,
       totalCash: totalCash,
       totalQris: totalQris,
       totalTransfer: totalTransfer,
+      totalEwallet: totalEwallet,
+      transactionCount: transactionCount,
+      openNote: openNote,
+      closeNote: closeNote,
+      closingBalance: closingBalance,
+      expectedBalance: expectedBalance,
       totalExpenses: totalExpenses,
-      notes: notes,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+
+  factory CashierShiftModel.fromEntity(CashierShift shift) {
+    return CashierShiftModel(
+      id: shift.id,
+      branchId: shift.branchId,
+      cashierId: shift.cashierId,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      status: shift.status,
+      openingCash: shift.openingCash,
+      cashSystem: shift.cashSystem,
+      cashCounted: shift.cashCounted,
+      cashDifference: shift.cashDifference,
+      totalSales: shift.totalSales,
+      totalCash: shift.totalCash,
+      totalQris: shift.totalQris,
+      totalTransfer: shift.totalTransfer,
+      totalEwallet: shift.totalEwallet,
+      transactionCount: shift.transactionCount,
+      openNote: shift.openNote,
+      closeNote: shift.closeNote,
+      closingBalance: shift.closingBalance,
+      expectedBalance: shift.expectedBalance,
+      totalExpenses: shift.totalExpenses,
+      createdAt: shift.createdAt,
+      updatedAt: shift.updatedAt,
     );
   }
 }
 
 @JsonSerializable()
 class CashTransactionModel {
-  final int id;
-  @JsonKey(name: 'shift_id')
-  final int? shiftId;
+  final String id;
+  final String? shiftId;
   final String type;
   final String category;
   final double amount;
   final String? description;
-  @JsonKey(name: 'reference_type')
   final String? referenceType;
-  @JsonKey(name: 'reference_id')
-  final int? referenceId;
-  @JsonKey(name: 'transaction_date')
+  final String? referenceId;
   final DateTime transactionDate;
-  @JsonKey(name: 'user_id')
-  final int userId;
-  @JsonKey(name: 'created_at')
+  final String userId;
   final DateTime createdAt;
 
   const CashTransactionModel({
@@ -133,6 +165,22 @@ class CashTransactionModel {
       transactionDate: transactionDate,
       userId: userId,
       createdAt: createdAt,
+    );
+  }
+
+  factory CashTransactionModel.fromEntity(CashTransaction t) {
+    return CashTransactionModel(
+      id: t.id,
+      shiftId: t.shiftId,
+      type: t.type,
+      category: t.category,
+      amount: t.amount,
+      description: t.description,
+      referenceType: t.referenceType,
+      referenceId: t.referenceId,
+      transactionDate: t.transactionDate,
+      userId: t.userId,
+      createdAt: t.createdAt,
     );
   }
 }

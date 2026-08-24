@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
 import '../../domain/entities/sale.dart';
@@ -28,7 +29,7 @@ class SaleRepositoryImpl implements SaleRepository {
   @override
   Future<Either<Failure, Sale>> createSale(Sale sale) async {
     try {
-      final saleModel = _toModel(sale);
+      final saleModel = SaleModel.fromEntity(sale);
       final created = await remoteDataSource.createSale(saleModel.toJson());
       return Right(created.toEntity());
     } catch (e) {
@@ -42,47 +43,62 @@ class SaleRepositoryImpl implements SaleRepository {
   }
 
   Future<void> _saveSaleLocally(Sale sale) async {
-    final companion = SalesTableCompanion(
-      invoiceNumber: Value(sale.invoiceNumber),
-      customerId: Value(sale.customerId),
-      userId: Value(sale.userId),
-      saleDate: Value(sale.saleDate),
-      status: Value(sale.status),
-      paymentMethod: Value(sale.paymentMethod),
-      paymentReference: Value(sale.paymentReference),
-      subtotal: Value(sale.subtotal),
-      discount: Value(sale.discount),
-      tax: Value(sale.tax),
-      total: Value(sale.total),
-      paidAmount: Value(sale.paidAmount),
-      changeAmount: Value(sale.changeAmount),
-      notes: Value(sale.notes),
-      isSynced: const Value(false),
-    );
-    final saleId = await database.saleDao.insertSale(companion);
-    for (final item in sale.items) {
-      await database.saleDao.insertSaleItem(
-        SaleItemsTableCompanion(
-          saleId: Value(saleId),
-          productId: Value(item.productId),
-          quantity: Value(item.quantity),
-          sellingPrice: Value(item.sellingPrice),
-          discount: Value(item.discount),
-          subtotal: Value(item.subtotal),
+    await database.transaction(() async {
+      await database.saleDao.insertSale(
+        SalesTableCompanion(
+          id: Value(sale.id),
+          invoiceNo: Value(sale.invoiceNo),
+          cashierId: Value(sale.cashierId),
+          shiftId: Value(sale.shiftId),
+          customerId: Value(sale.customerId),
+          status: Value(sale.status),
+          subtotal: Value(sale.subtotal),
+          discount: Value(sale.discount),
+          tax: Value(sale.tax),
+          total: Value(sale.total),
+          notes: Value(sale.notes),
+          isSynced: const Value(false),
         ),
       );
-    }
-    for (final item in sale.items) {
-      final product = await database.productDao.getById(item.productId);
-      if (product != null) {
-        final newStock = product.stock - item.quantity.toInt();
-        await database.productDao.updateStock(item.productId, newStock);
+      for (final item in sale.items) {
+        await database.saleDao.insertSaleItem(
+          SaleItemsTableCompanion(
+            id: Value(item.id),
+            saleId: Value(sale.id),
+            productId: Value(item.productId),
+            name: Value(item.name),
+            sku: Value(item.sku),
+            price: Value(item.price),
+            qty: Value(item.qty),
+            lineTotal: Value(item.lineTotal),
+          ),
+        );
       }
-    }
+      if (sale.paidAmount > 0 || sale.paymentMethod.isNotEmpty) {
+        await database.paymentDao.insertPayment(
+          PaymentsTableCompanion(
+            id: Value(const Uuid().v4()),
+            saleId: Value(sale.id),
+            method: Value(sale.paymentMethod),
+            amount: Value(sale.total),
+            receivedAmount: Value(sale.paidAmount),
+            changeAmount: Value(sale.changeAmount),
+            reference: Value(sale.paymentReference),
+          ),
+        );
+      }
+      for (final item in sale.items) {
+        final product = await database.productDao.getById(item.productId);
+        if (product != null) {
+          final newStock = product.stock - item.qty.toInt();
+          await database.productDao.updateStock(item.productId, newStock);
+        }
+      }
+    });
   }
 
   @override
-  Future<Either<Failure, void>> deleteSale(int id) async {
+  Future<Either<Failure, void>> deleteSale(String id) async {
     try {
       await remoteDataSource.deleteSale(id);
       return const Right(null);
@@ -92,26 +108,26 @@ class SaleRepositoryImpl implements SaleRepository {
   }
 
   @override
-  Future<Either<Failure, Sale>> getSale(int id) async {
+  Future<Either<Failure, Sale>> getSale(String id) async {
     try {
       final sale = await database.saleDao.getById(id);
       if (sale == null) return const Left(DatabaseFailure(message: 'Penjualan tidak ditemukan'));
       final items = await database.saleDao.getItems(id);
-      return Right(_toEntity(sale, items));
+      return Right(await _toEntity(sale, items));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil data penjualan'));
     }
   }
 
   @override
-  Future<Either<Failure, Sale>> getSaleByInvoice(String invoiceNumber) async {
+  Future<Either<Failure, Sale>> getSaleByInvoice(String invoiceNo) async {
     try {
-      final sale = await database.saleDao.getByInvoice(invoiceNumber);
+      final sale = await database.saleDao.getByInvoice(invoiceNo);
       if (sale == null) {
         return const Left(DatabaseFailure(message: 'Invoice tidak ditemukan'));
       }
       final items = await database.saleDao.getItems(sale.id);
-      return Right(_toEntity(sale, items));
+      return Right(await _toEntity(sale, items));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mencari invoice'));
     }
@@ -136,7 +152,7 @@ class SaleRepositoryImpl implements SaleRepository {
       final result = <Sale>[];
       for (final sale in sales) {
         final items = await database.saleDao.getItems(sale.id);
-        result.add(_toEntity(sale, items));
+        result.add(await _toEntity(sale, items));
       }
       return Right(result);
     } catch (e) {
@@ -144,25 +160,45 @@ class SaleRepositoryImpl implements SaleRepository {
     }
   }
 
-  Sale _toEntity(SalesTableData d, List<SaleItemsTableData> items) {
+  Future<Sale> _toEntity(SalesTableData d, List<SaleItemsTableData> items) async {
+    String? customerName;
+    if (d.customerId != null) {
+      final customer = await database.customerDao.getById(d.customerId!);
+      customerName = customer?.name;
+    }
+
+    String paymentMethod = 'cash';
+    double paidAmount = d.total;
+    double changeAmount = 0;
+    String? paymentReference;
+    final payments = await database.paymentDao.getBySaleId(d.id);
+    if (payments.isNotEmpty) {
+      final p = payments.first;
+      paymentMethod = p.method;
+      paidAmount = p.receivedAmount;
+      changeAmount = p.changeAmount;
+      paymentReference = p.reference;
+    }
+
     return Sale(
       id: d.id,
-      invoiceNumber: d.invoiceNumber,
+      invoiceNo: d.invoiceNo,
+      cashierId: d.cashierId,
+      shiftId: d.shiftId,
       customerId: d.customerId,
-      userId: d.userId,
-      saleDate: d.saleDate,
+      customerName: customerName,
+      createdAt: d.createdAt,
       status: d.status,
-      paymentMethod: d.paymentMethod,
-      paymentReference: d.paymentReference,
+      paymentMethod: paymentMethod,
+      paymentReference: paymentReference,
       subtotal: d.subtotal,
       discount: d.discount,
       tax: d.tax,
       total: d.total,
-      paidAmount: d.paidAmount,
-      changeAmount: d.changeAmount,
+      paidAmount: paidAmount,
+      changeAmount: changeAmount,
       notes: d.notes,
       items: items.map((i) => _toSaleItemEntity(i)).toList(),
-      createdAt: d.createdAt,
       updatedAt: d.updatedAt,
     );
   }
@@ -172,47 +208,11 @@ class SaleRepositoryImpl implements SaleRepository {
       id: i.id,
       saleId: i.saleId,
       productId: i.productId,
-      quantity: i.quantity,
-      sellingPrice: i.sellingPrice,
-      discount: i.discount,
-      subtotal: i.subtotal,
-    );
-  }
-
-  SaleModel _toModel(Sale sale) {
-    return SaleModel(
-      id: sale.id,
-      invoiceNumber: sale.invoiceNumber,
-      customerId: sale.customerId,
-      customerName: sale.customerName,
-      userId: sale.userId,
-      userName: sale.userName,
-      saleDate: sale.saleDate,
-      status: sale.status,
-      paymentMethod: sale.paymentMethod,
-      paymentReference: sale.paymentReference,
-      subtotal: sale.subtotal,
-      discount: sale.discount,
-      tax: sale.tax,
-      total: sale.total,
-      paidAmount: sale.paidAmount,
-      changeAmount: sale.changeAmount,
-      notes: sale.notes,
-      items: sale.items.map((i) => SaleItemModel(
-        id: i.id,
-        saleId: i.saleId,
-        productId: i.productId,
-        productName: i.productName,
-        productCode: i.productCode,
-        barcode: i.barcode,
-        quantity: i.quantity,
-        sellingPrice: i.sellingPrice,
-        discount: i.discount,
-        subtotal: i.subtotal,
-        unit: i.unit,
-      )).toList(),
-      createdAt: sale.createdAt,
-      updatedAt: sale.updatedAt,
+      name: i.name,
+      sku: i.sku,
+      qty: i.qty,
+      price: i.price,
+      lineTotal: i.lineTotal,
     );
   }
 }

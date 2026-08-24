@@ -1,37 +1,29 @@
 import 'package:equatable/equatable.dart';
 
 class Purchase extends Equatable {
-  final int id;
-  final String invoiceNumber;
-  final int supplierId;
+  final String id;
+  final String orderNo;
+  final String? supplierId;
   final String? supplierName;
-  final int userId;
-  final String? userName;
-  final DateTime purchaseDate;
   final String status;
+  final String? notes;
   final double subtotal;
-  final double discount;
   final double tax;
   final double total;
-  final String? notes;
   final List<PurchaseItem> items;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   const Purchase({
     required this.id,
-    required this.invoiceNumber,
-    required this.supplierId,
+    required this.orderNo,
+    this.supplierId,
     this.supplierName,
-    required this.userId,
-    this.userName,
-    required this.purchaseDate,
-    required this.status,
+    this.status = 'DRAFT',
+    this.notes,
     required this.subtotal,
-    this.discount = 0,
     this.tax = 0,
     required this.total,
-    this.notes,
     this.items = const [],
     required this.createdAt,
     required this.updatedAt,
@@ -40,18 +32,14 @@ class Purchase extends Equatable {
   @override
   List<Object?> get props => [
         id,
-        invoiceNumber,
+        orderNo,
         supplierId,
         supplierName,
-        userId,
-        userName,
-        purchaseDate,
         status,
+        notes,
         subtotal,
-        discount,
         tax,
         total,
-        notes,
         items,
         createdAt,
         updatedAt,
@@ -59,41 +47,35 @@ class Purchase extends Equatable {
 }
 
 class PurchaseItem extends Equatable {
-  final int id;
-  final int purchaseId;
-  final int productId;
-  final String? productName;
-  final String? productCode;
-  final String? barcode;
-  final double quantity;
-  final double purchasePrice;
-  final double subtotal;
-  final int? unit;
+  final String id;
+  final String purchaseOrderId;
+  final String productId;
+  final String name;
+  final String sku;
+  final double qty;
+  final double costPrice;
+  final double lineTotal;
 
   const PurchaseItem({
     required this.id,
-    required this.purchaseId,
+    required this.purchaseOrderId,
     required this.productId,
-    this.productName,
-    this.productCode,
-    this.barcode,
-    required this.quantity,
-    required this.purchasePrice,
-    required this.subtotal,
-    this.unit,
+    this.name = '',
+    this.sku = '',
+    required this.qty,
+    required this.costPrice,
+    required this.lineTotal,
   });
 
   @override
   List<Object?> get props => [
         id,
-        purchaseId,
+        purchaseOrderId,
         productId,
-        productName,
-        productCode,
-        barcode,
-        quantity,
-        purchasePrice,
-        subtotal,
-        unit,
+        name,
+        sku,
+        qty,
+        costPrice,
+        lineTotal,
       ];
 }

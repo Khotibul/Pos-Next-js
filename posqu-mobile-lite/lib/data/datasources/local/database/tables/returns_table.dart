@@ -1,14 +1,16 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 class ReturnsTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get tenantId => text().nullable()();
   TextColumn get returnNumber => text().unique()();
-  IntColumn get saleId => integer().nullable()();
-  IntColumn get purchaseId => integer().nullable()();
+  TextColumn get saleId => text().nullable()();
+  TextColumn get purchaseId => text().nullable()();
   TextColumn get type => text()();
-  IntColumn get userId => integer()();
-  IntColumn get customerId => integer().nullable()();
-  IntColumn get supplierId => integer().nullable()();
+  TextColumn get userId => text()();
+  TextColumn get customerId => text().nullable()();
+  TextColumn get supplierId => text().nullable()();
   DateTimeColumn get returnDate => dateTime()();
   TextColumn get reason => text()();
   TextColumn get status => text()();
@@ -23,9 +25,9 @@ class ReturnsTable extends Table {
 }
 
 class ReturnItemsTable extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get returnId => integer()();
-  IntColumn get productId => integer()();
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get returnId => text()();
+  TextColumn get productId => text()();
   RealColumn get quantity => real()();
   RealColumn get price => real()();
   RealColumn get subtotal => real()();
@@ -36,6 +38,6 @@ class ReturnItemsTable extends Table {
 
   @override
   List<String> get customConstraints => [
-        'FOREIGN KEY (returnId) REFERENCES returns(id) ON DELETE CASCADE',
+        'FOREIGN KEY (return_id) REFERENCES returns_table(id) ON DELETE CASCADE',
       ];
 }

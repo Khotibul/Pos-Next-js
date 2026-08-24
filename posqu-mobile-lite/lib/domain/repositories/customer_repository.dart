@@ -10,8 +10,8 @@ abstract class CustomerRepository {
     int page = 1,
     int limit = 20,
   });
-  Future<Either<Failure, Customer>> getCustomer(int id);
+  Future<Either<Failure, Customer>> getCustomer(String id);
   Future<Either<Failure, Customer>> createCustomer(Customer customer);
   Future<Either<Failure, Customer>> updateCustomer(Customer customer);
-  Future<Either<Failure, void>> deleteCustomer(int id);
+  Future<Either<Failure, void>> deleteCustomer(String id);
 }
