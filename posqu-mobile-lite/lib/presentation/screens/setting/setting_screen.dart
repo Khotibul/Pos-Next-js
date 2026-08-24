@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/setting_repository_impl.dart';
@@ -98,16 +99,16 @@ class SettingScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.print_outlined),
                   title: const Text('Konfigurasi Printer'),
-                  subtitle: const Text('Bluetooth / Thermal'),
+                  subtitle: const Text('Bluetooth / Thermal, ukuran kertas'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: () => context.push('/settings/printer'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.description_outlined),
                   title: const Text('Format Struk'),
-                  subtitle: const Text('Atur tampilan struk'),
+                  subtitle: const Text('Header, footer, dan opsi cetak'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: () => context.push('/settings/printer'),
                 ),
               ],
             ),
@@ -135,7 +136,7 @@ class SettingScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Center(
             child: Text(
-              'POSQU Mobile Lite v1.0.0',
+              'POSQU Pro v1.0.2',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),

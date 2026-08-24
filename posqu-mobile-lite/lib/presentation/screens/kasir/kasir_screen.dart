@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../providers/kasir/kasir_provider.dart';
 import '../../providers/kasir/kasir_state.dart';
 import '../../providers/product/product_provider.dart';
+import '../../../core/widgets/receipt_preview.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../domain/entities/product.dart';
@@ -22,6 +24,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _searchController = TextEditingController();
   bool _showScanner = false;
   String _query = '';
+  String? _lastScannedCode;
+  DateTime _lastScanTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void dispose() {
@@ -49,9 +53,29 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         title: const Text('Kasir'),
         automaticallyImplyLeading: false,
         actions: [
+          if (Platform.isAndroid || Platform.isIOS)
+            IconButton(
+              tooltip: 'Scan Barcode',
+              icon: Icon(_showScanner ? Icons.close : Icons.qr_code_scanner),
+              onPressed: () => setState(() => _showScanner = !_showScanner),
+            )
+          else
+            IconButton(
+              tooltip: 'Input Barcode Manual',
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: _showManualBarcodeDialog,
+            ),
           IconButton(
-            icon: Icon(_showScanner ? Icons.close : Icons.qr_code_scanner),
-            onPressed: () => setState(() => _showScanner = !_showScanner),
+            tooltip: 'Simpan Keranjang',
+            icon: const Icon(Icons.bookmark_add_outlined),
+            onPressed: kasirState.items.isEmpty
+                ? null
+                : () => _showSaveCartDialog(),
+          ),
+          IconButton(
+            tooltip: 'Keranjang Tersimpan',
+            icon: const Icon(Icons.bookmarks_outlined),
+            onPressed: _showSavedCartsSheet,
           ),
         ],
       ),
@@ -369,18 +393,243 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   // ================= KOMPONEN BERSAMA =================
 
   Widget _buildScanner() {
+    final canUseCamera = Platform.isAndroid || Platform.isIOS;
+    if (!canUseCamera) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.blue),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Kamera scanner hanya tersedia di Android/iOS. Gunakan input manual.',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _showManualBarcodeDialog,
+                  child: const Text('Input Manual'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 180,
-      child: MobileScanner(
-        onDetect: (capture) {
-          final barcode = capture.barcodes.first.rawValue;
-          if (barcode != null) {
-            ref.read(kasirStateProvider.notifier).scanBarcode(barcode);
-            setState(() => _showScanner = false);
-          }
-        },
+      child: Stack(
+        children: [
+          MobileScanner(
+            onDetect: _onBarcodeDetected,
+          ),
+          Positioned(
+            right: 8,
+            top: 8,
+            child: IconButton(
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black54,
+                foregroundColor: Colors.white,
+              ),
+              tooltip: 'Input Manual',
+              icon: const Icon(Icons.keyboard, size: 20),
+              onPressed: _showManualBarcodeDialog,
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _onBarcodeDetected(BarcodeCapture capture) {
+    final barcode = capture.barcodes.firstOrNull?.rawValue;
+    if (barcode == null || barcode.isEmpty) return;
+
+    final now = DateTime.now();
+    if (barcode == _lastScannedCode &&
+        now.difference(_lastScanTime).inMilliseconds < 2500) {
+      return;
+    }
+    _lastScannedCode = barcode;
+    _lastScanTime = now;
+
+    ref.read(kasirStateProvider.notifier).scanBarcode(barcode);
+    if (mounted) {
+      setState(() => _showScanner = false);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Barcode: $barcode'),
+          duration: const Duration(milliseconds: 900),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showManualBarcodeDialog() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Input Barcode Manual'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Kode Barcode / SKU',
+            prefixIcon: Icon(Icons.qr_code),
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Cari'),
+          ),
+        ],
+      ),
+    );
+    if (code != null && code.trim().isNotEmpty && mounted) {
+      ref.read(kasirStateProvider.notifier).scanBarcode(code.trim());
+    }
+  }
+
+  // ================= SIMPAN KERANJANG =================
+
+  Future<void> _showSaveCartDialog() async {
+    final controller = TextEditingController();
+    final notifier = ref.read(kasirStateProvider.notifier);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Simpan Keranjang'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nama (mis. nama pelanggan)',
+            hintText: 'Keranjang 1',
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    if (name != null && mounted) {
+      await notifier.saveCurrentCart(name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Keranjang "$name" disimpan')),
+        );
+        setState(() {});
+      }
+    }
+  }
+
+  Future<void> _showSavedCartsSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return Consumer(
+          builder: (context, sheetRef, _) {
+            final notifier = sheetRef.read(kasirStateProvider.notifier);
+            final carts = notifier.getSavedCarts();
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Text('Keranjang Tersimpan',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (carts.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Text('Belum ada keranjang tersimpan'),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: carts.length,
+                        itemBuilder: (context, index) {
+                          final cart = carts[index];
+                          return ListTile(
+                            leading: const Icon(Icons.bookmarks_outlined),
+                            title: Text(cart.name),
+                            subtitle: Text(
+                              '${cart.items.length} item • ${CurrencyFormatter.format(cart.total)}',
+                              style: Theme.of(sheetContext).textTheme.bodySmall,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Hapus',
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
+                                  onPressed: () async {
+                                    await notifier.deleteSavedCart(cart.id);
+                                    (sheetContext as Element).markNeedsBuild();
+                                  },
+                                ),
+                                FilledButton(
+                                  onPressed: () async {
+                                    await notifier.loadSavedCart(cart);
+                                    if (sheetContext.mounted) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                    if (mounted) setState(() {});
+                                  },
+                                  child: const Text('Pakai'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   Widget _buildSearchBar() {
@@ -630,12 +879,16 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   }
 
   Future<void> _processPayment(KasirState state) async {
-    final success = await ref.read(kasirStateProvider.notifier).checkout('');
-    if (success && mounted) {
-      setState(() {});
+    final notifier = ref.read(kasirStateProvider.notifier);
+    final config = await notifier.getReceiptConfig();
+    final sale = await notifier.checkout('');
+    if (!mounted) return;
+    setState(() {});
+    if (sale != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pembayaran berhasil!')),
       );
+      await showReceiptPreview(context, sale, config);
     }
   }
 }

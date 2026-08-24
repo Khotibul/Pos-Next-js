@@ -3,22 +3,95 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
+import '../../../data/repositories/setting_repository_impl.dart';
+import '../../../domain/repositories/setting_repository.dart';
+import '../../../data/datasources/local/hive_cache.dart';
 import '../../../domain/repositories/product_repository.dart';
 import '../../../domain/repositories/sale_repository.dart';
 import '../../../domain/entities/product.dart';
 import '../../../domain/entities/sale.dart';
+import '../../../core/widgets/receipt_preview.dart';
 import 'kasir_state.dart';
 
 final kasirStateProvider = StateNotifierProvider<KasirNotifier, KasirState>((ref) {
   return KasirNotifier(
     saleRepository: ref.read(saleRepositoryProvider),
     productRepository: ref.read(productRepositoryProvider),
+    settingRepository: ref.read(settingRepositoryProvider),
+    cache: ref.read(hiveCacheProvider),
   );
 });
+
+class SavedCart {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final List<SaleItem> items;
+  final double discount;
+
+  const SavedCart({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.items,
+    this.discount = 0,
+  });
+
+  double get total =>
+      items.fold(0.0, (sum, i) => sum + i.lineTotal) *
+      (1 - (discount / 100));
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'createdAt': createdAt.toIso8601String(),
+        'discount': discount,
+        'items': items
+            .map((i) => {
+                  'id': i.id,
+                  'saleId': i.saleId,
+                  'productId': i.productId,
+                  'name': i.name,
+                  'sku': i.sku,
+                  'barcode': i.barcode,
+                  'qty': i.qty,
+                  'price': i.price,
+                  'lineTotal': i.lineTotal,
+                  'unit': i.unit,
+                })
+            .toList(),
+      };
+
+  static SavedCart fromMap(Map<String, dynamic> m) => SavedCart(
+        id: m['id'] as String,
+        name: m['name'] as String? ?? 'Keranjang',
+        createdAt: DateTime.tryParse(m['createdAt'] as String? ?? '') ??
+            DateTime.now(),
+        discount: (m['discount'] as num?)?.toDouble() ?? 0,
+        items: ((m['items'] as List?) ?? const [])
+            .map((e) => SaleItem(
+                  id: e['id'] as String? ?? '',
+                  saleId: '',
+                  productId: e['productId'] as String? ?? '',
+                  name: e['name'] as String? ?? '',
+                  sku: e['sku'] as String? ?? '',
+                  barcode: e['barcode'] as String?,
+                  qty: (e['qty'] as num?)?.toDouble() ?? 1,
+                  price: (e['price'] as num?)?.toDouble() ?? 0,
+                  lineTotal: (e['lineTotal'] as num?)?.toDouble() ?? 0,
+                  unit: e['unit'] as String?,
+                ))
+            .toList(),
+      );
+}
 
 class KasirNotifier extends StateNotifier<KasirState> {
   final SaleRepository _saleRepository;
   final ProductRepository _productRepository;
+  final SettingRepository _settingRepository;
+  final HiveCache _cache;
+
+  static const String _savedCartsKey = 'saved_carts';
 
   /// Cache produk yang pernah ditambahkan ke keranjang agar perubahan qty
   /// bisa menghitung ulang harga grosir tanpa query ulang.
@@ -27,8 +100,12 @@ class KasirNotifier extends StateNotifier<KasirState> {
   KasirNotifier({
     required SaleRepository saleRepository,
     required ProductRepository productRepository,
+    required SettingRepository settingRepository,
+    required HiveCache cache,
   })  : _saleRepository = saleRepository,
         _productRepository = productRepository,
+        _settingRepository = settingRepository,
+        _cache = cache,
         super(const KasirState());
 
   double _priceFor(Product product, double qty) {
@@ -152,7 +229,7 @@ class KasirNotifier extends StateNotifier<KasirState> {
     );
   }
 
-  Future<bool> checkout(String cashierId) async {
+  Future<Sale?> checkout(String cashierId) async {
     state = state.copyWith(isLoading: true);
     try {
       final now = DateTime.now();
@@ -179,29 +256,106 @@ class KasirNotifier extends StateNotifier<KasirState> {
       );
 
       final result = await _saleRepository.createSale(sale);
-      return result.fold(
+      Sale? saved;
+      result.fold(
         (failure) {
           state = state.copyWith(isLoading: false, errorMessage: failure.message);
-          return false;
+          saved = null;
         },
         (createdSale) {
-          for (final item in items) {
-            final product = _productCache[item.productId];
-            if (product != null && product.stock > 0) {
-              _productRepository.updateStock(
-                product.id,
-                product.stock - item.qty.toInt(),
-              );
-            }
-          }
-          _reset();
-          return true;
+          saved = sale;
         },
       );
+
+      if (saved != null) {
+        for (final item in items) {
+          final product = _productCache[item.productId];
+          if (product != null && product.stock > 0) {
+            _productRepository.updateStock(
+              product.id,
+              product.stock - item.qty.toInt(),
+            );
+          }
+        }
+        final config = await getReceiptConfig();
+        state = state.copyWith(isLoading: false);
+        _reset();
+        if (config.autoPrintAfterPayment) {
+          await printReceipt(sale, config);
+        }
+      }
+      return saved;
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
-      return false;
+      return null;
     }
+  }
+
+  Future<ReceiptConfig> getReceiptConfig() async {
+    final result = await _settingRepository.getPrinterConfig();
+    return ReceiptConfig.fromMap(result.fold((_) => null, (c) => c));
+  }
+
+  // ================= SIMPAN KERANJANG =================
+
+  List<SavedCart> _readSavedCarts() {
+    final raw = _cache.getCache(_savedCartsKey);
+    if (raw is List) {
+      return raw
+          .whereType<Map>()
+          .map((m) => SavedCart.fromMap(Map<String, dynamic>.from(m)))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<void> _writeSavedCarts(List<SavedCart> carts) async {
+    await _cache.setCache(
+      _savedCartsKey,
+      carts.map((c) => c.toMap()).toList(),
+    );
+  }
+
+  List<SavedCart> getSavedCarts() => _readSavedCarts();
+
+  Future<void> saveCurrentCart(String name) async {
+    if (state.items.isEmpty) return;
+    final carts = _readSavedCarts();
+    carts.insert(
+      0,
+      SavedCart(
+        id: const Uuid().v4(),
+        name: name.trim().isEmpty
+            ? 'Keranjang ${carts.length + 1}'
+            : name.trim(),
+        createdAt: DateTime.now(),
+        items: List.from(state.items),
+        discount: state.discount,
+      ),
+    );
+    await _writeSavedCarts(carts.take(50).toList());
+    _reset();
+  }
+
+  Future<void> loadSavedCart(SavedCart cart) async {
+    for (final item in cart.items) {
+      if (!_productCache.containsKey(item.productId)) {
+        final result = await _productRepository.getProduct(item.productId);
+        result.fold((_) {}, (p) => _productCache[item.productId] = p);
+      }
+    }
+    state = state.copyWith(
+      items: cart.items,
+      discount: cart.discount,
+    );
+    _recalculate();
+    final carts = _readSavedCarts()..removeWhere((c) => c.id == cart.id);
+    await _writeSavedCarts(carts);
+  }
+
+  Future<void> deleteSavedCart(String id) async {
+    final carts = _readSavedCarts()..removeWhere((c) => c.id == id);
+    await _writeSavedCarts(carts);
   }
 
   void scanBarcode(String barcode) async {
