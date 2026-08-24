@@ -1,9 +1,11 @@
 import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/repositories/sale_repository.dart';
@@ -120,6 +122,74 @@ class SaleRepositoryImpl implements SaleRepository {
     }
   }
 
+  /// Tarik penjualan dari server (dibuat lewat website) ke SQLite lokal.
+  /// Dedup berdasarkan invoiceNo agar transaksi yang di-push dari mobile
+  /// tidak dobel.
+  Future<void> _syncFromServer() async {
+    if (!await networkInfo.isConnected) return;
+    if (MobileApiGate.isDisabled('sales')) return;
+    try {
+      final remote = await remoteDataSource.getSales(limit: 100);
+      for (final model in remote) {
+        final existing = await database.saleDao.getByInvoice(model.invoiceNo);
+        if (existing != null) continue;
+
+        await database.transaction(() async {
+          await database.saleDao.upsertSale(
+            SalesTableCompanion(
+              id: Value(model.id),
+              invoiceNo: Value(model.invoiceNo),
+              cashierId: Value(model.cashierId),
+              shiftId: Value(model.shiftId),
+              customerId: Value(model.customerId),
+              status: Value(model.status),
+              subtotal: Value(model.subtotal),
+              discount: Value(model.discount),
+              tax: Value(model.tax),
+              total: Value(model.total),
+              notes: Value(model.notes),
+              isSynced: const Value(true),
+              createdAt: Value(model.createdAt),
+              updatedAt: Value(model.updatedAt),
+            ),
+          );
+          for (final item in model.items) {
+            await database.saleDao.upsertSaleItem(
+              SaleItemsTableCompanion(
+                id: Value(item.id),
+                saleId: Value(model.id),
+                productId: Value(item.productId),
+                name: Value(item.name),
+                sku: Value(item.sku),
+                price: Value(item.price),
+                qty: Value(item.qty),
+                lineTotal: Value(item.lineTotal),
+              ),
+            );
+          }
+          await database.paymentDao.upsertPayment(
+            PaymentsTableCompanion(
+              id: Value(const Uuid().v4()),
+              saleId: Value(model.id),
+              method: Value(model.paymentMethod),
+              amount: Value(model.total),
+              receivedAmount: Value(model.paidAmount),
+              changeAmount: Value(model.changeAmount),
+              reference: Value(model.paymentReference),
+              createdAt: Value(model.createdAt),
+            ),
+          );
+        });
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+        MobileApiGate.disable('sales');
+      }
+    } catch (_) {
+      // Offline / gangguan lain -> tetap pakai SQLite lokal.
+    }
+  }
+
   @override
   Future<Either<Failure, Sale>> getSale(String id) async {
     try {
@@ -156,6 +226,7 @@ class SaleRepositoryImpl implements SaleRepository {
     String? paymentMethod,
   }) async {
     try {
+      await _syncFromServer();
       final sales = await database.saleDao.getAll(
         search: search,
         startDate: startDate,

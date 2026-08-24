@@ -45,6 +45,13 @@ async function main() {
   }
   console.log(`[export] Tenant: ${tenant.name} (${tenant.slug})`);
 
+  const stockAgg = await prisma.productWarehouseStock.groupBy({
+    by: ["productId"],
+    where: { tenantId: tenant.id },
+    _sum: { qty: true },
+  });
+  const stockMap = new Map(stockAgg.map((r) => [r.productId, Number(r._sum?.qty ?? 0)]));
+
   const [categories, products, customers, suppliers, sales] =
     await Promise.all([
       prisma.productCategory.findMany({
@@ -106,7 +113,7 @@ async function main() {
       isConsignment: p.isConsignment,
       type: p.type,
       unit: p.unit?.name ?? "pcs",
-      stock: 0,
+      stock: stockMap.get(p.id) ?? 0,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     })),

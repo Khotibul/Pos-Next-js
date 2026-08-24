@@ -16,6 +16,10 @@ class PaymentDao extends DatabaseAccessor<AppDatabase> with _$PaymentDaoMixin {
     await into(paymentsTable).insert(payment);
   }
 
+  Future<void> upsertPayment(PaymentsTableCompanion payment) async {
+    await into(paymentsTable).insertOnConflictUpdate(payment);
+  }
+
   Future<void> deleteBySaleId(String saleId) async {
     await (delete(paymentsTable)..where((t) => t.saleId.equals(saleId))).go();
   }

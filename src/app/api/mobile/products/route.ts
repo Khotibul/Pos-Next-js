@@ -12,6 +12,13 @@ export const GET = withApiHandler(async (req: Request) => {
   const limitParam = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 200;
 
+  const stockAgg = await prisma.productWarehouseStock.groupBy({
+    by: ["productId"],
+    where: { tenantId: ctx.tenantId },
+    _sum: { qty: true },
+  });
+  const stockMap = new Map(stockAgg.map((r) => [r.productId, Number(r._sum?.qty ?? 0)]));
+
   const products = await prisma.product.findMany({
     where: {
       tenantId: ctx.tenantId,
@@ -51,6 +58,7 @@ export const GET = withApiHandler(async (req: Request) => {
       isFeatured: p.isFeatured,
       isConsignment: p.isConsignment,
       type: p.type,
+      stock: stockMap.get(p.id) ?? 0,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
     })),

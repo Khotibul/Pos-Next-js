@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-24T21:48:17.987Z",
+  "exportedAt": "2026-08-24T22:14:06.689Z",
   "tenant": {
     "id": "201c766a49974346bb678c7ac0bdfad9",
     "name": "Toko Beras",
@@ -67,7 +67,7 @@
       "isConsignment": false,
       "type": "SINGLE",
       "unit": "pcs",
-      "stock": 0,
+      "stock": 956,
       "createdAt": "2026-08-23T02:20:15.250Z",
       "updatedAt": "2026-08-23T02:20:15.250Z"
     },
@@ -100,7 +100,7 @@
       "isConsignment": false,
       "type": "SINGLE",
       "unit": "pcs",
-      "stock": 0,
+      "stock": 967,
       "createdAt": "2026-08-23T09:19:54.583Z",
       "updatedAt": "2026-08-23T09:19:54.583Z"
     },
@@ -133,7 +133,7 @@
       "isConsignment": false,
       "type": "SINGLE",
       "unit": "pcs",
-      "stock": 0,
+      "stock": 955,
       "createdAt": "2026-08-23T01:27:32.159Z",
       "updatedAt": "2026-08-23T02:24:28.607Z"
     }

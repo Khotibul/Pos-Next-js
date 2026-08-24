@@ -62,8 +62,16 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
     await into(salesTable).insert(sale);
   }
 
+  Future<void> upsertSale(SalesTableCompanion sale) async {
+    await into(salesTable).insertOnConflictUpdate(sale);
+  }
+
   Future<void> insertSaleItem(SaleItemsTableCompanion item) async {
     await into(saleItemsTable).insert(item);
+  }
+
+  Future<void> upsertSaleItem(SaleItemsTableCompanion item) async {
+    await into(saleItemsTable).insertOnConflictUpdate(item);
   }
 
   Future<int> deleteSale(String id) {

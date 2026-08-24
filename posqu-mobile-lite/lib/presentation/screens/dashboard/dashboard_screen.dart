@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/dashboard/dashboard_provider.dart';
 import '../../providers/auth/auth_provider.dart';
+import '../../providers/shift/shift_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -66,7 +67,7 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           _buildQuickMenu(context),
           const SizedBox(height: 16),
-          _buildInfoCards(context, ref),
+          _buildInfoCards(context, ref, data),
         ],
       ),
     );
@@ -168,7 +169,15 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoCards(BuildContext context, WidgetRef ref) {
+  Widget _buildInfoCards(BuildContext context, WidgetRef ref, dynamic data) {
+    final authState = ref.watch(authStateProvider);
+    final userId = authState.maybeWhen(
+      authenticated: (user) => user.id,
+      orElse: () => '',
+    );
+    final shiftAsync =
+        userId.isEmpty ? null : ref.watch(activeShiftProvider(userId));
+    final shift = shiftAsync?.valueOrNull;
     return Column(
       children: [
         Card(
@@ -176,7 +185,7 @@ class DashboardScreen extends ConsumerWidget {
             leading: const Icon(Icons.monetization_on_outlined),
             title: const Text('Kas Hari Ini'),
             trailing: Text(
-              CurrencyFormatter.format(0),
+              CurrencyFormatter.format(data?.cashInHand ?? 0),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -186,9 +195,14 @@ class DashboardScreen extends ConsumerWidget {
         const SizedBox(height: 8),
         Card(
           child: ListTile(
-            leading: const Icon(Icons.shield_outlined),
+            leading: Icon(
+              Icons.shield_outlined,
+              color: shift == null ? null : Colors.green,
+            ),
             title: const Text('Shift Kasir'),
-            subtitle: const Text('Belum ada shift aktif'),
+            subtitle: Text(shift == null
+                ? 'Belum ada shift aktif'
+                : 'Shift aktif sejak ${DateFormatter.formatTime(shift.openedAt)}'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/shifts'),
           ),

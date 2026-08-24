@@ -63,6 +63,7 @@ class ProductRepositoryImpl implements ProductRepository {
             isFeatured: Value(model.isFeatured),
             isConsignment: Value(model.isConsignment),
             type: Value(model.type),
+            stock: Value(model.stock),
             unit: Value(model.unit),
             imageUrl: Value(model.imageUrl),
           ),

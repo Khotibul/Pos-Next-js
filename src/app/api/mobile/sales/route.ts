@@ -5,6 +5,57 @@ import { withApiHandler, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
+export const GET = withApiHandler(async (req: Request) => {
+  const ctx = await getMobileContext(req);
+
+  const url = new URL(req.url);
+  const limitParam = Number(url.searchParams.get("limit") ?? "100");
+  const limit =
+    Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100;
+
+  const sales = await prisma.sale.findMany({
+    where: { tenantId: ctx.tenantId },
+    include: { items: true, payments: true },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  return apiOk(
+    sales.map((s) => {
+      const payment = s.payments[0];
+      return {
+        id: s.id,
+        invoiceNo: s.invoiceNo,
+        cashierId: s.cashierId,
+        shiftId: s.shiftId,
+        customerId: null,
+        status: s.status,
+        subtotal: Number(s.subtotal),
+        discount: Number(s.discount),
+        tax: Number(s.tax),
+        total: Number(s.total),
+        paidAmount: payment ? Number(payment.receivedAmount) : Number(s.total),
+        changeAmount: payment ? Number(payment.changeAmount) : 0,
+        paymentMethod: payment ? payment.method.toLowerCase() : "cash",
+        paymentReference: payment?.reference ?? null,
+        notes: null,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        items: s.items.map((i) => ({
+          id: i.id,
+          saleId: i.saleId,
+          productId: i.productId,
+          name: i.name,
+          sku: i.sku,
+          price: Number(i.price),
+          qty: Number(i.qty),
+          lineTotal: Number(i.lineTotal),
+        })),
+      };
+    }),
+  );
+});
+
 const saleItemSchema = z.object({
   productId: z.string().min(1),
   name: z.string().default(""),

@@ -21,8 +21,23 @@ class ReportRepositoryImpl implements ReportRepository {
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
 
-      final todaySales = await _getTotalSales(startOfDay, now);
-      final transactionCount = await _getTransactionCount(startOfDay, now);
+      final todaySalesList = await database.saleDao.getAll(
+        startDate: startOfDay,
+        endDate: now,
+      );
+      final todaySales =
+          todaySalesList.fold<double>(0, (sum, sale) => sum + sale.total);
+      final transactionCount = todaySalesList.length;
+
+      double cashToday = 0;
+      for (final sale in todaySalesList) {
+        final payments = await database.paymentDao.getBySaleId(sale.id);
+        if (payments.isNotEmpty &&
+            payments.first.method.toLowerCase() == 'cash') {
+          cashToday += sale.total;
+        }
+      }
+
       final totalProducts = await database.productDao.getCount();
       final lowStockProducts = (await database.productDao.getLowStock()).length;
 
@@ -31,6 +46,7 @@ class ReportRepositoryImpl implements ReportRepository {
         todayTransactions: transactionCount,
         totalProducts: totalProducts,
         lowStockProducts: lowStockProducts,
+        cashInHand: cashToday,
       ));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal memuat dashboard'));
@@ -186,13 +202,5 @@ class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
-  Future<double> _getTotalSales(DateTime start, DateTime end) async {
-    final sales = await database.saleDao.getAll(startDate: start, endDate: end);
-    return sales.fold<double>(0, (sum, sale) => sum + sale.total);
-  }
 
-  Future<int> _getTransactionCount(DateTime start, DateTime end) async {
-    final sales = await database.saleDao.getAll(startDate: start, endDate: end);
-    return sales.length;
-  }
 }
