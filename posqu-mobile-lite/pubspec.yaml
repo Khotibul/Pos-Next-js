@@ -96,4 +96,5 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/seed/
     - .env
