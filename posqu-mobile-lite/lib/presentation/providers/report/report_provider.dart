@@ -27,3 +27,13 @@ final topProductsProvider = FutureProvider<List<ProductReport>>((ref) async {
   final result = await repository.getTopProducts();
   return result.fold((failure) => [], (products) => products);
 });
+
+final periodReportProvider =
+    FutureProvider.family<PeriodReport, (DateTime, DateTime)>((ref, range) async {
+  final repository = ref.read(reportRepositoryProvider);
+  final result = await repository.getPeriodReport(range.$1, range.$2);
+  return result.fold(
+    (failure) => PeriodReport(start: range.$1, end: range.$2),
+    (report) => report,
+  );
+});

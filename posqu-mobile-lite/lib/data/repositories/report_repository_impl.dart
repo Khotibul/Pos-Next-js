@@ -53,6 +53,124 @@ class ReportRepositoryImpl implements ReportRepository {
     }
   }
 
+  /// Laporan periode bebas — selaras dengan preset laporan penjualan
+  /// pos-next-js (harian / mingguan / bulanan / kustom).
+  @override
+  Future<Either<Failure, PeriodReport>> getPeriodReport(
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final startDay = DateTime(start.year, start.month, start.day);
+      final endDay = DateTime(end.year, end.month, end.day, 23, 59, 59);
+
+      final sales = await database.saleDao.getAll(
+        startDate: startDay,
+        endDate: endDay.add(const Duration(days: 1)),
+      );
+      final filtered = sales
+          .where((s) =>
+              !s.createdAt.isBefore(startDay) && !s.createdAt.isAfter(endDay))
+          .toList();
+
+      double totalSales = 0;
+      double totalCash = 0;
+      double totalQris = 0;
+      double totalTransfer = 0;
+      double totalEwallet = 0;
+      int itemsSold = 0;
+      double grossProfit = 0;
+      final productCostCache = <String, double>{};
+
+      final transactions = <PeriodTransaction>[];
+      final perDay = <String, double>{};
+      final perDayCount = <String, int>{};
+
+      for (final sale in filtered) {
+        totalSales += sale.total;
+
+        String method = 'cash';
+        final payments = await database.paymentDao.getBySaleId(sale.id);
+        if (payments.isNotEmpty) {
+          method = payments.first.method.toLowerCase();
+        }
+        switch (method) {
+          case 'qris':
+            totalQris += sale.total;
+            break;
+          case 'transfer':
+            totalTransfer += sale.total;
+            break;
+          case 'ewallet':
+            totalEwallet += sale.total;
+            break;
+          default:
+            totalCash += sale.total;
+        }
+
+        final items = await database.saleDao.getItems(sale.id);
+        for (final item in items) {
+          itemsSold += item.qty.round();
+          if (!productCostCache.containsKey(item.productId)) {
+            final p = await database.productDao.getById(item.productId);
+            productCostCache[item.productId] = p?.costPrice ?? 0;
+          }
+          final cost = productCostCache[item.productId] ?? 0;
+          grossProfit += item.lineTotal - (item.qty * cost);
+        }
+
+        transactions.add(PeriodTransaction(
+          invoiceNo: sale.invoiceNo,
+          createdAt: sale.createdAt,
+          status: sale.status,
+          subtotal: sale.subtotal,
+          discount: sale.discount,
+          tax: sale.tax,
+          total: sale.total,
+          paymentMethod: method,
+        ));
+
+        final key = _dayKey(sale.createdAt);
+        perDay[key] = (perDay[key] ?? 0) + sale.total;
+        perDayCount[key] = (perDayCount[key] ?? 0) + 1;
+      }
+
+      final days = <DailyReport>[];
+      var cursor = DateTime(startDay.year, startDay.month, startDay.day);
+      while (!cursor.isAfter(endDay)) {
+        final key = _dayKey(cursor);
+        days.add(DailyReport(
+          date: cursor,
+          totalSales: perDay[key] ?? 0,
+          transactionCount: perDayCount[key] ?? 0,
+        ));
+        cursor = cursor.add(const Duration(days: 1));
+      }
+
+      transactions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      return Right(PeriodReport(
+        start: startDay,
+        end: endDay,
+        totalSales: totalSales,
+        transactionCount: filtered.length,
+        itemsSold: itemsSold,
+        grossProfit: grossProfit,
+        totalCash: totalCash,
+        totalQris: totalQris,
+        totalTransfer: totalTransfer,
+        totalEwallet: totalEwallet,
+        days: days,
+        transactions: transactions,
+      ));
+    } catch (e) {
+      return Left(DatabaseFailure(message: 'Gagal memuat laporan periode: $e'));
+    }
+  }
+
+  static String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   @override
   Future<Either<Failure, DailyReport>> getDailyReport(DateTime date) async {
     try {

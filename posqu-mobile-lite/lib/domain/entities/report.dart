@@ -141,3 +141,83 @@ class DashboardData extends Equatable {
         cashInHand,
       ];
 }
+
+class PeriodReport extends Equatable {
+  final DateTime start;
+  final DateTime end;
+  final double totalSales;
+  final int transactionCount;
+  final int itemsSold;
+  final double grossProfit;
+  final double totalCash;
+  final double totalQris;
+  final double totalTransfer;
+  final double totalEwallet;
+  final List<DailyReport> days;
+  final List<PeriodTransaction> transactions;
+
+  const PeriodReport({
+    required this.start,
+    required this.end,
+    this.totalSales = 0,
+    this.transactionCount = 0,
+    this.itemsSold = 0,
+    this.grossProfit = 0,
+    this.totalCash = 0,
+    this.totalQris = 0,
+    this.totalTransfer = 0,
+    this.totalEwallet = 0,
+    this.days = const [],
+    this.transactions = const [],
+  });
+
+  @override
+  List<Object?> get props => [
+        start,
+        end,
+        totalSales,
+        transactionCount,
+        itemsSold,
+        grossProfit,
+        totalCash,
+        totalQris,
+        totalTransfer,
+        totalEwallet,
+        days,
+        transactions,
+      ];
+}
+
+class PeriodTransaction extends Equatable {
+  final String invoiceNo;
+  final DateTime createdAt;
+  final String status;
+  final double subtotal;
+  final double discount;
+  final double tax;
+  final double total;
+  final String paymentMethod;
+
+  const PeriodTransaction({
+    required this.invoiceNo,
+    required this.createdAt,
+    this.status = 'PAID',
+    this.subtotal = 0,
+    this.discount = 0,
+    this.tax = 0,
+    required this.total,
+    this.paymentMethod = 'cash',
+  });
+
+  @override
+  List<Object?> get props => [
+        invoiceNo,
+        createdAt,
+        status,
+        subtotal,
+        discount,
+        tax,
+        total,
+        paymentMethod,
+      ];
+}

@@ -14,4 +14,5 @@ abstract class ReportRepository {
     int limit = 10,
   });
   Future<Either<Failure, List<ProductReport>>> getLowStockReport();
+  Future<Either<Failure, PeriodReport>> getPeriodReport(DateTime start, DateTime end);
 }
