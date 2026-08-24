@@ -7,6 +7,6 @@
     <color name="black">#FF000000</color>
     <color name="splashscreen_background">#FFFFFFFF</color>
     <color name="iconBackground">#FFFFFFFF</color>
-	<color name="ic_launcher_background">#000000</color>
-    <color name="launch_background_color">#000000</color>
+	<color name="ic_launcher_background">#ffffff</color>
+    <color name="launch_background_color">#FFFFFF</color>
 </resources>

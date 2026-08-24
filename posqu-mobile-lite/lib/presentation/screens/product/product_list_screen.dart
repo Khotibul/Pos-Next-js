@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,24 +45,24 @@ class ProductListScreen extends ConsumerWidget {
                 final product = products[index];
                 return Card(
                   child: ListTile(
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: product.isLowStock
-                            ? Colors.orange.withValues(alpha: 0.1)
-                            : Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.inventory_2,
-                        color: product.isLowStock ? Colors.orange : null,
-                      ),
-                    ),
+                    leading: _ProductPhoto(url: product.imageUrl, lowStock: product.isLowStock),
                     title: Text(product.name),
-                    subtitle: Text(
-                      '${product.sku} | Stok: ${product.stock} ${product.unit}',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${product.sku} | Stok: ${product.stock} ${product.unit}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        if (product.wholesalePrice > 0 && product.wholesaleMinQty > 0)
+                          Text(
+                            'Grosir: ${CurrencyFormatter.format(product.wholesalePrice)} (min ${product.wholesaleMinQty})',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: Colors.blue),
+                          ),
+                      ],
                     ),
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -84,7 +86,7 @@ class ProductListScreen extends ConsumerWidget {
                           ),
                       ],
                     ),
-                    onTap: () {},
+                    onTap: () => context.push('/products/edit/${product.id}'),
                   ),
                 );
               },
@@ -101,6 +103,38 @@ class ProductListScreen extends ConsumerWidget {
         onPressed: () => context.push('/products/add'),
         child: const Icon(Icons.add),
       ),
+    );
+  }
+}
+
+class _ProductPhoto extends StatelessWidget {
+  final String? url;
+  final bool lowStock;
+
+  const _ProductPhoto({this.url, required this.lowStock});
+
+  @override
+  Widget build(BuildContext context) {
+    final path = url;
+    final hasFile = path != null && path.isNotEmpty && File(path).existsSync();
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: lowStock
+            ? Colors.orange.withValues(alpha: 0.1)
+            : Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasFile
+          ? Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  Icon(Icons.inventory_2, color: lowStock ? Colors.orange : null),
+            )
+          : Icon(Icons.inventory_2, color: lowStock ? Colors.orange : null),
     );
   }
 }

@@ -20,6 +20,10 @@ class KasirNotifier extends StateNotifier<KasirState> {
   final SaleRepository _saleRepository;
   final ProductRepository _productRepository;
 
+  /// Cache produk yang pernah ditambahkan ke keranjang agar perubahan qty
+  /// bisa menghitung ulang harga grosir tanpa query ulang.
+  final Map<String, Product> _productCache = {};
+
   KasirNotifier({
     required SaleRepository saleRepository,
     required ProductRepository productRepository,
@@ -27,13 +31,33 @@ class KasirNotifier extends StateNotifier<KasirState> {
         _productRepository = productRepository,
         super(const KasirState());
 
+  double _priceFor(Product product, double qty) {
+    final hasWholesale = product.wholesalePrice > 0 &&
+        product.wholesaleMinQty > 0 &&
+        qty >= product.wholesaleMinQty;
+    return hasWholesale ? product.wholesalePrice : product.sellingPrice;
+  }
+
+  bool isWholesalePrice(Product product, double price) {
+    return product.wholesalePrice > 0 &&
+        product.wholesaleMinQty > 0 &&
+        price <= product.wholesalePrice;
+  }
+
+  Product? cachedProduct(String productId) => _productCache[productId];
+
   void addProduct(Product product, {double quantity = 1}) {
+    _productCache[product.id] = product;
+    final unitPrice = _priceFor(product, quantity);
+
     final existingIndex = state.items.indexWhere(
       (item) => item.productId == product.id,
     );
 
     if (existingIndex >= 0) {
       final existing = state.items[existingIndex];
+      final newQty = existing.qty + quantity;
+      final newPrice = _priceFor(product, newQty);
       final newItems = List<SaleItem>.from(state.items);
       newItems[existingIndex] = SaleItem(
         id: existing.id,
@@ -42,9 +66,9 @@ class KasirNotifier extends StateNotifier<KasirState> {
         name: existing.name,
         sku: existing.sku,
         barcode: existing.barcode,
-        qty: existing.qty + quantity,
-        price: existing.price,
-        lineTotal: (existing.qty + quantity) * existing.price,
+        qty: newQty,
+        price: newPrice,
+        lineTotal: newQty * newPrice,
         unit: existing.unit,
       );
       state = state.copyWith(items: newItems);
@@ -59,8 +83,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
           sku: product.sku,
           barcode: product.barcode,
           qty: quantity,
-          price: product.sellingPrice,
-          lineTotal: quantity * product.sellingPrice,
+          price: unitPrice,
+          lineTotal: quantity * unitPrice,
           unit: product.unit,
         ),
       ]);
@@ -77,24 +101,39 @@ class KasirNotifier extends StateNotifier<KasirState> {
   }
 
   void updateQuantity(int index, double qty) {
-    if (index >= 0 && index < state.items.length) {
-      final item = state.items[index];
-      final newItems = List<SaleItem>.from(state.items);
-      newItems[index] = SaleItem(
-        id: item.id,
-        saleId: item.saleId,
-        productId: item.productId,
-        name: item.name,
-        sku: item.sku,
-        barcode: item.barcode,
-        qty: qty,
-        price: item.price,
-        lineTotal: qty * item.price,
-        unit: item.unit,
-      );
-      state = state.copyWith(items: newItems);
-      _recalculate();
+    if (index < 0 || index >= state.items.length) return;
+    final item = state.items[index];
+    if (qty <= 0) {
+      removeItem(index);
+      return;
     }
+    final product = _productCache[item.productId];
+    final price = product != null ? _priceFor(product, qty) : item.price;
+    final newItems = List<SaleItem>.from(state.items);
+    newItems[index] = SaleItem(
+      id: item.id,
+      saleId: item.saleId,
+      productId: item.productId,
+      name: item.name,
+      sku: item.sku,
+      barcode: item.barcode,
+      qty: qty,
+      price: price,
+      lineTotal: qty * price,
+      unit: item.unit,
+    );
+    state = state.copyWith(items: newItems);
+    _recalculate();
+  }
+
+  void incrementQuantity(int index, {double step = 1}) {
+    if (index < 0 || index >= state.items.length) return;
+    updateQuantity(index, state.items[index].qty + step);
+  }
+
+  void decrementQuantity(int index, {double step = 1}) {
+    if (index < 0 || index >= state.items.length) return;
+    updateQuantity(index, state.items[index].qty - step);
   }
 
   void setDiscount(double discount) {
@@ -146,6 +185,15 @@ class KasirNotifier extends StateNotifier<KasirState> {
           return false;
         },
         (createdSale) {
+          for (final item in items) {
+            final product = _productCache[item.productId];
+            if (product != null && product.stock > 0) {
+              _productRepository.updateStock(
+                product.id,
+                product.stock - item.qty.toInt(),
+              );
+            }
+          }
           _reset();
           return true;
         },

@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../providers/kasir/kasir_provider.dart';
 import '../../providers/kasir/kasir_state.dart';
+import '../../providers/product/product_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../domain/entities/product.dart';
@@ -19,6 +21,7 @@ class KasirScreen extends ConsumerStatefulWidget {
 class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _searchController = TextEditingController();
   bool _showScanner = false;
+  String _query = '';
 
   @override
   void dispose() {
@@ -29,10 +32,22 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   @override
   Widget build(BuildContext context) {
     final kasirState = ref.watch(kasirStateProvider);
+    final productsAsync = ref.watch(productListProvider);
+    final isLandscape =
+        MediaQuery.of(context).size.width >= 900;
+
+    final products = (productsAsync.valueOrNull ?? const <Product>[])
+        .where((p) =>
+            _query.isEmpty ||
+            p.name.toLowerCase().contains(_query.toLowerCase()) ||
+            p.sku.toLowerCase().contains(_query.toLowerCase()) ||
+            (p.barcode ?? '').contains(_query))
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kasir'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: Icon(_showScanner ? Icons.close : Icons.qr_code_scanner),
@@ -40,32 +55,322 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_showScanner) _buildScanner(),
-          _buildSearchBar(),
-          Expanded(
-            child: Row(
+      body: isLandscape ? _buildLandscape(kasirState, products) : _buildPortrait(kasirState, products),
+    );
+  }
+
+  // ================= PORTRAIT =================
+
+  Widget _buildPortrait(KasirState kasirState, List<Product> products) {
+    return Column(
+      children: [
+        if (_showScanner) _buildScanner(),
+        _buildSearchBar(),
+        Expanded(
+          child: _buildProductList(products, compact: true),
+        ),
+        const Divider(height: 1),
+        _buildBottomCartBar(kasirState),
+      ],
+    );
+  }
+
+  Widget _buildBottomCartBar(KasirState kasirState) {
+    final itemCount = kasirState.items.length;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
               children: [
-                Expanded(
-                  flex: 3,
-                  child: _buildProductList(kasirState),
+                IconButton.filledTonal(
+                  onPressed: () => _openCartSheet(kasirState),
+                  icon: const Icon(Icons.shopping_cart_outlined),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: _buildCartPanel(kasirState),
-                ),
+                if (itemCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Badge(
+                      label: Text('$itemCount'),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$itemCount item',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    CurrencyFormatter.format(kasirState.total),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            AppButton(
+              label: 'Bayar',
+              loading: kasirState.isLoading,
+              onPressed: kasirState.items.isEmpty
+                  ? null
+                  : () => _openCartSheet(kasirState),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  void _openCartSheet(KasirState kasirState) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && mounted) setState(() {});
+          },
+          child: Consumer(
+            builder: (context, sheetRef, _) {
+              final state = sheetRef.watch(kasirStateProvider);
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight:
+                          MediaQuery.of(sheetContext).size.height * 0.75,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Text('Keranjang',
+                                  style: Theme.of(sheetContext)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold)),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(sheetContext),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        Flexible(
+                          child: state.items.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Text('Belum ada item'),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  itemCount: state.items.length,
+                                  itemBuilder: (context, index) =>
+                                      _buildCartTile(sheetRef, state, index),
+                                ),
+                        ),
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildSummaryRow('Subtotal',
+                                  CurrencyFormatter.format(state.subtotal)),
+                              const SizedBox(height: 4),
+                              _buildSummaryRow('Diskon',
+                                  CurrencyFormatter.format(state.discount)),
+                              const SizedBox(height: 4),
+                              _buildSummaryRow(
+                                  'Pajak', CurrencyFormatter.format(state.tax)),
+                              const Divider(),
+                              _buildSummaryRow('Total',
+                                  CurrencyFormatter.format(state.total),
+                                  bold: true),
+                              const SizedBox(height: 12),
+                              _buildPaymentSelector(state.paymentMethod),
+                              const SizedBox(height: 12),
+                              AppButton(
+                                label:
+                                    'Bayar (Rp ${CurrencyFormatter.formatWithoutSymbol(state.total)})',
+                                loading: state.isLoading,
+                                onPressed: state.items.isEmpty
+                                    ? null
+                                    : () {
+                                        Navigator.pop(sheetContext);
+                                        _showPaymentDialog(state);
+                                      },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // ================= LANDSCAPE =================
+
+  Widget _buildLandscape(KasirState kasirState, List<Product> products) {
+    return Column(
+      children: [
+        if (_showScanner) _buildScanner(),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: Column(
+                  children: [
+                    _buildSearchBar(),
+                    Expanded(
+                      child: _buildProductList(products, compact: false),
+                    ),
+                  ],
+                ),
+              ),
+              VerticalDivider(width: 1, color: Theme.of(context).dividerColor),
+              Expanded(
+                flex: 2,
+                child: _buildCartPanelLandscape(kasirState),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCartPanelLandscape(KasirState kasirState) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.shopping_cart_outlined, size: 20),
+              const SizedBox(width: 8),
+              Text('Keranjang (${kasirState.items.length})',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: kasirState.items.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shopping_cart_outlined,
+                          size: 48, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('Belum ada item'),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: kasirState.items.length,
+                  itemBuilder: (context, index) =>
+                      _buildCartTile(ref, kasirState, index),
+                ),
+        ),
+        const Divider(height: 1),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSummaryRow('Subtotal',
+                    CurrencyFormatter.format(kasirState.subtotal)),
+                const SizedBox(height: 4),
+                _buildSummaryRow(
+                    'Diskon', CurrencyFormatter.format(kasirState.discount)),
+                const SizedBox(height: 4),
+                _buildSummaryRow(
+                    'Pajak', CurrencyFormatter.format(kasirState.tax)),
+                const Divider(),
+                _buildSummaryRow('Total',
+                    CurrencyFormatter.format(kasirState.total),
+                    bold: true),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _buildPaymentChips(kasirState.paymentMethod),
+                ),
+                const SizedBox(height: 10),
+                AppButton(
+                  label:
+                      'Bayar (Rp ${CurrencyFormatter.formatWithoutSymbol(kasirState.total)})',
+                  loading: kasirState.isLoading,
+                  onPressed: kasirState.items.isEmpty
+                      ? null
+                      : () => _showPaymentDialog(kasirState),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================= KOMPONEN BERSAMA =================
+
   Widget _buildScanner() {
     return SizedBox(
-      height: 200,
+      height: 180,
       child: MobileScanner(
         onDetect: (capture) {
           final barcode = capture.barcodes.first.rawValue;
@@ -80,137 +385,140 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Cari produk...',
+          hintText: 'Cari nama / SKU / barcode...',
+          isDense: true,
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
                     _searchController.clear();
-                    setState(() {});
+                    setState(() => _query = '');
                   },
                 )
               : null,
         ),
-        onChanged: (_) => setState(() {}),
+        onChanged: (v) => setState(() => _query = v),
       ),
     );
   }
 
-  Widget _buildProductList(KasirState kasirState) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      itemCount: 20,
+  Widget _buildProductList(List<Product> products, {required bool compact}) {
+    if (products.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.inventory_2_outlined,
+                size: 48, color: Colors.grey),
+            const SizedBox(height: 8),
+            Text(
+              _query.isEmpty
+                  ? 'Belum ada produk.\nTambahkan lewat menu Produk.'
+                  : 'Produk tidak ditemukan.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      itemCount: products.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 6),
       itemBuilder: (context, index) {
-        return Card(
-          child: ListTile(
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
+        final product = products[index];
+        return _ProductTile(
+          product: product,
+          compact: compact,
+          onAdd: () {
+            ref.read(kasirStateProvider.notifier).addProduct(product);
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${product.name} ditambahkan'),
+                duration: const Duration(milliseconds: 800),
               ),
-              child: const Icon(Icons.inventory_2),
-            ),
-            title: Text('Produk ${index + 1}'),
-            subtitle: Text(CurrencyFormatter.format(15000 + (index * 1000))),
-            trailing: IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              onPressed: () {
-                ref.read(kasirStateProvider.notifier).addProduct(
-                      _dummyProduct(index),
-                    );
-              },
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildCartPanel(KasirState kasirState) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          left: BorderSide(color: Theme.of(context).dividerTheme.color ?? Colors.grey[300]!),
-        ),
+  Widget _buildCartTile(WidgetRef sheetRef, KasirState state, int index) {
+    final item = state.items[index];
+    final product = ref.read(kasirStateProvider.notifier).cachedProduct(item.productId);
+    final isWholesale = product != null &&
+        product.wholesalePrice > 0 &&
+        item.price <= product.wholesalePrice &&
+        item.price < product.sellingPrice;
+
+    return ListTile(
+      dense: true,
+      leading: _ProductThumb(url: product?.imageUrl, size: 40),
+      title: Text(
+        item.name.isEmpty ? 'Produk' : item.name,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-      child: Column(
+      subtitle: Row(
         children: [
-          Expanded(
-            child: kasirState.items.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('Belum ada item'),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: kasirState.items.length,
-                    itemBuilder: (context, index) {
-                      final item = kasirState.items[index];
-                      return Dismissible(
-                        key: ValueKey('${item.productId}-$index'),
-                        direction: DismissDirection.endToStart,
-                        onDismissed: (_) =>
-                            ref.read(kasirStateProvider.notifier).removeItem(index),
-                        child: ListTile(
-                          dense: true,
-                          title: Text(item.name.isEmpty ? 'Produk' : item.name,
-                              style: const TextStyle(fontSize: 14)),
-                          subtitle: Text(
-                            '${CurrencyFormatter.format(item.price)} x${item.qty}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          trailing: Text(
-                            CurrencyFormatter.format(item.lineTotal),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+          Text(
+            '${CurrencyFormatter.format(item.price)} x ${item.qty}',
+            style: const TextStyle(fontSize: 11),
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildSummaryRow('Subtotal', CurrencyFormatter.format(kasirState.subtotal)),
-                const SizedBox(height: 4),
-                _buildSummaryRow('Diskon', CurrencyFormatter.format(kasirState.discount)),
-                const SizedBox(height: 4),
-                _buildSummaryRow('Pajak', CurrencyFormatter.format(kasirState.tax)),
-                const Divider(),
-                _buildSummaryRow(
-                  'Total',
-                  CurrencyFormatter.format(kasirState.total),
-                  bold: true,
-                ),
-                const SizedBox(height: 12),
-                _buildPaymentSelector(kasirState.paymentMethod),
-                const SizedBox(height: 8),
-                AppButton(
-                  label: 'Bayar (Rp ${CurrencyFormatter.formatWithoutSymbol(kasirState.total)})',
-                  onPressed: kasirState.items.isEmpty
-                      ? null
-                      : () => _showPaymentDialog(kasirState),
-                ),
-              ],
+          if (isWholesale) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Grosir',
+                style: TextStyle(fontSize: 9, color: Colors.blue),
+              ),
+            ),
+          ],
+        ],
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.remove_circle_outline, size: 20),
+            onPressed: () => sheetRef
+                .read(kasirStateProvider.notifier)
+                .decrementQuantity(index),
+          ),
+          Text(
+            item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString(),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add_circle_outline, size: 20),
+            onPressed: () => sheetRef
+                .read(kasirStateProvider.notifier)
+                .incrementQuantity(index),
+          ),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 76,
+            child: Text(
+              CurrencyFormatter.format(item.lineTotal),
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
         ],
@@ -222,39 +530,49 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 14, fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-        Text(value, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        Text(value,
+            style: TextStyle(
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                fontSize: bold ? 16 : 13)),
       ],
     );
   }
 
+  List<Widget> _buildPaymentChips(String currentMethod) {
+    return [
+      _PaymentChip(
+        label: 'Tunai',
+        icon: Icons.money,
+        selected: currentMethod == 'cash',
+        onSelected: () =>
+            ref.read(kasirStateProvider.notifier).setPaymentMethod('cash'),
+      ),
+      _PaymentChip(
+        label: 'QRIS',
+        icon: Icons.qr_code,
+        selected: currentMethod == 'qris',
+        onSelected: () =>
+            ref.read(kasirStateProvider.notifier).setPaymentMethod('qris'),
+      ),
+      _PaymentChip(
+        label: 'Transfer',
+        icon: Icons.account_balance,
+        selected: currentMethod == 'transfer',
+        onSelected: () =>
+            ref.read(kasirStateProvider.notifier).setPaymentMethod('transfer'),
+      ),
+    ];
+  }
+
   Widget _buildPaymentSelector(String currentMethod) {
-    return Row(
-      children: [
-        _PaymentChip(
-          label: 'Tunai',
-          icon: Icons.money,
-          selected: currentMethod == 'cash',
-          onSelected: () =>
-              ref.read(kasirStateProvider.notifier).setPaymentMethod('cash'),
-        ),
-        const SizedBox(width: 8),
-        _PaymentChip(
-          label: 'QRIS',
-          icon: Icons.qr_code,
-          selected: currentMethod == 'qris',
-          onSelected: () =>
-              ref.read(kasirStateProvider.notifier).setPaymentMethod('qris'),
-        ),
-        const SizedBox(width: 8),
-        _PaymentChip(
-          label: 'Transfer',
-          icon: Icons.account_balance,
-          selected: currentMethod == 'transfer',
-          onSelected: () =>
-              ref.read(kasirStateProvider.notifier).setPaymentMethod('transfer'),
-        ),
-      ],
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _buildPaymentChips(currentMethod),
     );
   }
 
@@ -268,7 +586,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('Total: ${CurrencyFormatter.format(state.total)}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             TextField(
               controller: paidController,
@@ -295,7 +614,9 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal')),
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
@@ -311,25 +632,105 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   Future<void> _processPayment(KasirState state) async {
     final success = await ref.read(kasirStateProvider.notifier).checkout('');
     if (success && mounted) {
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pembayaran berhasil!')),
       );
     }
   }
+}
 
-  Product _dummyProduct(int index) {
-    final now = DateTime.now();
-    return Product(
-      id: const Uuid().v4(),
-      sku: 'PRD${1000 + index}',
-      barcode: '899${1000000 + index}',
-      name: 'Produk ${index + 1}',
-      costPrice: 10000.0 + (index * 1000),
-      sellingPrice: 15000.0 + (index * 1000),
-      stock: 100,
-      unit: 'pcs',
-      createdAt: now,
-      updatedAt: now,
+class _ProductTile extends StatelessWidget {
+  final Product product;
+  final bool compact;
+  final VoidCallback onAdd;
+
+  const _ProductTile({
+    required this.product,
+    required this.compact,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasWholesale =
+        product.wholesalePrice > 0 && product.wholesaleMinQty > 0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        dense: compact,
+        leading: _ProductThumb(url: product.imageUrl, size: 48),
+        title: Text(
+          product.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${product.sku} • Stok: ${product.stock % 1 == 0 ? product.stock.toInt() : product.stock} ${product.unit}',
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (hasWholesale)
+              Text(
+                'Grosir: ${CurrencyFormatter.format(product.wholesalePrice)} (min ${product.wholesaleMinQty % 1 == 0 ? product.wholesaleMinQty.toInt() : product.wholesaleMinQty})',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.blue),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+        isThreeLine: hasWholesale,
+        trailing: IconButton(
+          icon: Icon(
+            Icons.add_circle_outline,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          onPressed: onAdd,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductThumb extends StatelessWidget {
+  final String? url;
+  final double size;
+
+  const _ProductThumb({this.url, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final file = url;
+    Widget child;
+    if (file != null && file.isNotEmpty && File(file).existsSync()) {
+      child = Image.file(
+        File(file),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2),
+      );
+    } else {
+      child = const Icon(Icons.inventory_2);
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
     );
   }
 }
