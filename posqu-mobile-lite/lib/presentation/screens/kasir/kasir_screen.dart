@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -456,6 +457,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     _lastScannedCode = barcode;
     _lastScanTime = now;
 
+    SystemSound.play(SystemSoundType.alert);
     ref.read(kasirStateProvider.notifier).scanBarcode(barcode);
     if (mounted) {
       setState(() => _showScanner = false);

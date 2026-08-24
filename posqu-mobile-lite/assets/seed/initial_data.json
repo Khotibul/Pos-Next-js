@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-24T02:45:56.363Z",
+  "exportedAt": "2026-08-24T21:48:17.987Z",
   "tenant": {
     "id": "201c766a49974346bb678c7ac0bdfad9",
     "name": "Toko Beras",
@@ -141,6 +141,58 @@
   "customers": [],
   "suppliers": [],
   "sales": [
+    {
+      "id": "cmt6rx0gi0001l704l35tymx5",
+      "invoiceNo": "INV-1787547982618",
+      "cashierId": null,
+      "shiftId": null,
+      "customerId": null,
+      "status": "PAID",
+      "subtotal": 46000,
+      "discount": 0,
+      "tax": 0,
+      "total": 46000,
+      "paidAmount": 50000,
+      "changeAmount": 4000,
+      "paymentMethod": "cash",
+      "paymentReference": null,
+      "notes": null,
+      "isSynced": true,
+      "createdAt": "2026-08-24T05:06:24.787Z",
+      "updatedAt": "2026-08-24T05:06:24.787Z",
+      "items": [
+        {
+          "id": "cmt6rx0gi0003l704hqhric98",
+          "saleId": "cmt6rx0gi0001l704l35tymx5",
+          "productId": "cmt5lj5qu0001l1041qb57di9",
+          "name": "Larisst Tisu Wajah",
+          "sku": "SKU-AF8451F3",
+          "price": 7000,
+          "qty": 2,
+          "lineTotal": 14000
+        },
+        {
+          "id": "cmt6rx0gi0004l704fxza2ioe",
+          "saleId": "cmt6rx0gi0001l704l35tymx5",
+          "productId": "cmt56jh8y0001jz05b42rll2r",
+          "name": "COLLAGEN VIT C1000",
+          "sku": "SKU-A39AFE46",
+          "price": 12000,
+          "qty": 1,
+          "lineTotal": 12000
+        },
+        {
+          "id": "cmt6rx0gj0005l704gfe1bvak",
+          "saleId": "cmt6rx0gi0001l704l35tymx5",
+          "productId": "cmt54nolb0001jt045vz6bi7a",
+          "name": "Marina UV White ",
+          "sku": "SKU-74123D4C",
+          "price": 10000,
+          "qty": 2,
+          "lineTotal": 20000
+        }
+      ]
+    },
     {
       "id": "cmt5v4op4000ald04r2zxan77",
       "invoiceNo": "TRX-260823-2EA9E07A",

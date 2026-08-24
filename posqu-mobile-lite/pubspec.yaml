@@ -38,6 +38,9 @@ dependencies:
   cached_network_image: ^3.3.1
   flutter_animate: ^4.5.0
 
+  # Voice Input
+  speech_to_text: ^7.0.0
+
   # Barcode Scanning
   mobile_scanner: ^5.1.1
   qr_flutter: ^4.1.0

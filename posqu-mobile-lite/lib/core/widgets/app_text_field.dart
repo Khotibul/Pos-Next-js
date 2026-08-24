@@ -10,6 +10,7 @@ class AppTextField extends StatelessWidget {
   final bool readOnly;
   final IconData? prefixIcon;
   final Widget? suffix;
+  final Widget? suffixIcon;
   final VoidCallback? onTap;
   final ValueChanged<String>? onChanged;
   final int? maxLines;
@@ -27,6 +28,7 @@ class AppTextField extends StatelessWidget {
     this.readOnly = false,
     this.prefixIcon,
     this.suffix,
+    this.suffixIcon,
     this.onTap,
     this.onChanged,
     this.maxLines = 1,
@@ -51,7 +53,7 @@ class AppTextField extends StatelessWidget {
         labelText: label,
         hintText: hint,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
-        suffixIcon: suffix,
+        suffixIcon: suffixIcon ?? suffix,
       ),
     );
   }

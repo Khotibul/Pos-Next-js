@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/barcode_scanner_sheet.dart';
+import '../../../core/utils/product_utils.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../providers/category/category_provider.dart';
 import '../../providers/product/product_provider.dart';
@@ -39,7 +42,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String? _selectedCategoryId;
   bool _isLoading = false;
   bool _saving = false;
+  bool _listening = false;
   Product? _existing;
+  final SpeechToText _speech = SpeechToText();
 
   bool get isEditing => widget.productId != null;
 
@@ -90,6 +95,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   void dispose() {
+    _speech.stop();
     _skuController.dispose();
     _barcodeController.dispose();
     _nameController.dispose();
@@ -129,6 +135,73 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     }
   }
 
+  // ================= BARCODE: KAMERA & SUARA =================
+
+  Future<void> _scanBarcodeWithCamera() async {
+    final code = await showBarcodeScannerSheet(context);
+    if (code != null && code.trim().isNotEmpty && mounted) {
+      setState(() => _barcodeController.text = code.trim());
+    }
+  }
+
+  Future<void> _toggleVoiceBarcode() async {
+    if (_listening) {
+      await _speech.stop();
+      setState(() => _listening = false);
+      return;
+    }
+    try {
+      final available = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            if (mounted) setState(() => _listening = false);
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() => _listening = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error suara: ${error.errorMsg}')),
+            );
+          }
+        },
+      );
+      if (!available) {
+        throw Exception('Speech recognition tidak tersedia');
+      }
+      setState(() => _listening = true);
+      await _speech.listen(
+        listenOptions: SpeechListenOptions(
+          partialResults: true,
+          cancelOnError: true,
+          localeId: 'id_ID',
+        ),
+        onResult: (result) {
+          final spoken = result.recognizedWords.trim();
+          if (spoken.isEmpty) return;
+          // Ambil digit bila pengguna menyebut angka langsung;
+          // selain itu tampilkan apa adanya agar bisa dikoreksi manual.
+          final digits = spoken.replaceAll(RegExp(r'[^0-9]'), '');
+          final value = digits.length >= 4 ? digits : spoken;
+          if (mounted) {
+            setState(() => _barcodeController.text = value);
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _listening = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Input suara tidak tersedia di perangkat ini. Gunakan ketik manual atau scan kamera.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -136,19 +209,28 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final now = DateTime.now();
     double parseNum(String v) => double.tryParse(v.replaceAll('.', '')) ?? 0;
 
+    final name = _nameController.text.trim();
+    final sku = _skuController.text.trim().isEmpty
+        ? generateSku()
+        : _skuController.text.trim();
+    final costPrice = parseNum(_costPriceController.text);
+    final sellingPrice = parseNum(_sellingPriceController.text);
+
     final product = Product(
       id: _existing?.id ?? const Uuid().v4(),
-      sku: _skuController.text.trim(),
+      sku: sku,
+      slug: slugify(name),
       barcode: _barcodeController.text.trim().isEmpty
           ? null
           : _barcodeController.text.trim(),
-      name: _nameController.text.trim(),
+      name: name,
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
       categoryId: _selectedCategoryId,
-      costPrice: parseNum(_costPriceController.text),
-      sellingPrice: parseNum(_sellingPriceController.text),
+      costPrice: costPrice,
+      sellingPrice: sellingPrice,
+      marginPct: computeMarginPct(costPrice, sellingPrice),
       wholesalePrice: parseNum(_wholesalePriceController.text),
       wholesaleMinQty: int.tryParse(_wholesaleMinQtyController.text) ?? 0,
       minStock: parseNum(_minStockController.text),
@@ -209,18 +291,43 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 children: [
                   AppTextField(
                     label: 'SKU / Kode Produk',
-                    hint: 'Masukkan SKU produk',
+                    hint: 'Kosongkan untuk dibuat otomatis',
                     prefixIcon: Icons.qr_code,
                     controller: _skuController,
-                    validator: (v) =>
-                        v?.isEmpty == true ? 'SKU wajib diisi' : null,
+                    suffixIcon: IconButton(
+                      tooltip: 'Generate SKU',
+                      icon: const Icon(Icons.autorenew),
+                      onPressed: () {
+                        setState(() {
+                          _skuController.text = generateSku();
+                        });
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   AppTextField(
                     label: 'Barcode',
-                    hint: 'Masukkan barcode (opsional)',
+                    hint: 'Scan kamera, bicara, atau ketik manual',
                     prefixIcon: Icons.qr_code_scanner,
                     controller: _barcodeController,
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Scan dengan kamera',
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          onPressed: _scanBarcodeWithCamera,
+                        ),
+                        IconButton(
+                          tooltip: 'Input dengan suara',
+                          icon: Icon(
+                            _listening ? Icons.mic : Icons.mic_none,
+                            color: _listening ? Colors.red : null,
+                          ),
+                          onPressed: _toggleVoiceBarcode,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   AppTextField(
