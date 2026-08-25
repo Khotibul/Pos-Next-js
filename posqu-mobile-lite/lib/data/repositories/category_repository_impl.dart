@@ -31,9 +31,34 @@ class CategoryRepositoryImpl implements CategoryRepository {
     required this.networkInfo,
   });
 
+  /// Dorong kategori lokal yang belum tersinkron (dibuat/diubah offline).
+  Future<void> _pushPendingCategories() async {
+    final pending = await database.categoryDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        await remoteDataSource.createCategory({
+          'id': row.id,
+          'name': row.name,
+        });
+        await database.categoryDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.categoryDao.markSynced([row.id]);
+          continue;
+        }
+        break;
+      } catch (_) {
+        break;
+      }
+    }
+  }
+
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('categories')) return;
+
+    await _pushPendingCategories();
+
     try {
       final remote = await remoteDataSource.getCategories();
       for (final model in remote) {
@@ -64,6 +89,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
           icon: Value(category.icon),
           color: Value(category.color),
           isActive: Value(category.isActive),
+          isSynced: const Value(false),
         ),
       );
       if (await networkInfo.isConnected) {
@@ -128,6 +154,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
           color: Value(category.color),
           isActive: Value(category.isActive),
           updatedAt: Value(DateTime.now()),
+          isSynced: const Value(false),
         ),
       );
       if (await networkInfo.isConnected) {

@@ -82,7 +82,16 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
         .write(ProductsTableCompanion(stock: Value(quantity)));
   }
 
-  Future<int> getCount() {
+  Future<List<ProductsTableData>> getUnsynced() {
+    return (select(productsTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(productsTable)..where((t) => t.id.isIn(ids)))
+        .write(const ProductsTableCompanion(isSynced: Value(true)));
+  }
+
+    Future<int> getCount() {
     return select(productsTable).get().then((rows) => rows.length);
   }
 }

@@ -35,6 +35,8 @@ class ProductsTable extends Table {
   TextColumn get type => text().withDefault(const Constant('SINGLE'))();
 
   IntColumn get stock => integer().withDefault(const Constant(0))();
+
+  BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
   TextColumn get unit => text().withDefault(const Constant('pcs'))();
   TextColumn get imageUrl => text().nullable()();
 

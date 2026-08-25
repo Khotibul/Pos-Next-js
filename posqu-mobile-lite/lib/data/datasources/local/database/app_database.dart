@@ -72,7 +72,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -95,6 +95,13 @@ class AppDatabase extends _$AppDatabase {
           await m.deleteTable('return_items_table');
           await m.deleteTable('cashier_shifts_table');
           await m.createAll();
+        }
+        if (from < 3) {
+          // Non-destruktif: penanda sinkronisasi untuk master data.
+          await m.addColumn(productsTable, productsTable.isSynced);
+          await m.addColumn(categoriesTable, categoriesTable.isSynced);
+          await m.addColumn(customersTable, customersTable.isSynced);
+          await m.addColumn(suppliersTable, suppliersTable.isSynced);
         }
       },
       beforeOpen: (details) async {

@@ -15,6 +15,8 @@ class CustomersTable extends Table {
   IntColumn get purchaseCount => integer().withDefault(const Constant(0))();
   RealColumn get points => real().withDefault(const Constant(0.0))();
 
+  BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
+
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 

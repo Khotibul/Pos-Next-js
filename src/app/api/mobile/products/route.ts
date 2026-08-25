@@ -1,8 +1,83 @@
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
 
 export const runtime = "nodejs";
+
+const productUpsertSchema = z.object({
+  id: z.string().min(1),
+  sku: z.string().min(1),
+  slug: z.string().nullish(),
+  name: z.string().min(1),
+  description: z.string().nullish(),
+  barcode: z.string().nullish(),
+  qrCode: z.string().nullish(),
+  categoryId: z.string().nullish(),
+  costPrice: z.number().default(0),
+  sellingPrice: z.number().default(0),
+  marginPct: z.number().default(0),
+  taxRate: z.number().default(0),
+  minStock: z.number().default(0),
+  reorderPoint: z.number().default(0),
+  wholesalePrice: z.number().default(0),
+  wholesaleDiscountPercent: z.number().default(0),
+  wholesaleMinQty: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
+  isConsignment: z.boolean().default(false),
+  type: z.string().default("SINGLE"),
+});
+
+// Upsert produk dari mobile (dibuat/diubah saat offline).
+export const POST = withApiHandler(async (req: Request) => {
+  const ctx = await getMobileContext(req);
+  const body = await req.json().catch(() => null);
+  const parsed = productUpsertSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json(
+      { ok: false, code: "VALIDATION_ERROR", message: "Data produk tidak valid." },
+      { status: 400 },
+    );
+  }
+  const d = parsed.data;
+
+  const existing = await prisma.product.findFirst({
+    where: { tenantId: ctx.tenantId, OR: [{ id: d.id }, { sku: d.sku }] },
+    select: { id: true },
+  });
+
+  const data = {
+    sku: d.sku,
+    slug: d.slug ?? null,
+    name: d.name,
+    description: d.description ?? null,
+    barcode: d.barcode ?? null,
+    qrCode: d.qrCode ?? null,
+    categoryId: d.categoryId ?? null,
+    costPrice: d.costPrice,
+    sellingPrice: d.sellingPrice,
+    marginPct: d.marginPct,
+    taxRate: d.taxRate,
+    minStock: d.minStock,
+    reorderPoint: d.reorderPoint,
+    wholesalePrice: d.wholesalePrice,
+    wholesaleDiscountPercent: d.wholesaleDiscountPercent,
+    wholesaleMinQty: d.wholesaleMinQty,
+    isActive: d.isActive,
+    isFeatured: d.isFeatured,
+    isConsignment: d.isConsignment,
+    type: d.type as never,
+  };
+
+  const product = existing
+    ? await prisma.product.update({ where: { id: existing.id }, data })
+    : await prisma.product.create({
+        data: { tenantId: ctx.tenantId, id: d.id, ...data },
+      });
+
+  return apiOk({ id: product.id, sku: product.sku });
+});
 
 export const GET = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);

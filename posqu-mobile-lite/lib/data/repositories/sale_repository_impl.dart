@@ -122,12 +122,76 @@ class SaleRepositoryImpl implements SaleRepository {
     }
   }
 
+  /// Dorong penjualan yang dibuat offline (isSynced=false) ke server.
+  /// Gagal koneksi -> hentikan (dicoba lagi sync berikutnya);
+  /// gagal validasi (400) -> tandai synced agar tidak loop selamanya.
+  Future<void> _pushPendingSales() async {
+    final pending = await database.saleDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        final items = await database.saleDao.getItems(row.id);
+        final payments = await database.paymentDao.getBySaleId(row.id);
+        final p = payments.isNotEmpty ? payments.first : null;
+
+        final model = SaleModel(
+          id: row.id,
+          invoiceNo: row.invoiceNo,
+          cashierId: row.cashierId,
+          shiftId: row.shiftId,
+          customerId: row.customerId,
+          status: row.status,
+          subtotal: row.subtotal,
+          discount: row.discount,
+          tax: row.tax,
+          total: row.total,
+          paidAmount: p?.receivedAmount ?? row.total,
+          changeAmount: p?.changeAmount ?? 0,
+          paymentMethod: p?.method ?? 'cash',
+          paymentReference: p?.reference,
+          notes: row.notes,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          items: items
+              .map((i) => SaleItemModel(
+                    id: i.id,
+                    saleId: i.saleId,
+                    productId: i.productId,
+                    name: i.name,
+                    sku: i.sku,
+                    qty: i.qty,
+                    price: i.price,
+                    lineTotal: i.lineTotal,
+                  ))
+              .toList(),
+        );
+        final payload = Map<String, dynamic>.from(model.toJson());
+        payload['paidAmount'] = model.paidAmount;
+        payload['changeAmount'] = model.changeAmount;
+        payload['paymentMethod'] = model.paymentMethod;
+        payload['paymentReference'] = model.paymentReference;
+
+        await remoteDataSource.createSale(payload);
+        await database.saleDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.saleDao.markSynced([row.id]);
+          continue;
+        }
+        break; // koneksi bermasalah -> coba lagi sync berikutnya
+      } catch (_) {
+        break;
+      }
+    }
+  }
+
   /// Tarik penjualan dari server (dibuat lewat website) ke SQLite lokal.
   /// Dedup berdasarkan invoiceNo agar transaksi yang di-push dari mobile
   /// tidak dobel.
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('sales')) return;
+
+    await _pushPendingSales();
     try {
       final remote = await remoteDataSource.getSales(limit: 100);
       for (final model in remote) {

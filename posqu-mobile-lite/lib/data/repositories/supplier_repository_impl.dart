@@ -31,9 +31,38 @@ class SupplierRepositoryImpl implements SupplierRepository {
     required this.networkInfo,
   });
 
+  /// Dorong pemasok lokal yang belum tersinkron (dibuat/diubah offline).
+  Future<void> _pushPendingSuppliers() async {
+    final pending = await database.supplierDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        await remoteDataSource.createSupplier({
+          'id': row.id,
+          'name': row.name,
+          'email': row.email,
+          'phone': row.phone,
+          'address': row.address,
+          'isActive': row.isActive,
+        });
+        await database.supplierDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.supplierDao.markSynced([row.id]);
+          continue;
+        }
+        break;
+      } catch (_) {
+        break;
+      }
+    }
+  }
+
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('suppliers')) return;
+
+    await _pushPendingSuppliers();
+
     try {
       final remote = await remoteDataSource.getSuppliers();
       for (final model in remote) {
@@ -45,6 +74,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
             phone: Value(model.phone),
             address: Value(model.address),
             isActive: Value(model.isActive),
+            isSynced: const Value(true),
           ),
         );
       }
@@ -71,6 +101,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
           contactPerson: Value(supplier.contactPerson),
           npwp: Value(supplier.npwp),
           isActive: Value(supplier.isActive),
+          isSynced: const Value(false),
         ),
       );
       if (await networkInfo.isConnected) {
@@ -144,6 +175,7 @@ class SupplierRepositoryImpl implements SupplierRepository {
           npwp: Value(supplier.npwp),
           isActive: Value(supplier.isActive),
           updatedAt: Value(DateTime.now()),
+          isSynced: const Value(false),
         ),
       );
       if (await networkInfo.isConnected) {

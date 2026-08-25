@@ -31,9 +31,60 @@ class ProductRepositoryImpl implements ProductRepository {
     required this.networkInfo,
   });
 
+  /// Dorong produk lokal yang belum tersinkron (dibuat/diubah offline).
+  Future<void> _pushPendingProducts() async {
+    final pending = await database.productDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        final model = ProductModel(
+          id: row.id,
+          sku: row.sku,
+          slug: row.slug,
+          name: row.name,
+          description: row.description,
+          barcode: row.barcode,
+          qrCode: row.qrCode,
+          categoryId: row.categoryId,
+          supplierId: row.supplierId,
+          costPrice: row.costPrice,
+          sellingPrice: row.sellingPrice,
+          marginPct: row.marginPct,
+          taxRate: row.taxRate,
+          minStock: row.minStock,
+          reorderPoint: row.reorderPoint,
+          wholesalePrice: row.wholesalePrice,
+          wholesaleDiscountPercent: row.wholesaleDiscountPercent,
+          wholesaleMinQty: row.wholesaleMinQty,
+          isActive: row.isActive,
+          isFeatured: row.isFeatured,
+          isConsignment: row.isConsignment,
+          type: row.type,
+          stock: row.stock,
+          unit: row.unit,
+          imageUrl: row.imageUrl,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        );
+        await remoteDataSource.createProduct(model.toJson());
+        await database.productDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.productDao.markSynced([row.id]);
+          continue;
+        }
+        break; // koneksi bermasalah -> sync berikutnya
+      } catch (_) {
+        break;
+      }
+    }
+  }
+
   Future<void> _syncFromServer() async {
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('products')) return;
+
+    await _pushPendingProducts();
+
     try {
       final remote = await remoteDataSource.getProducts(limit: 500);
       for (final model in remote) {
@@ -66,6 +117,7 @@ class ProductRepositoryImpl implements ProductRepository {
             stock: Value(model.stock),
             unit: Value(model.unit),
             imageUrl: Value(model.imageUrl),
+            isSynced: const Value(true),
           ),
         );
       }
@@ -80,24 +132,29 @@ class ProductRepositoryImpl implements ProductRepository {
 
   @override
   Future<Either<Failure, Product>> createProduct(Product product) async {
+    var pushed = false;
     try {
       final model = ProductModel.fromEntity(product);
-      final created = await remoteDataSource.createProduct(model.toJson());
-      return Right(created.toEntity());
-    } catch (e) {
-      try {
-        await _saveLocally(product);
-        return Right(product);
-      } catch (localError) {
-        return Left(DatabaseFailure(message: 'Gagal membuat produk: $e'));
-      }
+      await remoteDataSource.createProduct(model.toJson());
+      pushed = true;
+    } catch (_) {
+      // Offline / endpoint gagal -> tetap simpan lokal, nanti di-push sync.
+    }
+
+    try {
+      await _saveLocally(product, synced: pushed);
+      return Right(product);
+    } catch (localError) {
+      return Left(
+          DatabaseFailure(message: 'Gagal membuat produk: $localError'));
     }
   }
 
-  Future<void> _saveLocally(Product p) async {
-    await database.productDao.insertProduct(
+  Future<void> _saveLocally(Product p, {bool synced = false}) async {
+    await database.productDao.upsertProduct(
       ProductsTableCompanion(
         id: Value(p.id),
+        isSynced: Value(synced),
         sku: Value(p.sku),
         name: Value(p.name),
         barcode: Value(p.barcode),
@@ -118,17 +175,14 @@ class ProductRepositoryImpl implements ProductRepository {
 
   @override
   Future<Either<Failure, void>> deleteProduct(String id) async {
+    // Hapus lokal selalu; remote best-effort (tanpa tombstone).
+    try {
+      await database.productDao.deleteProduct(id);
+    } catch (_) {}
     try {
       await remoteDataSource.deleteProduct(id);
-      return const Right(null);
-    } catch (e) {
-      try {
-        await database.productDao.deleteProduct(id);
-        return const Right(null);
-      } catch (localError) {
-        return Left(ServerFailure(message: 'Gagal menghapus produk: $e'));
-      }
-    }
+    } catch (_) {}
+    return const Right(null);
   }
 
   @override
@@ -198,35 +252,42 @@ class ProductRepositoryImpl implements ProductRepository {
 
   @override
   Future<Either<Failure, Product>> updateProduct(Product product) async {
+    var pushed = false;
     try {
       final model = ProductModel.fromEntity(product);
-      final updated = await remoteDataSource.updateProduct(product.id, model.toJson());
-      return Right(updated.toEntity());
-    } catch (e) {
-      try {
-        await database.productDao.updateProduct(
-          ProductsTableCompanion(
-            id: Value(product.id),
-            sku: Value(product.sku),
-            name: Value(product.name),
-            barcode: Value(product.barcode),
-            description: Value(product.description),
-            categoryId: Value(product.categoryId),
-            supplierId: Value(product.supplierId),
-            costPrice: Value(product.costPrice),
-            sellingPrice: Value(product.sellingPrice),
-            wholesalePrice: Value(product.wholesalePrice),
-            stock: Value(product.stock),
-            minStock: Value(product.minStock),
-            unit: Value(product.unit),
-            imageUrl: Value(product.imageUrl),
-            isActive: Value(product.isActive),
-          ),
-        );
-        return Right(product);
-      } catch (localError) {
-        return Left(ServerFailure(message: 'Gagal update produk: $e'));
-      }
+      // POST upsert (endpoint /mobile/products) — sama untuk buat & ubah.
+      await remoteDataSource.createProduct(model.toJson());
+      pushed = true;
+    } catch (_) {
+      // Offline -> tandai belum sync, nanti di-push saat sync.
+    }
+
+    try {
+      await database.productDao.updateProduct(
+        ProductsTableCompanion(
+          id: Value(product.id),
+          sku: Value(product.sku),
+          name: Value(product.name),
+          barcode: Value(product.barcode),
+          description: Value(product.description),
+          categoryId: Value(product.categoryId),
+          supplierId: Value(product.supplierId),
+          costPrice: Value(product.costPrice),
+          sellingPrice: Value(product.sellingPrice),
+          wholesalePrice: Value(product.wholesalePrice),
+          stock: Value(product.stock),
+          minStock: Value(product.minStock),
+          unit: Value(product.unit),
+          imageUrl: Value(product.imageUrl),
+          isActive: Value(product.isActive),
+          isSynced: Value(pushed),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      return Right(product);
+    } catch (localError) {
+      return Left(
+          DatabaseFailure(message: 'Gagal update produk: $localError'));
     }
   }
 

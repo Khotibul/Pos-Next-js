@@ -37,7 +37,16 @@ class SupplierDao extends DatabaseAccessor<AppDatabase> with _$SupplierDaoMixin 
     await into(suppliersTable).insert(supplier);
   }
 
-  Future<void> upsertSupplier(SuppliersTableCompanion supplier) async {
+  Future<List<SuppliersTableData>> getUnsynced() {
+    return (select(suppliersTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(suppliersTable)..where((t) => t.id.isIn(ids)))
+        .write(const SuppliersTableCompanion(isSynced: Value(true)));
+  }
+
+    Future<void> upsertSupplier(SuppliersTableCompanion supplier) async {
     await into(suppliersTable).insertOnConflictUpdate(supplier);
   }  Future<bool> updateSupplier(SuppliersTableCompanion supplier) {
     return update(suppliersTable).replace(supplier);

@@ -37,7 +37,16 @@ class CustomerDao extends DatabaseAccessor<AppDatabase> with _$CustomerDaoMixin 
     await into(customersTable).insert(customer);
   }
 
-  Future<void> upsertCustomer(CustomersTableCompanion customer) async {
+  Future<List<CustomersTableData>> getUnsynced() {
+    return (select(customersTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(customersTable)..where((t) => t.id.isIn(ids)))
+        .write(const CustomersTableCompanion(isSynced: Value(true)));
+  }
+
+    Future<void> upsertCustomer(CustomersTableCompanion customer) async {
     await into(customersTable).insertOnConflictUpdate(customer);
   }  Future<bool> updateCustomer(CustomersTableCompanion customer) {
     return update(customersTable).replace(customer);
