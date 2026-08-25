@@ -34,22 +34,25 @@ class PrinterDeviceInfo {
   });
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'type': type,
-        if (address != null) 'address': address,
+        'printerName': name,
+        'printerType': type,
+        if (address != null) 'printerAddress': address,
         if (vendorId != null) 'usbVendorId': vendorId,
         if (productId != null) 'usbProductId': productId,
       };
 
   static PrinterDeviceInfo? fromMap(Map<String, dynamic>? map) {
     if (map == null) return null;
-    final type = map['printerType'] as String?;
-    final name = map['printerName'] as String?;
+    final type =
+        (map['printerType'] as String?) ?? map['type'] as String?;
+    final name =
+        (map['printerName'] as String?) ?? map['name'] as String?;
     if (type == null || name == null || name.isEmpty) return null;
     return PrinterDeviceInfo(
       name: name,
       type: type,
-      address: map['printerAddress'] as String?,
+      address: (map['printerAddress'] as String?) ??
+          map['address'] as String?,
       vendorId: (map['usbVendorId'] as num?)?.toInt(),
       productId: (map['usbProductId'] as num?)?.toInt(),
     );
