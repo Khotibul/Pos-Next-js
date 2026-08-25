@@ -18,6 +18,7 @@ class ReceiptConfig {
   final bool showTax;
   final bool showDiscount;
   final PrinterDeviceInfo? device;
+  final String? qrisImage;
 
   const ReceiptConfig({
     this.paperSize = '58mm',
@@ -29,6 +30,7 @@ class ReceiptConfig {
     this.showTax = true,
     this.showDiscount = true,
     this.device,
+    this.qrisImage,
   });
 
   factory ReceiptConfig.fromMap(Map<String, dynamic>? map) {
@@ -43,6 +45,7 @@ class ReceiptConfig {
       showTax: m['showTax'] as bool? ?? true,
       showDiscount: m['showDiscount'] as bool? ?? true,
       device: PrinterDeviceInfo.fromMap(m),
+      qrisImage: m['qrisImage'] as String?,
     );
   }
 

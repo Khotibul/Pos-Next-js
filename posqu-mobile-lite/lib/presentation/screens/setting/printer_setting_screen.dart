@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../../core/widgets/product_image.dart';
 import '../../../data/datasources/external/printer_device_service.dart';
 import '../../../data/repositories/setting_repository_impl.dart';
 import 'dart:io';
@@ -27,8 +31,10 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
   bool _loading = true;
   bool _scanning = false;
   bool _testing = false;
+  bool _uploadingQris = false;
   List<PrinterDeviceInfo> _devices = [];
   PrinterDeviceInfo? _selected;
+  String? _qrisImage;
 
   @override
   void initState() {
@@ -52,8 +58,41 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       _showTax = map['showTax'] as bool? ?? true;
       _showDiscount = map['showDiscount'] as bool? ?? true;
       _selected = PrinterDeviceInfo.fromMap(map);
+      _qrisImage = map['qrisImage'] as String?;
     });
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _pickQrisImage() async {
+    setState(() => _uploadingQris = true);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        imageQuality: 80,
+      );
+      if (picked != null) {
+        final bytes = await File(picked.path).readAsBytes();
+        final mime = picked.path.toLowerCase().endsWith('.png')
+            ? 'image/png'
+            : 'image/jpeg';
+        // Disimpan sebagai data URI base64 — format yang sama dengan
+        // foto produk di website, sehingga tampil di semua perangkat.
+        setState(() {
+          _qrisImage = 'data:$mime;base64,${base64Encode(bytes)}';
+        });
+        await _save();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat foto: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingQris = false);
+    }
   }
 
   Future<void> _save() async {
@@ -65,6 +104,7 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       'footerNote': _footerNoteController.text.trim(),
       'printerName': _selected?.name ?? _printerNameController.text.trim(),
       if (_selected != null) ..._selected!.toMap(),
+      'qrisImage': _qrisImage,
       'autoPrintAfterPayment': _autoPrint,
       'showSku': _showSku,
       'showTax': _showTax,
@@ -379,6 +419,101 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
                     title: const Text('Tampilkan Pajak'),
                     value: _showTax,
                     onChanged: (v) => setState(() => _showTax = v),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _sectionTitle('QRIS Merchant'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: (_qrisImage == null || _qrisImage!.isEmpty)
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.qr_code_2,
+                                      size: 40,
+                                      color: Theme.of(context).hintColor),
+                                  const SizedBox(height: 6),
+                                  Text('Belum ada QRIS',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall),
+                                ],
+                              )
+                            : ProductImageThumb(
+                                url: _qrisImage,
+                                size: 140,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Upload foto QRIS merchant Anda.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Akan ditampilkan di kasir saat pelanggan '
+                              'membayar dengan QRIS.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 12),
+                            FilledButton.tonalIcon(
+                              onPressed: _uploadingQris ? null : _pickQrisImage,
+                              icon: _uploadingQris
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.upload_outlined, size: 18),
+                              label: Text(_uploadingQris
+                                  ? 'Memproses...'
+                                  : 'Upload Foto'),
+                            ),
+                            if (_qrisImage != null &&
+                                _qrisImage!.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    setState(() => _qrisImage = null),
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 18, color: Colors.red),
+                                label: const Text('Hapus',
+                                    style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

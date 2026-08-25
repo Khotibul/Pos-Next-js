@@ -1106,9 +1106,12 @@ class _CartFooter extends StatelessWidget {
     );
   }
 
-  void _showPaymentDialog(BuildContext context, WidgetRef ref, KasirState state) {
+  Future<void> _showPaymentDialog(
+      BuildContext context, WidgetRef ref, KasirState state) async {
     final paidController = TextEditingController();
     final container = ProviderScope.containerOf(context);
+    final notifier = container.read(kasirStateProvider.notifier);
+    final config = await notifier.getReceiptConfig();
 
     void setPaid(double amount) {
       container.read(kasirStateProvider.notifier).setPaidAmount(amount);
@@ -1116,14 +1119,20 @@ class _CartFooter extends StatelessWidget {
           amount % 1 == 0 ? amount.toInt().toString() : amount.toString();
     }
 
-    final quickAmounts = <(String?, double)>[
-      (null, 10000),
-      (null, 20000),
-      (null, 50000),
-      (null, 100000),
+    final quickAmounts = <double>[
+      10000,
+      20000,
+      50000,
+      100000,
     ];
 
-    showDialog(
+    final isQris = state.paymentMethod == 'qris';
+    final hasQrisImage =
+        config.qrisImage != null && config.qrisImage!.isNotEmpty;
+
+    if (!context.mounted) return;
+
+    await showDialog(
       context: context,
       builder: (dialogContext) => PopScope(
         onPopInvokedWithResult: (didPop, _) {
@@ -1134,6 +1143,81 @@ class _CartFooter extends StatelessWidget {
           builder: (dialogContext, dialogRef, _) {
             final live = dialogRef.watch(kasirStateProvider);
             final change = live.paidAmount - live.total;
+
+            // ============ TAMPILAN QRIS ============
+            if (isQris) {
+              return AlertDialog(
+                title: const Text('Pembayaran QRIS'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Total: ${CurrencyFormatter.format(live.total)}',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: hasQrisImage
+                          ? ProductImageThumb(
+                              url: config.qrisImage,
+                              size: 250,
+                              borderRadius: BorderRadius.circular(8),
+                            )
+                          : Column(
+                              children: [
+                                Icon(Icons.qr_code_2,
+                                    size: 80,
+                                    color: Theme.of(dialogContext).hintColor),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Foto QRIS belum diatur.\n'
+                                  'Atur di Pengaturan → Printer & Struk → QRIS Merchant.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(dialogContext)
+                                      .textTheme
+                                      .bodySmall,
+                                ),
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        hasQrisImage
+                            ? 'Minta pelanggan memindai QRIS merchant'
+                            : 'Pelanggan dapat membayar via aplikasi e-wallet',
+                        style: Theme.of(dialogContext).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Batal')),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      container
+                          .read(kasirStateProvider.notifier)
+                          .setPaidAmount(live.total);
+                      _payNow(context, ref, live);
+                    },
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Pembayaran Diterima'),
+                  ),
+                ],
+              );
+            }
+
+            // ============ TUNAI / TRANSFER ============
             return AlertDialog(
               title: const Text('Pembayaran'),
               content: Column(
@@ -1165,7 +1249,7 @@ class _CartFooter extends StatelessWidget {
                             color: Colors.green.withValues(alpha: 0.4)),
                         onPressed: () => setPaid(live.total),
                       ),
-                      for (final (_, value) in quickAmounts)
+                      for (final value in quickAmounts)
                         ActionChip(
                           label: Text(
                             CurrencyFormatter.formatWithoutSymbol(value),
@@ -1173,7 +1257,7 @@ class _CartFooter extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600),
                           ),
-                          onPressed: () => setPaid(value.toDouble()),
+                          onPressed: () => setPaid(value),
                         ),
                     ],
                   ),
@@ -1216,7 +1300,8 @@ class _CartFooter extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: change >= 0 ? Colors.green : Colors.orange,
+                              color:
+                                  change >= 0 ? Colors.green : Colors.orange,
                             ),
                           ),
                         ],

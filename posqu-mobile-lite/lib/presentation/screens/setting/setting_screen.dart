@@ -136,7 +136,7 @@ class SettingScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Center(
             child: Text(
-              'POSQU Pro v1.0.3',
+              'POSQU Pro v1.0.4',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
