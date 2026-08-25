@@ -72,6 +72,9 @@ class ProductRepositoryImpl implements ProductRepository {
           await database.productDao.markSynced([row.id]);
           continue;
         }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+          MobileApiGate.disable('products');
+        }
         break; // koneksi bermasalah -> sync berikutnya
       } catch (_) {
         break;

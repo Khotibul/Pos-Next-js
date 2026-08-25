@@ -177,6 +177,9 @@ class SaleRepositoryImpl implements SaleRepository {
           await database.saleDao.markSynced([row.id]);
           continue;
         }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+          MobileApiGate.disable('sales');
+        }
         break; // koneksi bermasalah -> coba lagi sync berikutnya
       } catch (_) {
         break;

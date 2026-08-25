@@ -50,6 +50,9 @@ class SupplierRepositoryImpl implements SupplierRepository {
           await database.supplierDao.markSynced([row.id]);
           continue;
         }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+          MobileApiGate.disable('suppliers');
+        }
         break;
       } catch (_) {
         break;
@@ -89,6 +92,13 @@ class SupplierRepositoryImpl implements SupplierRepository {
 
   @override
   Future<Either<Failure, Supplier>> createSupplier(Supplier supplier) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.createSupplier(SupplierModel.fromEntity(supplier).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.supplierDao.upsertSupplier(
         SuppliersTableCompanion(
@@ -101,14 +111,9 @@ class SupplierRepositoryImpl implements SupplierRepository {
           contactPerson: Value(supplier.contactPerson),
           npwp: Value(supplier.npwp),
           isActive: Value(supplier.isActive),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.createSupplier(SupplierModel.fromEntity(supplier).toJson());
-        } catch (_) {}
-      }
       return Right(supplier);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal membuat supplier: $e'));
@@ -162,6 +167,14 @@ class SupplierRepositoryImpl implements SupplierRepository {
 
   @override
   Future<Either<Failure, Supplier>> updateSupplier(Supplier supplier) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.updateSupplier(
+            supplier.id, SupplierModel.fromEntity(supplier).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.supplierDao.updateSupplier(
         SuppliersTableCompanion(
@@ -175,14 +188,9 @@ class SupplierRepositoryImpl implements SupplierRepository {
           npwp: Value(supplier.npwp),
           isActive: Value(supplier.isActive),
           updatedAt: Value(DateTime.now()),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.updateSupplier(supplier.id, SupplierModel.fromEntity(supplier).toJson());
-        } catch (_) {}
-      }
       return Right(supplier);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal mengupdate supplier: $e'));

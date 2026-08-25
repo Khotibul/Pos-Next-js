@@ -50,6 +50,9 @@ class CustomerRepositoryImpl implements CustomerRepository {
           await database.customerDao.markSynced([row.id]);
           continue;
         }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+          MobileApiGate.disable('customers');
+        }
         break;
       } catch (_) {
         break;
@@ -89,6 +92,13 @@ class CustomerRepositoryImpl implements CustomerRepository {
 
   @override
   Future<Either<Failure, Customer>> createCustomer(Customer customer) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.createCustomer(CustomerModel.fromEntity(customer).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.customerDao.upsertCustomer(
         CustomersTableCompanion(
@@ -102,14 +112,9 @@ class CustomerRepositoryImpl implements CustomerRepository {
           purchaseCount: Value(customer.purchaseCount),
           points: Value(customer.points),
           isActive: Value(customer.isActive),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.createCustomer(CustomerModel.fromEntity(customer).toJson());
-        } catch (_) {}
-      }
       return Right(customer);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal membuat pelanggan: $e'));
@@ -165,6 +170,14 @@ class CustomerRepositoryImpl implements CustomerRepository {
 
   @override
   Future<Either<Failure, Customer>> updateCustomer(Customer customer) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.updateCustomer(
+            customer.id, CustomerModel.fromEntity(customer).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.customerDao.updateCustomer(
         CustomersTableCompanion(
@@ -179,14 +192,9 @@ class CustomerRepositoryImpl implements CustomerRepository {
           points: Value(customer.points),
           isActive: Value(customer.isActive),
           updatedAt: Value(DateTime.now()),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.updateCustomer(customer.id, CustomerModel.fromEntity(customer).toJson());
-        } catch (_) {}
-      }
       return Right(customer);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal mengupdate pelanggan: $e'));

@@ -49,3 +49,5 @@ overview_architecture.puml
 # legacy UI folders (keep local only)
 UI/
 legacy/
+.vercel
+.env*

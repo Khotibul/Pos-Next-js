@@ -46,6 +46,9 @@ class CategoryRepositoryImpl implements CategoryRepository {
           await database.categoryDao.markSynced([row.id]);
           continue;
         }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
+          MobileApiGate.disable('categories');
+        }
         break;
       } catch (_) {
         break;
@@ -80,6 +83,13 @@ class CategoryRepositoryImpl implements CategoryRepository {
 
   @override
   Future<Either<Failure, Category>> createCategory(Category category) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.createCategory(CategoryModel.fromEntity(category).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.categoryDao.upsertCategory(
         CategoriesTableCompanion(
@@ -89,14 +99,9 @@ class CategoryRepositoryImpl implements CategoryRepository {
           icon: Value(category.icon),
           color: Value(category.color),
           isActive: Value(category.isActive),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.createCategory(CategoryModel.fromEntity(category).toJson());
-        } catch (_) {}
-      }
       return Right(category);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal membuat kategori: $e'));
@@ -144,6 +149,14 @@ class CategoryRepositoryImpl implements CategoryRepository {
 
   @override
   Future<Either<Failure, Category>> updateCategory(Category category) async {
+    var pushed = false;
+    if (await networkInfo.isConnected) {
+      try {
+        await remoteDataSource.updateCategory(
+            category.id, CategoryModel.fromEntity(category).toJson());
+        pushed = true;
+      } catch (_) {}
+    }
     try {
       await database.categoryDao.updateCategory(
         CategoriesTableCompanion(
@@ -154,14 +167,9 @@ class CategoryRepositoryImpl implements CategoryRepository {
           color: Value(category.color),
           isActive: Value(category.isActive),
           updatedAt: Value(DateTime.now()),
-          isSynced: const Value(false),
+          isSynced: Value(pushed),
         ),
       );
-      if (await networkInfo.isConnected) {
-        try {
-          await remoteDataSource.updateCategory(category.id, CategoryModel.fromEntity(category).toJson());
-        } catch (_) {}
-      }
       return Right(category);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal mengupdate kategori: $e'));
