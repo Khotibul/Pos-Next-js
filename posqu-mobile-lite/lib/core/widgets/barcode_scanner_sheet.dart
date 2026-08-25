@@ -3,11 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// Sheet pemindai barcode yang bisa dipakai ulang.
+/// Sheet scanner barcode — kamera perangkat sebagai metode utama.
 /// - Android/iOS: kamera via mobile_scanner (dengan debounce barcode sama).
-/// - Desktop/web: input manual.
+/// - Desktop: kamera tidak tersedia; di Kasir, alat scanner fisik
+///   (pistol scanner) terdeteksi otomatis lewat listener global.
 ///
-/// Return: string barcode yang discan/diketik, atau null bila dibatalkan.
+/// Return: string barcode yang terdeteksi, atau null bila dibatalkan.
 Future<String?> showBarcodeScannerSheet(BuildContext context) async {
   final result = await showModalBottomSheet<String>(
     context: context,
@@ -31,7 +32,6 @@ class _BarcodeScannerSheetState extends State<_BarcodeScannerSheet> {
   late final bool _canUseCamera;
   String? _lastCode;
   DateTime _lastTime = DateTime.fromMillisecondsSinceEpoch(0);
-  final _manualController = TextEditingController();
 
   @override
   void initState() {
@@ -53,80 +53,83 @@ class _BarcodeScannerSheetState extends State<_BarcodeScannerSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.qr_code_scanner, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Scan Barcode',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (_canUseCamera) ...[
+            SizedBox(
+              height: 320,
+              child: Stack(
                 children: [
-                  const Icon(Icons.qr_code_scanner, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Scan Barcode',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                  MobileScanner(
+                    onDetect: (capture) {
+                      final code = capture.barcodes.firstOrNull?.rawValue;
+                      if (code != null && code.isNotEmpty) _emit(code);
+                    },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 12,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Arahkan barcode ke dalam kotak kamera',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            if (_canUseCamera)
-              SizedBox(
-                height: 300,
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    final code = capture.barcodes.firstOrNull?.rawValue;
-                    if (code != null && code.isNotEmpty) _emit(code);
-                  },
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Kamera tidak tersedia di perangkat ini. Ketik barcode secara manual.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          ] else
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _manualController,
-                autofocus: !_canUseCamera,
-                decoration: InputDecoration(
-                  labelText: 'Atau ketik barcode / SKU',
-                  prefixIcon: const Icon(Icons.edit_outlined),
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.arrow_forward),
-                    onPressed: () => _emit(_manualController.text.trim()),
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.blue),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Perangkat ini tidak memiliki kamera. '
+                      'Gunakan alat scanner barcode fisik — '
+                      'deteksinya otomatis tanpa perlu klik apa pun.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ),
-                ),
-                onSubmitted: _emit,
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

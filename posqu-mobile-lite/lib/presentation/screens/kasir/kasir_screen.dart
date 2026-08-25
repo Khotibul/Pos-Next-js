@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,12 +24,64 @@ class KasirScreen extends ConsumerStatefulWidget {
 
 class _KasirScreenState extends ConsumerState<KasirScreen> {
   final _searchController = TextEditingController();
+  final _scannerFocus = FocusNode(debugLabel: 'hardware-scanner');
+  final _hwBuffer = StringBuffer();
+  DateTime _lastKeyTime = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _hwSilenceTimer;
   String _query = '';
 
   @override
   void dispose() {
+    _hwSilenceTimer?.cancel();
+    _scannerFocus.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Auto-detect alat scanner barcode fisik (pistol scanner).
+  /// Scanner fisik bekerja seperti keyboard: mengetik karakter barcode
+  /// dengan sangat cepat lalu mengirim Enter. Input ditangkap global
+  /// tanpa perlu mengklik kolom apa pun.
+  KeyEventResult _handleHardwareKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // Biarkan kolom teks aktif (mis. pencarian) menerima ketikan normal.
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary != null && primary.context?.widget is EditableText) {
+      return KeyEventResult.ignored;
+    }
+
+    final now = DateTime.now();
+    if (now.difference(_lastKeyTime).inMilliseconds > 120) {
+      _hwBuffer.clear();
+    }
+    _lastKeyTime = now;
+
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final code = _hwBuffer.toString().trim();
+      _hwBuffer.clear();
+      if (code.length >= 4) {
+        _processScannedCode(code);
+      }
+      return KeyEventResult.handled;
+    }
+
+    final char = event.character;
+    if (char != null && char.isNotEmpty && char.codeUnitAt(0) >= 32) {
+      _hwBuffer.write(char);
+      // Scanner tanpa suffix Enter: proses saat ketikan berhenti singkat.
+      _hwSilenceTimer?.cancel();
+      _hwSilenceTimer = Timer(const Duration(milliseconds: 140), () {
+        final buffered = _hwBuffer.toString().trim();
+        _hwBuffer.clear();
+        if (buffered.length >= 6) {
+          _processScannedCode(buffered);
+        }
+      });
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -46,7 +99,13 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             (p.barcode ?? '').contains(_query))
         .toList();
 
-    return Scaffold(
+    return Focus(
+      focusNode: _scannerFocus,
+      autofocus: true,
+      onKeyEvent: _handleHardwareKey,
+      child: GestureDetector(
+        onTap: () => _scannerFocus.requestFocus(),
+        child: Scaffold(
       appBar: AppBar(
         title: const Text('Kasir'),
         automaticallyImplyLeading: false,
@@ -71,6 +130,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         ],
       ),
       body: isLandscape ? _buildLandscape(kasirState, products) : _buildPortrait(kasirState, products),
+        ),
+      ),
     );
   }
 
@@ -384,14 +445,14 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   // ================= SCAN -> AUTO MASUK KERANJANG =================
 
-  /// Buka scanner kamera (Android/iOS) / input manual (desktop).
-  /// Barcode yang cocok dengan produk langsung ditambahkan ke keranjang.
-  Future<void> _scanAndAddToCart() async {
-    final code = await showBarcodeScannerSheet(context);
-    if (code == null || code.trim().isEmpty || !mounted) return;
+  /// Proses kode hasil scan (kamera / alat scanner fisik):
+  /// cari produk -> langsung masuk keranjang + beep + feedback.
+  Future<void> _processScannedCode(String code) async {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty || !mounted) return;
 
     final notifier = ref.read(kasirStateProvider.notifier);
-    final product = await notifier.scanBarcode(code.trim());
+    final product = await notifier.scanBarcode(trimmed);
     if (!mounted) return;
 
     if (product != null) {
@@ -410,12 +471,35 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         ..showSnackBar(
           SnackBar(
             content:
-                Text('Produk dengan barcode "${code.trim()}" tidak ditemukan'),
+                Text('Produk dengan barcode "$trimmed" tidak ditemukan'),
             backgroundColor: Colors.orange,
           ),
         );
     }
     setState(() {});
+  }
+
+  /// Kamera perangkat sebagai scanner utama.
+  /// Di desktop (tanpa kamera): alat scanner fisik terdeteksi otomatis
+  /// lewat listener global, tanpa perlu klik apa pun.
+  Future<void> _scanAndAddToCart() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final code = await showBarcodeScannerSheet(context);
+      if (code == null || code.trim().isEmpty || !mounted) return;
+      await _processScannedCode(code);
+    } else {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Kamera tidak tersedia. Arahkan alat scanner fisik ke barcode — '
+              'deteksinya otomatis tanpa perlu klik apa pun.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+    }
   }
 
   // ================= SIMPAN KERANJANG =================
