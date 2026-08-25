@@ -1108,54 +1108,140 @@ class _CartFooter extends StatelessWidget {
 
   void _showPaymentDialog(BuildContext context, WidgetRef ref, KasirState state) {
     final paidController = TextEditingController();
+    final container = ProviderScope.containerOf(context);
+
+    void setPaid(double amount) {
+      container.read(kasirStateProvider.notifier).setPaidAmount(amount);
+      paidController.text =
+          amount % 1 == 0 ? amount.toInt().toString() : amount.toString();
+    }
+
+    final quickAmounts = <(String?, double)>[
+      (null, 10000),
+      (null, 20000),
+      (null, 50000),
+      (null, 100000),
+    ];
+
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Pembayaran'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Total: ${CurrencyFormatter.format(state.total)}',
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: paidController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Jumlah Dibayar',
-                prefixText: 'Rp ',
+      builder: (dialogContext) => PopScope(
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) return;
+          container.read(kasirStateProvider.notifier).setPaidAmount(0);
+        },
+        child: Consumer(
+          builder: (dialogContext, dialogRef, _) {
+            final live = dialogRef.watch(kasirStateProvider);
+            final change = live.paidAmount - live.total;
+            return AlertDialog(
+              title: const Text('Pembayaran'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Total: ${CurrencyFormatter.format(live.total)}',
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 14),
+                  Text('Uang Diterima',
+                      style: Theme.of(dialogContext).textTheme.bodySmall),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.check_circle_outline,
+                            size: 16, color: Colors.green),
+                        label: const Text('Uang Pas',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green)),
+                        backgroundColor:
+                            Colors.green.withValues(alpha: 0.08),
+                        side: BorderSide(
+                            color: Colors.green.withValues(alpha: 0.4)),
+                        onPressed: () => setPaid(live.total),
+                      ),
+                      for (final (_, value) in quickAmounts)
+                        ActionChip(
+                          label: Text(
+                            CurrencyFormatter.formatWithoutSymbol(value),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600),
+                          ),
+                          onPressed: () => setPaid(value.toDouble()),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: paidController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Jumlah Dibayar',
+                      prefixText: 'Rp ',
+                    ),
+                    onChanged: (v) {
+                      final amount =
+                          double.tryParse(v.replaceAll('.', '')) ?? 0;
+                      dialogRef
+                          .read(kasirStateProvider.notifier)
+                          .setPaidAmount(amount);
+                    },
+                  ),
+                  if (live.paidAmount > 0) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: change >= 0
+                            ? Colors.green.withValues(alpha: 0.08)
+                            : Colors.orange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            change >= 0 ? 'Kembalian' : 'Kurang',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          Text(
+                            CurrencyFormatter.format(change.abs()),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: change >= 0 ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              onChanged: (v) {
-                final amount = double.tryParse(v.replaceAll('.', '')) ?? 0;
-                ref.read(kasirStateProvider.notifier).setPaidAmount(amount);
-              },
-            ),
-            if (state.paidAmount > 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Kembali: ${CurrencyFormatter.format(state.changeAmount)}',
-                style: TextStyle(
-                  color: state.changeAmount >= 0 ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Batal')),
+                FilledButton(
+                  onPressed: live.paidAmount >= live.total
+                      ? () {
+                          Navigator.pop(dialogContext);
+                          _payNow(context, ref, live);
+                        }
+                      : null,
+                  child: const Text('Bayar'),
                 ),
-              ),
-            ],
-          ],
+              ],
+            );
+          },
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _payNow(context, ref, state);
-            },
-            child: const Text('Bayar'),
-          ),
-        ],
       ),
     );
   }
