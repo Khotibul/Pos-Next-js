@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../data/datasources/external/printer_device_service.dart';
 import '../../domain/entities/sale.dart';
 import '../utils/currency_formatter.dart';
 
@@ -16,6 +17,7 @@ class ReceiptConfig {
   final bool showSku;
   final bool showTax;
   final bool showDiscount;
+  final PrinterDeviceInfo? device;
 
   const ReceiptConfig({
     this.paperSize = '58mm',
@@ -26,6 +28,7 @@ class ReceiptConfig {
     this.showSku = true,
     this.showTax = true,
     this.showDiscount = true,
+    this.device,
   });
 
   factory ReceiptConfig.fromMap(Map<String, dynamic>? map) {
@@ -39,6 +42,7 @@ class ReceiptConfig {
       showSku: m['showSku'] as bool? ?? true,
       showTax: m['showTax'] as bool? ?? true,
       showDiscount: m['showDiscount'] as bool? ?? true,
+      device: PrinterDeviceInfo.fromMap(m),
     );
   }
 
@@ -154,6 +158,27 @@ String _formatDate(DateTime dt) {
 }
 
 Future<void> printReceipt(Sale sale, ReceiptConfig config) async {
+  // 1) Printer Bluetooth/USB terpilih -> kirim ESC/POS langsung.
+  if (config.device != null) {
+    try {
+      await PrinterDeviceService.printReceipt(
+        config.device!,
+        sale,
+        headerTitle: config.headerTitle,
+        headerSubtitle: config.headerSubtitle,
+        footerNote: config.footerNote,
+        paperSize: config.paperSize,
+        showSku: config.showSku,
+        showDiscount: config.showDiscount,
+        showTax: config.showTax,
+      );
+      return;
+    } catch (_) {
+      // Printer tidak terjangkau -> fallback ke dialog cetak sistem.
+    }
+  }
+
+  // 2) Dialog cetak sistem (PDF).
   final doc = buildReceiptPdf(sale, config);
   await Printing.layoutPdf(
     onLayout: (format) async => doc.save(),

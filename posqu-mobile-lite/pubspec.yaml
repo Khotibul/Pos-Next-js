@@ -49,6 +49,10 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
 
+  # Printer BT/USB (ESC/POS)
+  flutter_bluetooth_serial: ^0.4.0
+  flutter_usb_printer: ^0.1.0+1
+
   # Excel export
   excel: ^4.0.6
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/datasources/external/printer_device_service.dart';
 import '../../../data/repositories/setting_repository_impl.dart';
+import 'dart:io';
 
 class PrinterSettingScreen extends ConsumerStatefulWidget {
   const PrinterSettingScreen({super.key});
@@ -23,6 +25,10 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
   bool _showTax = true;
   bool _showDiscount = true;
   bool _loading = true;
+  bool _scanning = false;
+  bool _testing = false;
+  List<PrinterDeviceInfo> _devices = [];
+  PrinterDeviceInfo? _selected;
 
   @override
   void initState() {
@@ -45,6 +51,7 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       _showSku = map['showSku'] as bool? ?? true;
       _showTax = map['showTax'] as bool? ?? true;
       _showDiscount = map['showDiscount'] as bool? ?? true;
+      _selected = PrinterDeviceInfo.fromMap(map);
     });
     if (mounted) setState(() => _loading = false);
   }
@@ -56,7 +63,8 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       'headerTitle': _headerTitleController.text.trim(),
       'headerSubtitle': _headerSubtitleController.text.trim(),
       'footerNote': _footerNoteController.text.trim(),
-      'printerName': _printerNameController.text.trim(),
+      'printerName': _selected?.name ?? _printerNameController.text.trim(),
+      if (_selected != null) ..._selected!.toMap(),
       'autoPrintAfterPayment': _autoPrint,
       'showSku': _showSku,
       'showTax': _showTax,
@@ -66,6 +74,61 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pengaturan printer & struk disimpan')),
       );
+    }
+  }
+
+  Future<void> _scanDevices() async {
+    setState(() => _scanning = true);
+    try {
+      final devices = await PrinterDeviceService.scanDevices();
+      if (!mounted) return;
+      setState(() => _devices = devices);
+      if (devices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tidak ada printer terdeteksi. Pastikan printer Bluetooth sudah '
+              'di-pairing, atau printer USB/Type-C tercolok.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memindai: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<void> _testPrint() async {
+    final device = _selected;
+    if (device == null) return;
+    setState(() => _testing = true);
+    try {
+      await _save();
+      await PrinterDeviceService.printTestPage(
+        device,
+        title: _headerTitleController.text.trim(),
+        paperSize: _paperSize,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Test print terkirim ke ${device.name}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test print gagal: $e'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _testing = false);
     }
   }
 
@@ -87,6 +150,8 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
       );
     }
 
+    final isAndroid = Platform.isAndroid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Printer & Struk'),
@@ -106,11 +171,64 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (isAndroid) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _selected == null
+                                ? 'Belum ada printer dipilih'
+                                : 'Terpilih: ${_selected!.name} (${_selected!.type == 'bluetooth' ? 'Bluetooth' : 'USB/Type-C'})',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: _selected == null
+                                      ? Theme.of(context).hintColor
+                                      : Colors.green,
+                                ),
+                          ),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: _scanning ? null : _scanDevices,
+                          icon: _scanning
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                )
+                              : const Icon(Icons.search, size: 18),
+                          label: Text(_scanning ? 'Memindai...' : 'Pindai'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 18, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Deteksi printer Bluetooth/USB hanya di Android. '
+                            'Di desktop gunakan tombol Cetak pada struk '
+                            '(dialog cetak sistem).',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextField(
                     controller: _printerNameController,
                     decoration: const InputDecoration(
-                      labelText: 'Nama Printer Bluetooth',
+                      labelText: 'Nama Printer (manual)',
                       hintText: 'mis. RPP02N',
                       prefixIcon: Icon(Icons.print_outlined),
                       border: OutlineInputBorder(),
@@ -122,6 +240,7 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
                     child: Text('Ukuran Kertas',
                         style: Theme.of(context).textTheme.bodySmall),
                   ),
+                  const SizedBox(height: 4),
                   SegmentedButton<String>(
                     segments: const [
                       ButtonSegment(value: '58mm', label: Text('58 mm')),
@@ -135,6 +254,86 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
               ),
             ),
           ),
+
+          // ===== DAFTAR PERANGKAT TERDETEKSI =====
+          if (isAndroid && _devices.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Perangkat Tersedia (${_devices.length})',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            ..._devices.map((d) {
+              final isSelected = _selected != null &&
+                  _selected!.type == d.type &&
+                  _selected!.name == d.name &&
+                  (d.type != 'bluetooth' || _selected!.address == d.address);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(
+                    d.type == 'bluetooth'
+                        ? Icons.bluetooth
+                        : Icons.usb,
+                    color: isSelected
+                        ? Colors.green
+                        : Theme.of(context).colorScheme.primary,
+                  ),
+                  title: Text(
+                    d.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    d.type == 'bluetooth'
+                        ? 'Bluetooth • ${d.address ?? '-'}'
+                        : 'USB/Type-C • ID ${d.vendorId}:${d.productId}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _selected = d;
+                              _printerNameController.text = d.name;
+                            });
+                          },
+                          child: const Text('Pilih'),
+                        ),
+                  onTap: () {
+                    setState(() {
+                      _selected = d;
+                      _printerNameController.text = d.name;
+                    });
+                  },
+                ),
+              );
+            }),
+          ],
+
+          // ===== TEST PRINT =====
+          if (isAndroid && _selected != null) ...[
+            const SizedBox(height: 4),
+            OutlinedButton.icon(
+              onPressed: _testing ? null : _testPrint,
+              icon: _testing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.print_outlined, size: 18),
+              label: Text(_testing ? 'Mencetak...' : 'Test Cetak'),
+            ),
+          ],
+
           const SizedBox(height: 16),
           _sectionTitle('Format Struk'),
           Card(
@@ -190,8 +389,8 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
           Card(
             child: SwitchListTile(
               title: const Text('Cetak otomatis setelah bayar'),
-              subtitle:
-                  const Text('Langsung buka dialog cetak saat transaksi selesai'),
+              subtitle: const Text(
+                  'Langsung kirim struk ke printer terpilih saat transaksi selesai'),
               secondary: const Icon(Icons.bolt_outlined),
               value: _autoPrint,
               onChanged: (v) => setState(() => _autoPrint = v),

@@ -21,9 +21,19 @@ public final class GeneratedPluginRegistrant {
       Log.e(TAG, "Error registering plugin connectivity_plus, dev.fluttercommunity.plus.connectivity.ConnectivityPlugin", e);
     }
     try {
+      flutterEngine.getPlugins().add(new io.github.edufolly.flutterbluetoothserial.FlutterBluetoothSerialPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin flutter_bluetooth_serial, io.github.edufolly.flutterbluetoothserial.FlutterBluetoothSerialPlugin", e);
+    }
+    try {
       flutterEngine.getPlugins().add(new io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin flutter_plugin_android_lifecycle, io.flutter.plugins.flutter_plugin_android_lifecycle.FlutterAndroidLifecyclePlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new app.mylekha.client.flutter_usb_printer.FlutterUsbPrinterPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin flutter_usb_printer, app.mylekha.client.flutter_usb_printer.FlutterUsbPrinterPlugin", e);
     }
     try {
       flutterEngine.getPlugins().add(new io.github.ponnamkarthik.toast.fluttertoast.FlutterToastPlugin());
