@@ -1,12 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:flutter_usb_printer/flutter_usb_printer.dart';
 
 import '../../../domain/entities/sale.dart';
 import '../../../core/utils/currency_formatter.dart';
+
+/// Dilempar saat printer belum tersedia / tidak dapat dihubungi.
+class PrinterNotAvailableException implements Exception {
+  final String message;
+  const PrinterNotAvailableException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 /// Informasi perangkat printer yang terdeteksi.
 class PrinterDeviceInfo {
@@ -50,49 +59,106 @@ class PrinterDeviceInfo {
 class PrinterDeviceService {
   PrinterDeviceService._();
 
+  static const MethodChannel _permissionChannel =
+      MethodChannel('posqu/permissions');
+
+  /// Minta izin runtime Bluetooth (Android 12+: CONNECT/SCAN,
+  /// di bawahnya: lokasi). Polling hasil hingga 10 detik.
+  static Future<bool> _ensurePermissions() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final granted =
+          await _permissionChannel.invokeMethod('hasPrinterPermissions');
+      if (granted == true) return true;
+      await _permissionChannel.invokeMethod('requestPrinterPermissions');
+      for (var i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        final check =
+            await _permissionChannel.invokeMethod('hasPrinterPermissions');
+        if (check == true) return true;
+      }
+      return false;
+    } catch (_) {
+      // Channel tidak tersedia (perangkat lama) -> jangan blokir.
+      return true;
+    }
+  }
+
   /// Pindai printer yang tersedia:
   /// - Bluetooth: semua perangkat yang sudah paired/bonded.
   /// - USB/Type-C: printer yang sedang tercolok (OTG).
-  /// Hanya didukung di Android.
+  /// Hanya didukung di Android. Melempar [PrinterNotAvailableException]
+  /// dengan pesan ramah bila izin ditolak / Bluetooth tidak aktif.
   static Future<List<PrinterDeviceInfo>> scanDevices() async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Scan printer hanya didukung di Android');
     }
 
-    final devices = <PrinterDeviceInfo>[];
+    final permitted = await _ensurePermissions();
+    if (!permitted) {
+      throw const PrinterNotAvailableException(
+        'Izin Bluetooth belum diberikan. '
+        'Izinkan akses Bluetooth untuk aplikasi ini lalu pindai ulang.',
+      );
+    }
 
+    final devices = <PrinterDeviceInfo>[];
+    String? btError;
+
+    final bt = FlutterBluetoothSerial.instance;
+    var btOn = false;
     try {
-      final bt = FlutterBluetoothSerial.instance;
-      final bonded = await bt.getBondedDevices();
-      for (final d in bonded) {
-        devices.add(PrinterDeviceInfo(
-          name: d.name ?? d.address,
-          type: 'bluetooth',
-          address: d.address,
-        ));
-      }
+      btOn = await bt.isEnabled ?? false;
     } catch (_) {
-      // Bluetooth off / tidak tersedia -> lanjut ke USB.
+      btOn = false;
+    }
+
+    if (!btOn) {
+      var enabled = false;
+      try {
+        enabled = await bt.requestEnable() ?? false;
+      } catch (_) {
+        enabled = false;
+      }
+      if (!enabled) {
+        btError =
+            'Bluetooth tidak aktif. Nyalakan Bluetooth lalu pindai ulang.';
+      }
+    }
+
+    if (btError == null) {
+      try {
+        final bonded = await bt.getBondedDevices();
+        for (final d in bonded) {
+          devices.add(PrinterDeviceInfo(
+            name: d.name ?? d.address,
+            type: 'bluetooth',
+            address: d.address,
+          ));
+        }
+      } catch (e) {
+        btError ??= 'Gagal membaca perangkat Bluetooth: $e';
+      }
     }
 
     try {
       final usbList = await FlutterUsbPrinter.getUSBDeviceList();
-      {
-        for (final raw in usbList) {
-          final map = Map<String, dynamic>.from(raw as Map);
-          final vendorId = _toInt(map['vendorId']);
-          final productId = _toInt(map['productId']);
-          devices.add(PrinterDeviceInfo(
-            name: (map['productName'] ?? map['deviceName'] ?? 'USB Printer')
-                .toString(),
-            type: 'usb',
-            vendorId: vendorId,
-            productId: productId,
-          ));
-        }
+      for (final raw in usbList) {
+        final map = Map<String, dynamic>.from(raw);
+        devices.add(PrinterDeviceInfo(
+          name: (map['productName'] ?? map['deviceName'] ?? 'USB Printer')
+              .toString(),
+          type: 'usb',
+          vendorId: _toInt(map['vendorId']),
+          productId: _toInt(map['productId']),
+        ));
       }
     } catch (_) {
-      // Tidak ada printer USB.
+      // Tidak ada printer USB -> abaikan.
+    }
+
+    if (devices.isEmpty && btError != null) {
+      throw PrinterNotAvailableException(btError);
     }
 
     return devices;
@@ -117,9 +183,17 @@ class PrinterDeviceService {
     if (device.type == 'bluetooth') {
       final address = device.address;
       if (address == null || address.isEmpty) {
-        throw Exception('Alamat Bluetooth printer belum ada');
+        throw const PrinterNotAvailableException('Alamat Bluetooth printer belum ada');
       }
-      final connection = await BluetoothConnection.toAddress(address);
+      final BluetoothConnection connection;
+      try {
+        connection = await BluetoothConnection.toAddress(address)
+            .timeout(const Duration(seconds: 8));
+      } catch (_) {
+        throw PrinterNotAvailableException(
+          'Tidak dapat terhubung ke ${device.name}. Pastikan printer menyala dan dalam jangkauan.',
+        );
+      }
       try {
         connection.output.add(Uint8List.fromList(bytes.toList()));
         await connection.output.allSent;
@@ -131,7 +205,7 @@ class PrinterDeviceService {
       final vendorId = device.vendorId;
       final productId = device.productId;
       if (vendorId == null || productId == null) {
-        throw Exception('ID perangkat USB printer belum ada');
+        throw const PrinterNotAvailableException('ID perangkat USB printer belum ada');
       }
       final printer = FlutterUsbPrinter();
       await printer.connect(vendorId, productId);

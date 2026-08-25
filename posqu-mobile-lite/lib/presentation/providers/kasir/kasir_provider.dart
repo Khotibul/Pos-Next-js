@@ -281,7 +281,11 @@ class KasirNotifier extends StateNotifier<KasirState> {
         state = state.copyWith(isLoading: false);
         _reset();
         if (config.autoPrintAfterPayment) {
-          await printReceipt(sale, config);
+          try {
+            await printReceipt(sale, config, fallbackToSystem: false);
+          } catch (_) {
+            // Printer tidak siap -> transaksi tetap sukses.
+          }
         }
       }
       return saved;

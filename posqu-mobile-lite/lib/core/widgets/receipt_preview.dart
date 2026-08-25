@@ -160,32 +160,95 @@ String _formatDate(DateTime dt) {
   return '${two(d.day)}/${two(d.month)}/${d.year} ${two(d.hour)}:${two(d.minute)}';
 }
 
-Future<void> printReceipt(Sale sale, ReceiptConfig config) async {
-  // 1) Printer Bluetooth/USB terpilih -> kirim ESC/POS langsung.
-  if (config.device != null) {
-    try {
-      await PrinterDeviceService.printReceipt(
-        config.device!,
-        sale,
-        headerTitle: config.headerTitle,
-        headerSubtitle: config.headerSubtitle,
-        footerNote: config.footerNote,
-        paperSize: config.paperSize,
-        showSku: config.showSku,
-        showDiscount: config.showDiscount,
-        showTax: config.showTax,
+/// Cetak struk:
+/// - Ada printer BT/USB terpilih -> kirim ESC/POS langsung.
+/// - Gagal / tidak ada printer -> lempar [PrinterNotAvailableException]
+///   kecuali [fallbackToSystem] true (fallback ke dialog cetak sistem).
+Future<void> printReceipt(
+  Sale sale,
+  ReceiptConfig config, {
+  bool fallbackToSystem = true,
+}) async {
+  if (config.device == null) {
+    if (fallbackToSystem) {
+      final doc = buildReceiptPdf(sale, config);
+      await Printing.layoutPdf(
+        onLayout: (format) async => doc.save(),
+        name: 'struk-${sale.invoiceNo}',
       );
       return;
-    } catch (_) {
-      // Printer tidak terjangkau -> fallback ke dialog cetak sistem.
     }
+    throw const PrinterNotAvailableException(
+      'Printer belum tersedia. Hubungkan printer Bluetooth/USB '
+      'lewat menu Pengaturan → Printer & Struk.',
+    );
   }
 
-  // 2) Dialog cetak sistem (PDF).
-  final doc = buildReceiptPdf(sale, config);
-  await Printing.layoutPdf(
-    onLayout: (format) async => doc.save(),
-    name: 'struk-${sale.invoiceNo}',
+  try {
+    await PrinterDeviceService.printReceipt(
+      config.device!,
+      sale,
+      headerTitle: config.headerTitle,
+      headerSubtitle: config.headerSubtitle,
+      footerNote: config.footerNote,
+      paperSize: config.paperSize,
+      showSku: config.showSku,
+      showDiscount: config.showDiscount,
+      showTax: config.showTax,
+    );
+  } catch (e) {
+    if (fallbackToSystem) {
+      final doc = buildReceiptPdf(sale, config);
+      await Printing.layoutPdf(
+        onLayout: (format) async => doc.save(),
+        name: 'struk-${sale.invoiceNo}',
+      );
+      return;
+    }
+    if (e is PrinterNotAvailableException) rethrow;
+    throw PrinterNotAvailableException(
+      'Tidak dapat menghubungi printer "${config.device!.name}". '
+      'Pastikan printer menyala dan terhubung.',
+    );
+  }
+}
+
+/// Popup "Printer belum tersedia" dengan opsi cetak via sistem.
+Future<void> showPrinterNotAvailableDialog(
+  BuildContext context,
+  String message,
+  Sale sale,
+  ReceiptConfig config,
+) async {
+  await showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.print_disabled_outlined,
+          size: 40, color: Colors.orange),
+      title: const Text('Printer Belum Tersedia'),
+      content: Text(
+        message,
+        style: Theme.of(dialogContext).textTheme.bodyMedium,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Tutup'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            final doc = buildReceiptPdf(sale, config);
+            Printing.layoutPdf(
+              onLayout: (format) async => doc.save(),
+              name: 'struk-${sale.invoiceNo}',
+            );
+          },
+          icon: const Icon(Icons.print_outlined, size: 18),
+          label: const Text('Cetak via Sistem'),
+        ),
+      ],
+    ),
   );
 }
 
@@ -336,7 +399,24 @@ Future<void> showReceiptPreview(
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => printReceipt(sale, config),
+                    onPressed: () async {
+                      try {
+                        await printReceipt(sale, config,
+                            fallbackToSystem: false);
+                      } on PrinterNotAvailableException catch (e) {
+                        if (!dialogContext.mounted) return;
+                        await showPrinterNotAvailableDialog(
+                            dialogContext, e.message, sale, config);
+                      } catch (e) {
+                        if (!dialogContext.mounted) return;
+                        await showPrinterNotAvailableDialog(
+                          dialogContext,
+                          'Gagal mencetak: $e',
+                          sale,
+                          config,
+                        );
+                      }
+                    },
                     icon: const Icon(Icons.print, size: 18),
                     label: const Text('Cetak'),
                   ),
