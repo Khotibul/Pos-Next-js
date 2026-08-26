@@ -47,6 +47,16 @@ export const POST = withApiHandler(async (req: Request) => {
     select: { id: true },
   });
 
+  // Validasi FK kategori: jika id tidak milik tenant, abaikan agar tidak gagal FK.
+  let resolvedCategoryId: string | null = null;
+  if (d.categoryId) {
+    const cat = await prisma.productCategory.findFirst({
+      where: { id: d.categoryId, tenantId: ctx.tenantId },
+      select: { id: true },
+    });
+    resolvedCategoryId = cat?.id ?? null;
+  }
+
   const data = {
     sku: d.sku,
     slug: d.slug ?? null,
@@ -54,7 +64,7 @@ export const POST = withApiHandler(async (req: Request) => {
     description: d.description ?? null,
     barcode: d.barcode ?? null,
     qrCode: d.qrCode ?? null,
-    categoryId: d.categoryId ?? null,
+    categoryId: resolvedCategoryId,
     costPrice: d.costPrice,
     sellingPrice: d.sellingPrice,
     marginPct: d.marginPct,

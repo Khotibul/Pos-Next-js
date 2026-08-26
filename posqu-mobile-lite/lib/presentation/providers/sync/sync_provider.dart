@@ -65,12 +65,13 @@ class SyncActions {
 
   /// Memicu sinkronisasi dua arah untuk semua entitas:
   /// push pending lokal -> tarik data server -> simpan waktu sync.
+  /// Urutan: kategori & supplier dulu (dependensi produk), lalu produk, pelanggan, penjualan.
   Future<bool> syncNow() async {
     try {
-      await _ref.read(productRepositoryProvider).getProducts();
       await _ref.read(categoryRepositoryProvider).getCategories();
-      await _ref.read(customerRepositoryProvider).getCustomers();
       await _ref.read(supplierRepositoryProvider).getSuppliers();
+      await _ref.read(customerRepositoryProvider).getCustomers();
+      await _ref.read(productRepositoryProvider).getProducts();
       await _ref.read(saleRepositoryProvider).getSales();
 
       final box = await Hive.openBox('cache');
