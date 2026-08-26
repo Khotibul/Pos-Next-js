@@ -1,21 +1,57 @@
-# next.js build outputs (sudah di .gitignore, ditegaskan di sini)
-.next
-.next-desktop
-out
-dist-electron
-dist-desktop
-dist-desktop-build
+# dependencies
+node_modules/
+.npm-cache/
 
-# mobile/desktop apps - BUKAN bagian dari deploy web (sumber 24k+ file)
-posqu-mobile-lite
-posqu-mobile-lite/**
-posqu-pro-desktop-java
-posqu-pro-desktop-java/**
-android
-android/**
-legacy
-UI
+# next.js
+.next/
+.next-desktop/
+out/
 
-# env lokal - jangan upload, pakai Vercel Dashboard Environment Variables
-.env.local
+# env
+.env
 .env.*.local
+
+# desktop/electron build outputs
+dist-electron/
+dist-desktop/
+dist-desktop-build/
+.desktop-userdata/
+
+# android/capacitor build outputs
+android/.gradle/
+android/**/build/
+android/local.properties
+android/capacitor.settings.gradle
+android/app/release/
+android/app/debug/
+*.jks
+*.keystore
+android/keystore.properties
+android/app/*.keystore
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# misc generated
+overview.json
+overview_architecture.puml
+*.tsbuildinfo
+
+# legacy UI folders (keep local only)
+UI/
+legacy/
+.vercel
+.env*
+
+# mobile/desktop - not part of web deploy (added to fix 24k file limit)
+posqu-mobile-lite
+posqu-pro-desktop-java
