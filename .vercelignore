@@ -1,0 +1,21 @@
+# next.js build outputs (sudah di .gitignore, ditegaskan di sini)
+.next
+.next-desktop
+out
+dist-electron
+dist-desktop
+dist-desktop-build
+
+# mobile/desktop apps - BUKAN bagian dari deploy web (sumber 24k+ file)
+posqu-mobile-lite
+posqu-mobile-lite/**
+posqu-pro-desktop-java
+posqu-pro-desktop-java/**
+android
+android/**
+legacy
+UI
+
+# env lokal - jangan upload, pakai Vercel Dashboard Environment Variables
+.env.local
+.env.*.local
