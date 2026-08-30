@@ -1,0 +1,66 @@
+name: Build Next.js for cPanel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      # Hanya placeholder saat BUILD.
+      # Database production sebenarnya tetap localhost di cPanel.
+      DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Show versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Install dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Copy static files into standalone
+        run: |
+          if [ -d "public" ]; then
+            cp -a public .next/standalone/public
+          fi
+
+          mkdir -p .next/standalone/.next
+          cp -a .next/static .next/standalone/.next/static
+
+      - name: Check standalone build
+        run: |
+          echo "=== Standalone files ==="
+          ls -la .next/standalone
+          echo "=== Server ==="
+          ls -lh .next/standalone/server.js
+          echo "=== Static ==="
+          ls -ld .next/standalone/.next/static
+
+      - name: Upload cPanel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-next-cpanel
+          path: .next/standalone/
+          include-hidden-files: true
+          retention-days: 7
