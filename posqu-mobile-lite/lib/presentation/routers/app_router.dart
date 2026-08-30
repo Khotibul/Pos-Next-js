@@ -28,6 +28,7 @@ import '../screens/cash/cash_screen.dart';
 import '../screens/report/report_screen.dart';
 import '../screens/setting/setting_screen.dart';
 import '../screens/setting/printer_setting_screen.dart';
+import '../screens/setting/local_users_screen.dart';
 import '../screens/sync/sync_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -199,6 +200,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'printer',
                 builder: (context, state) => const PrinterSettingScreen(),
+              ),
+              GoRoute(
+                path: 'local-users',
+                builder: (context, state) => const LocalUsersScreen(),
               ),
             ],
           ),

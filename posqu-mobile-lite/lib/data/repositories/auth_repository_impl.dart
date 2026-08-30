@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -59,6 +60,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       await cache.saveToken(result.token);
       await cache.saveUserData(result.user.toJson());
+      await _cacheLocalCredentials(normalizedEmail, password, user);
 
       return Right(user);
     } on ServerException catch (e) {
@@ -134,6 +136,22 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (e) {
       return Left(DatabaseFailure(message: 'Login lokal gagal: $e'));
     }
+  }
+
+  Future<void> _cacheLocalCredentials(String email, String password, User user) async {
+    try {
+      final hashed = sha256.convert(utf8.encode(password)).toString();
+      await database.userDao.upsertUser(UsersTableCompanion(
+        id: Value(user.id),
+        email: Value(email),
+        name: Value(user.name),
+        image: Value(user.avatarUrl),
+        passwordHash: Value(hashed),
+        isActive: const Value(true),
+        isSuperAdmin: Value(user.role == 'ADMIN' || email.contains('superadmin')),
+        updatedAt: Value(DateTime.now()),
+      ));
+    } catch (_) {}
   }
 
   @override

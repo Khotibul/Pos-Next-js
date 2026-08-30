@@ -120,6 +120,38 @@ class SettingScreen extends ConsumerWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
+                  child: Text('Akun Lokal (Offline)',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.people_outline),
+                  title: const Text('Kelola Akun Lokal'),
+                  subtitle: const Text('Akun yang bisa login saat offline'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/local-users'),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Tip: Login online sekali dengan email apa pun akan otomatis menyimpannya sebagai akun lokal.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Text('Akun',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,

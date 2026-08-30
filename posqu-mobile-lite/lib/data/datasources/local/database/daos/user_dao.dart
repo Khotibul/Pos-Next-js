@@ -24,4 +24,16 @@ class UserDao extends DatabaseAccessor<AppDatabase> with _$UserDaoMixin {
   Future<bool> updateUser(UsersTableCompanion user) {
     return update(usersTable).replace(user);
   }
+
+  Future<void> upsertUser(UsersTableCompanion user) async {
+    await into(usersTable).insertOnConflictUpdate(user);
+  }
+
+  Future<List<UsersTableData>> getAll() {
+    return (select(usersTable)..orderBy([(t) => OrderingTerm(expression: t.createdAt)])).get();
+  }
+
+  Future<int> deleteUser(String id) {
+    return (delete(usersTable)..where((t) => t.id.equals(id))).go();
+  }
 }
