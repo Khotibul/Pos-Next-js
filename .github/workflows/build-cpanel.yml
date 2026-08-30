@@ -14,8 +14,8 @@ jobs:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
 
-      # Hanya placeholder saat BUILD.
-      # Database production sebenarnya tetap localhost di cPanel.
+      # Placeholder hanya saat GitHub build.
+      # Database production tetap localhost di cPanel.
       DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
 
     steps:
@@ -30,8 +30,22 @@ jobs:
 
       - name: Show versions
         run: |
+          echo "=== Node ==="
           node -v
+
+          echo "=== NPM ==="
           npm -v
+
+      - name: Check Next.js configuration
+        run: |
+          echo "=== next.config.mjs ==="
+          ls -lh next.config.mjs
+
+          echo "=== Standalone settings ==="
+          grep -n "standalone" next.config.mjs || true
+
+          echo "=== Output and distDir ==="
+          grep -nE "output|distDir|DESKTOP_BUILD" next.config.mjs || true
 
       - name: Install dependencies
         run: npm ci --include=dev --no-audit --no-fund
@@ -39,41 +53,102 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
-      - name: Build Next.js
-        run: npm run build
-
-      - name: Copy static files into standalone
+      - name: Inspect Next.js build
         run: |
-          echo "Copying static files..."
+          echo "================================="
+          echo "=== .next root ==="
+          echo "================================="
+          ls -la .next
 
+          echo ""
+          echo "================================="
+          echo "=== Standalone directory ==="
+          echo "================================="
+
+          if [ -d ".next/standalone" ]; then
+            find .next/standalone -maxdepth 5 -type f | head -100
+          else
+            echo "ERROR: .next/standalone was NOT generated"
+            exit 1
+          fi
+
+          echo ""
+          echo "================================="
+          echo "=== Looking for server.js ==="
+          echo "================================="
+          find .next/standalone -type f -name "server.js" -print
+
+      - name: Prepare cPanel package
+        run: |
+          echo "Finding standalone server.js..."
+
+          SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
+
+          if [ -z "$SERVER_JS" ]; then
+            echo "ERROR: server.js not found inside .next/standalone"
+            exit 1
+          fi
+
+          echo "Found server.js:"
+          echo "$SERVER_JS"
+
+          SERVER_DIR=$(dirname "$SERVER_JS")
+
+          echo "Standalone application directory:"
+          echo "$SERVER_DIR"
+
+          rm -rf cpanel-package
+          mkdir -p cpanel-package
+
+          echo "Copying standalone application..."
+          cp -a "$SERVER_DIR"/. cpanel-package/
+
+          echo "Copying public files..."
           if [ -d "public" ]; then
-            mkdir -p .next/standalone/public
-            cp -a public/. .next/standalone/public/
+            mkdir -p cpanel-package/public
+            cp -a public/. cpanel-package/public/
           fi
 
-          mkdir -p .next/standalone/.next
-
+          echo "Copying Next.js static files..."
           if [ -d ".next/static" ]; then
-            cp -a .next/static .next/standalone/.next/
+            mkdir -p cpanel-package/.next
+            cp -a .next/static cpanel-package/.next/
           fi
 
-          echo "Static files copied successfully"
-
-      - name: Check standalone build
+      - name: Verify cPanel package
         run: |
-          echo "=== Standalone root ==="
-          ls -la .next/standalone
+          echo "================================="
+          echo "=== cPanel package ==="
+          echo "================================="
+          ls -la cpanel-package
 
+          echo ""
           echo "=== server.js ==="
-          ls -lh .next/standalone/server.js
+          test -f cpanel-package/server.js
+          ls -lh cpanel-package/server.js
 
-          echo "=== Static ==="
-          ls -la .next/standalone/.next/static
+          echo ""
+          echo "=== package.json ==="
+          test -f cpanel-package/package.json
+          ls -lh cpanel-package/package.json
+
+          echo ""
+          echo "=== node_modules ==="
+          test -d cpanel-package/node_modules
+          du -sh cpanel-package/node_modules
+
+          echo ""
+          echo "=== .next ==="
+          test -d cpanel-package/.next
+          ls -la cpanel-package/.next
+
+          echo ""
+          echo "PACKAGE READY FOR CPANEL"
 
       - name: Upload cPanel package
         uses: actions/upload-artifact@v4
         with:
           name: pos-next-cpanel
-          path: .next/standalone/
+          path: cpanel-package/
           include-hidden-files: true
           retention-days: 7
