@@ -39,23 +39,36 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
+      - name: Build Next.js
+        run: npm run build
+
       - name: Copy static files into standalone
         run: |
+          echo "Copying static files..."
+
           if [ -d "public" ]; then
-            cp -a public .next/standalone/public
+            mkdir -p .next/standalone/public
+            cp -a public/. .next/standalone/public/
           fi
 
           mkdir -p .next/standalone/.next
-          cp -a .next/static .next/standalone/.next/static
+
+          if [ -d ".next/static" ]; then
+            cp -a .next/static .next/standalone/.next/
+          fi
+
+          echo "Static files copied successfully"
 
       - name: Check standalone build
         run: |
-          echo "=== Standalone files ==="
+          echo "=== Standalone root ==="
           ls -la .next/standalone
-          echo "=== Server ==="
+
+          echo "=== server.js ==="
           ls -lh .next/standalone/server.js
+
           echo "=== Static ==="
-          ls -ld .next/standalone/.next/static
+          ls -la .next/standalone/.next/static
 
       - name: Upload cPanel package
         uses: actions/upload-artifact@v4
