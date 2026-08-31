@@ -9,13 +9,13 @@ const config: CapacitorConfig = {
   server: {
     // Hosted renderer (same approach as desktop Electron).
     // Override at build time if needed: `CAPACITOR_SERVER_URL=https://...`
-    url: process.env.CAPACITOR_SERVER_URL || "https://pos-next-js-kohl.vercel.app",
+    url: process.env.CAPACITOR_SERVER_URL || "https://posqupro.co-id.id",
     // Prevent cleartext HTTP in production builds.
     cleartext: false,
     androidScheme: "https",
   },
   // Prevent navigation outside allowed origins unless explicitly whitelisted.
-  allowNavigation: ["pos-next-js-kohl.vercel.app"],
+  allowNavigation: ["posqupro.co-id.id", "pos-next-js-kohl.vercel.app"],
   plugins: {
     SplashScreen: {
       launchShowDuration: 1000,
