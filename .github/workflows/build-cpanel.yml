@@ -14,13 +14,21 @@ jobs:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
 
-      # Placeholder hanya saat GitHub build.
-      # Database production tetap localhost di cPanel.
+      # Placeholder hanya untuk proses build GitHub Actions.
+      # Production tetap menggunakan PostgreSQL cPanel.
       DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
 
     steps:
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      # ============================================================
+      # NODE
+      # ============================================================
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v7
@@ -30,34 +38,245 @@ jobs:
 
       - name: Show versions
         run: |
+          echo "================================="
           echo "=== Node ==="
+          echo "================================="
           node -v
 
+          echo ""
+          echo "================================="
           echo "=== NPM ==="
+          echo "================================="
           npm -v
+
+      # ============================================================
+      # NEXT.JS CONFIG
+      # ============================================================
 
       - name: Check Next.js configuration
         run: |
+          echo "================================="
           echo "=== next.config.mjs ==="
+          echo "================================="
+
           ls -lh next.config.mjs
 
+          echo ""
           echo "=== Standalone settings ==="
           grep -n "standalone" next.config.mjs || true
 
+          echo ""
           echo "=== Output and distDir ==="
           grep -nE "output|distDir|DESKTOP_BUILD" next.config.mjs || true
 
+      # ============================================================
+      # PRISMA SCHEMA CHECK
+      # ============================================================
+
+      - name: Check Prisma binary targets
+        run: |
+          echo "================================="
+          echo "=== Prisma generator ==="
+          echo "================================="
+
+          grep -n -A20 "^generator client" src/prisma/schema.prisma
+
+          echo ""
+          echo "Required engines for cPanel:"
+          echo "- debian-openssl-1.0.x"
+          echo "- debian-openssl-1.1.x"
+          echo "- debian-openssl-3.0.x"
+
+          echo ""
+          echo "Checking schema contains 1.0.x..."
+
+          grep -q 'debian-openssl-1.0.x' src/prisma/schema.prisma || {
+            echo "ERROR: schema.prisma missing debian-openssl-1.0.x"
+            exit 1
+          }
+
+          echo "OK: 1.0.x configured"
+
+          echo ""
+          echo "Checking schema contains 1.1.x..."
+
+          grep -q 'debian-openssl-1.1.x' src/prisma/schema.prisma || {
+            echo "ERROR: schema.prisma missing debian-openssl-1.1.x"
+            exit 1
+          }
+
+          echo "OK: 1.1.x configured"
+
+          echo ""
+          echo "Checking schema contains 3.0.x..."
+
+          grep -q 'debian-openssl-3.0.x' src/prisma/schema.prisma || {
+            echo "ERROR: schema.prisma missing debian-openssl-3.0.x"
+            exit 1
+          }
+
+          echo "OK: 3.0.x configured"
+
+      # ============================================================
+      # INSTALL
+      # ============================================================
+
       - name: Install dependencies
-        run: npm ci --include=dev --no-audit --no-fund
+        run: |
+          npm ci --include=dev --no-audit --no-fund
+
+      # ============================================================
+      # PRISMA GENERATE
+      # ============================================================
+
+      - name: Generate Prisma Client for cPanel
+        run: |
+          echo "================================="
+          echo "=== Generate Prisma Client ==="
+          echo "================================="
+
+          npx prisma generate \
+            --schema src/prisma/schema.prisma
+
+          echo ""
+          echo "================================="
+          echo "=== Generated Prisma Client ==="
+          echo "================================="
+
+          test -d node_modules/.prisma/client
+
+          ls -la node_modules/.prisma/client | head -60
+
+          echo ""
+          echo "================================="
+          echo "=== Generated Prisma Engines ==="
+          echo "================================="
+
+          find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( -name "*query_engine*" -o -name "*libquery_engine*" \) \
+            -print
+
+          echo ""
+          echo "================================="
+          echo "=== Verify 1.0.x ==="
+          echo "================================="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.0.x*" \
+            -print -quit)" || {
+              echo "ERROR: Prisma engine debian-openssl-1.0.x missing"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-1.0.x found"
+
+          echo ""
+          echo "================================="
+          echo "=== Verify 1.1.x ==="
+          echo "================================="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print -quit)" || {
+              echo "ERROR: Prisma engine debian-openssl-1.1.x missing"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-1.1.x found"
+
+          echo ""
+          echo "================================="
+          echo "=== Verify 3.0.x ==="
+          echo "================================="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-3.0.x*" \
+            -print -quit)" || {
+              echo "ERROR: Prisma engine debian-openssl-3.0.x missing"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-3.0.x found"
+
+          echo ""
+          echo "================================="
+          echo "ALL REQUIRED PRISMA ENGINES FOUND"
+          echo "================================="
+
+      # ============================================================
+      # NEXT.JS BUILD
+      # ============================================================
 
       - name: Build Next.js
-        run: npm run build
+        run: |
+          npm run build
+
+      # ============================================================
+      # VERIFY PRISMA AFTER BUILD
+      # ============================================================
+
+      - name: Verify Prisma Client after build
+        run: |
+          echo "================================="
+          echo "=== @prisma/client ==="
+          echo "================================="
+
+          test -d node_modules/@prisma/client
+          test -f node_modules/@prisma/client/index.js
+
+          ls -la node_modules/@prisma/client | head -30
+
+          echo ""
+          echo "================================="
+          echo "=== .prisma/client ==="
+          echo "================================="
+
+          test -d node_modules/.prisma/client
+          ls -la node_modules/.prisma/client | head -60
+
+          echo ""
+          echo "================================="
+          echo "=== Engines after build ==="
+          echo "================================="
+
+          find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( -name "*query_engine*" -o -name "*libquery_engine*" \) \
+            -print
+
+          echo ""
+          echo "Checking required 1.1.x engine after build..."
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print -quit)" || {
+              echo "ERROR: build removed Prisma debian-openssl-1.1.x engine"
+              exit 1
+            }
+
+          echo "OK: 1.1.x still exists after build"
+
+      # ============================================================
+      # INSPECT NEXT.JS STANDALONE
+      # ============================================================
 
       - name: Inspect Next.js build
         run: |
           echo "================================="
           echo "=== .next root ==="
           echo "================================="
+
           ls -la .next
 
           echo ""
@@ -76,13 +295,26 @@ jobs:
           echo "================================="
           echo "=== Looking for server.js ==="
           echo "================================="
-          find .next/standalone -type f -name "server.js" -print
+
+          find .next/standalone \
+            -type f \
+            -name "server.js" \
+            -print
+
+      # ============================================================
+      # PREPARE CPANEL PACKAGE
+      # ============================================================
 
       - name: Prepare cPanel package
         run: |
-          echo "Finding standalone server.js..."
+          echo "================================="
+          echo "=== Finding standalone server.js ==="
+          echo "================================="
 
-          SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
+          SERVER_JS=$(find .next/standalone \
+            -type f \
+            -name "server.js" \
+            | head -n 1)
 
           if [ -z "$SERVER_JS" ]; then
             echo "ERROR: server.js not found inside .next/standalone"
@@ -94,56 +326,310 @@ jobs:
 
           SERVER_DIR=$(dirname "$SERVER_JS")
 
+          echo ""
           echo "Standalone application directory:"
           echo "$SERVER_DIR"
 
           rm -rf cpanel-package
           mkdir -p cpanel-package
 
+          echo ""
           echo "Copying standalone application..."
+
           cp -a "$SERVER_DIR"/. cpanel-package/
 
+          echo ""
           echo "Copying public files..."
+
           if [ -d "public" ]; then
             mkdir -p cpanel-package/public
             cp -a public/. cpanel-package/public/
           fi
 
+          echo ""
           echo "Copying Next.js static files..."
+
           if [ -d ".next/static" ]; then
             mkdir -p cpanel-package/.next
             cp -a .next/static cpanel-package/.next/
           fi
+
+      # ============================================================
+      # ADD FULL PRISMA CLIENT
+      # ============================================================
+
+      - name: Add Prisma client and seed tools
+        run: |
+          echo "================================="
+          echo "=== Adding Prisma Client ==="
+          echo "================================="
+
+          mkdir -p cpanel-package/node_modules/@prisma
+          mkdir -p cpanel-package/node_modules/.prisma
+          mkdir -p cpanel-package/scripts
+
+          echo ""
+          echo "Copying full @prisma/client..."
+
+          rm -rf cpanel-package/node_modules/@prisma/client
+
+          cp -a \
+            node_modules/@prisma/client \
+            cpanel-package/node_modules/@prisma/client
+
+          echo ""
+          echo "Copying generated .prisma/client..."
+
+          rm -rf cpanel-package/node_modules/.prisma/client
+
+          cp -a \
+            node_modules/.prisma/client \
+            cpanel-package/node_modules/.prisma/client
+
+          # ========================================================
+          # bcryptjs
+          # ========================================================
+
+          echo ""
+          echo "================================="
+          echo "=== Adding bcryptjs ==="
+          echo "================================="
+
+          if [ -d "node_modules/bcryptjs" ]; then
+
+            rm -rf cpanel-package/node_modules/bcryptjs
+
+            cp -a \
+              node_modules/bcryptjs \
+              cpanel-package/node_modules/bcryptjs
+
+            echo "bcryptjs copied."
+
+          else
+
+            echo "ERROR: bcryptjs not found."
+            exit 1
+
+          fi
+
+          # ========================================================
+          # SEED
+          # ========================================================
+
+          echo ""
+          echo "================================="
+          echo "=== Adding seed script ==="
+          echo "================================="
+
+          if [ -f "scripts/seed.mjs" ]; then
+
+            cp \
+              scripts/seed.mjs \
+              cpanel-package/scripts/seed.mjs
+
+            echo "scripts/seed.mjs copied."
+
+          else
+
+            echo "ERROR: scripts/seed.mjs not found."
+            exit 1
+
+          fi
+
+          # ========================================================
+          # VERIFICATION
+          # ========================================================
+
+          echo ""
+          echo "================================="
+          echo "=== Prisma package verification ==="
+          echo "================================="
+
+          test -f \
+            cpanel-package/node_modules/@prisma/client/index.js
+
+          ls -lh \
+            cpanel-package/node_modules/@prisma/client/index.js
+
+          echo ""
+          echo "=== Generated Prisma client ==="
+
+          test -d \
+            cpanel-package/node_modules/.prisma/client
+
+          ls -la \
+            cpanel-package/node_modules/.prisma/client \
+            | head -60
+
+          echo ""
+          echo "=== Query Engines inside package ==="
+
+          find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( -name "*query_engine*" -o -name "*libquery_engine*" \) \
+            -print
+
+          echo ""
+          echo "=== Seed file ==="
+
+          test -f cpanel-package/scripts/seed.mjs
+
+          ls -lh \
+            cpanel-package/scripts/seed.mjs
+
+      # ============================================================
+      # STRICT ENGINE VERIFICATION
+      # ============================================================
+
+      - name: Verify Prisma engines for cPanel
+        run: |
+          echo "================================="
+          echo "=== cPanel Prisma Engines ==="
+          echo "================================="
+
+          find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( -name "*query_engine*" -o -name "*libquery_engine*" \) \
+            -print
+
+          echo ""
+          echo "================================="
+          echo "=== REQUIRE OpenSSL 1.0.x ==="
+          echo "================================="
+
+          test -n "$(find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.0.x*" \
+            -print -quit)" || {
+              echo "ERROR: cPanel package missing debian-openssl-1.0.x"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-1.0.x"
+
+          echo ""
+          echo "================================="
+          echo "=== REQUIRE OpenSSL 1.1.x ==="
+          echo "================================="
+
+          test -n "$(find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print -quit)" || {
+              echo "ERROR: cPanel package missing debian-openssl-1.1.x"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-1.1.x"
+
+          echo ""
+          echo "================================="
+          echo "=== REQUIRE OpenSSL 3.0.x ==="
+          echo "================================="
+
+          test -n "$(find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-3.0.x*" \
+            -print -quit)" || {
+              echo "ERROR: cPanel package missing debian-openssl-3.0.x"
+              exit 1
+            }
+
+          echo "OK: debian-openssl-3.0.x"
+
+          echo ""
+          echo "================================="
+          echo "ALL CPANEL PRISMA ENGINES FOUND"
+          echo "================================="
+
+      # ============================================================
+      # FINAL PACKAGE VERIFICATION
+      # ============================================================
 
       - name: Verify cPanel package
         run: |
           echo "================================="
           echo "=== cPanel package ==="
           echo "================================="
+
           ls -la cpanel-package
 
           echo ""
           echo "=== server.js ==="
+
           test -f cpanel-package/server.js
           ls -lh cpanel-package/server.js
 
           echo ""
           echo "=== package.json ==="
+
           test -f cpanel-package/package.json
           ls -lh cpanel-package/package.json
 
           echo ""
           echo "=== node_modules ==="
+
           test -d cpanel-package/node_modules
           du -sh cpanel-package/node_modules
 
           echo ""
+          echo "=== @prisma/client ==="
+
+          test -f \
+            cpanel-package/node_modules/@prisma/client/index.js
+
+          ls -lh \
+            cpanel-package/node_modules/@prisma/client/index.js
+
+          echo ""
+          echo "=== Generated .prisma/client ==="
+
+          test -d \
+            cpanel-package/node_modules/.prisma/client
+
+          du -sh \
+            cpanel-package/node_modules/.prisma/client
+
+          echo ""
+          echo "=== Required 1.1.x Engine ==="
+
+          find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print
+
+          test -n "$(find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print -quit)"
+
+          echo ""
+          echo "=== Seed ==="
+
+          test -f cpanel-package/scripts/seed.mjs
+          ls -lh cpanel-package/scripts/seed.mjs
+
+          echo ""
           echo "=== .next ==="
+
           test -d cpanel-package/.next
           ls -la cpanel-package/.next
 
           echo ""
+          echo "================================="
           echo "PACKAGE READY FOR CPANEL"
+          echo "================================="
+
+      # ============================================================
+      # UPLOAD ARTIFACT
+      # ============================================================
 
       - name: Upload cPanel package
         uses: actions/upload-artifact@v4
