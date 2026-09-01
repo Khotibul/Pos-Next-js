@@ -18,6 +18,7 @@ class ApiConstants {
   static const String categories = '/mobile/categories';
   static const String suppliers = '/mobile/suppliers';
   static const String customers = '/mobile/customers';
+  static const String units = '/mobile/units';
   static const String purchases = '/purchases';
   static const String sales = '/mobile/sales';
   static const String returns = '/returns';

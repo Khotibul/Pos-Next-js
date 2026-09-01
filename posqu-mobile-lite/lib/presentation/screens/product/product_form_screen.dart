@@ -12,6 +12,7 @@ import '../../../core/widgets/product_image.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../providers/category/category_provider.dart';
 import '../../providers/product/product_provider.dart';
+import '../../providers/unit/unit_provider.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../domain/entities/product.dart';
 
@@ -39,6 +40,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _unitController = TextEditingController();
   final _imageUrlController = TextEditingController();
   String? _selectedCategoryId;
+  String? _selectedUnit;
   bool _isLoading = false;
   bool _saving = false;
   bool _listening = false;
@@ -82,7 +84,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             : '';
         _stockController.text = product.stock.toString();
         _minStockController.text = _numText(product.minStock);
-        _unitController.text = product.unit;
+        _selectedUnit = product.unit.isNotEmpty ? product.unit : 'pcs';
+        _unitController.text = _selectedUnit ?? 'pcs';
         _imageUrlController.text = product.imageUrl ?? '';
         _selectedCategoryId = product.categoryId;
       },
@@ -234,9 +237,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       wholesaleMinQty: int.tryParse(_wholesaleMinQtyController.text) ?? 0,
       minStock: parseNum(_minStockController.text),
       stock: int.tryParse(_stockController.text) ?? 0,
-      unit: _unitController.text.trim().isEmpty
+      unit: (_selectedUnit ?? _unitController.text.trim()).isEmpty
           ? 'pcs'
-          : _unitController.text.trim(),
+          : (_selectedUnit ?? _unitController.text.trim()),
       imageUrl: _imageUrlController.text.trim().isEmpty
           ? null
           : _imageUrlController.text.trim(),
@@ -283,11 +286,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
+          : Center(
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: 720, minHeight: double.infinity),
+                child: Form(
+                    key: _formKey,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
                   AppTextField(
                     label: 'SKU / Kode Produk',
                     hint: 'Kosongkan untuk dibuat otomatis',
@@ -470,12 +477,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'Satuan',
-                    hint: 'pcs, kg, liter, dll',
-                    prefixIcon: Icons.straighten,
-                    controller: _unitController,
-                  ),
+                  _buildUnitDropdown(),
                   const SizedBox(height: 32),
                   AppButton(
                     label: isEditing ? 'Simpan Perubahan' : 'Simpan Produk',
@@ -484,9 +486,97 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   ),
                   const SizedBox(height: 24),
                 ],
+                ),
               ),
             ),
+          ),
     );
+  }
+
+  Widget _buildUnitDropdown() {
+    final unitsAsync = ref.watch(unitsProvider);
+    return Builder(
+      builder: (context) {
+        return unitsAsync.maybeWhen(
+          orElse: () => _buildUnitField(),
+          data: (units) {
+            final current = _selectedUnit ?? 'pcs';
+            final allUnits = units.contains(current) ? units : [...units, current];
+            return DropdownButtonFormField<String>(
+              initialValue: current,
+              decoration: const InputDecoration(
+                labelText: 'Satuan',
+                prefixIcon: Icon(Icons.straighten),
+              ),
+              items: [
+                ...allUnits.map(
+                  (u) => DropdownMenuItem(value: u, child: Text(u)),
+                ),
+                const DropdownMenuItem(
+                  value: '__custom__',
+                  child: Text('+ Satuan lain…'),
+                ),
+              ],
+              onChanged: (v) {
+                if (v == '__custom__') {
+                  _showCustomUnitDialog(context);
+                  return;
+                }
+                setState(() {
+                  _selectedUnit = v;
+                  _unitController.text = v ?? 'pcs';
+                });
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildUnitField() {
+    return AppTextField(
+      label: 'Satuan',
+      hint: 'contoh: pcs',
+      prefixIcon: Icons.straighten,
+      controller: _unitController,
+      onChanged: (_) => setState(() => _selectedUnit = _unitController.text.trim()),
+    );
+  }
+
+  Future<void> _showCustomUnitDialog(BuildContext context) async {
+    final controller = TextEditingController(text: _unitController.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Satuan Lain'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nama satuan',
+            prefixIcon: Icon(Icons.straighten),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Pakai'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && mounted) {
+      setState(() {
+        _selectedUnit = result;
+        _unitController.text = result;
+      });
+    }
   }
 
   Widget _buildPhotoSection() {

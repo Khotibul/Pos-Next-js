@@ -75,6 +75,7 @@ class SyncRepositoryImpl implements SyncRepository {
     try {
       final pendingCount = await database.syncQueueDao.getPendingCount();
       final result = await processQueue();
+      // ignore: unawaited_return_in_try_block
       return result.fold(
         (l) => Left(l),
         (r) => Right(pendingCount),

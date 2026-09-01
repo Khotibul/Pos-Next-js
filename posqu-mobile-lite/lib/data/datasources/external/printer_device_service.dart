@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -64,6 +63,34 @@ class PrinterDeviceService {
 
   static const MethodChannel _permissionChannel =
       MethodChannel('posqu/permissions');
+
+  /// Encode teks menjadi byte ESC/POS yang aman.
+  /// - Karakter ASCII/Latin-1 (<= 0xFF) ditulis langsung.
+  /// - Tanda kutip/em-dash "pintar" (dari keyboard HP) dipetakan ke ASCII.
+  /// - Karakter lain (> 0xFF, mis. emoji) diganti '?' agar tidak
+  ///   menyebabkan [_enc]/[UTF8] gagal mencetak di MPOS printer.
+  static List<int> _enc(String text) {
+    const smart = <int, String>{
+      0x2018: "'", 0x2019: "'", // ' '
+      0x201C: '"', 0x201D: '"', // " "
+      0x2013: '-', 0x2014: '-', // - -
+      0x2026: '...', 0x00A0: ' ', // … dan NBSP
+    };
+    final out = <int>[];
+    for (final r in text.runes) {
+      if (r <= 0xFF) {
+        out.add(r);
+      } else {
+        final sub = smart[r];
+        if (sub != null) {
+          out.addAll(sub.runes);
+        } else {
+          out.add(0x3F);
+        }
+      }
+    }
+    return out;
+  }
 
   /// Minta izin runtime Bluetooth (Android 12+: CONNECT/SCAN,
   /// di bawahnya: lokasi). Polling hasil hingga 10 detik.
@@ -224,19 +251,19 @@ class PrinterDeviceService {
     String line() => '-' * width;
 
     final buffer = <int>[0x1B, 0x40]; // init
-    buffer.addAll(latin1.encode('\n'));
+    buffer.addAll(_enc('\n'));
     buffer.addAll([0x1B, 0x61, 0x01]); // align center
     buffer.addAll([0x1B, 0x45, 0x01]); // bold on
-    buffer.addAll(latin1.encode('$title\n'));
+    buffer.addAll(_enc('$title\n'));
     buffer.addAll([0x1B, 0x45, 0x00]); // bold off
-    buffer.addAll(latin1.encode('Test Print\n'));
-    buffer.addAll(latin1.encode('${DateTime.now()}\n'));
+    buffer.addAll(_enc('Test Print\n'));
+    buffer.addAll(_enc('${DateTime.now()}\n'));
     buffer.addAll([0x1B, 0x61, 0x00]); // align left
-    buffer.addAll(latin1.encode('${line()}\n'));
-    buffer.addAll(latin1.encode('Printer : ${device.name}\n'));
-    buffer.addAll(latin1.encode('Tipe    : ${device.type.toUpperCase()}\n'));
-    buffer.addAll(latin1.encode('${line()}\n'));
-    buffer.addAll(latin1.encode('Printer siap digunakan.\n\n\n'));
+    buffer.addAll(_enc('${line()}\n'));
+    buffer.addAll(_enc('Printer : ${device.name}\n'));
+    buffer.addAll(_enc('Tipe    : ${device.type.toUpperCase()}\n'));
+    buffer.addAll(_enc('${line()}\n'));
+    buffer.addAll(_enc('Printer siap digunakan.\n\n\n'));
     buffer.addAll([0x1D, 0x56, 0x42, 0x00]); // cut
 
     await sendBytes(device, buffer);
@@ -274,41 +301,47 @@ class PrinterDeviceService {
     final buffer = <int>[0x1B, 0x40];
     buffer.addAll([0x1B, 0x61, 0x01]);
     buffer.addAll([0x1B, 0x45, 0x01]);
-    buffer.addAll(latin1.encode('$headerTitle\n\n'));
+    buffer.addAll(_enc('$headerTitle\n\n'));
     buffer.addAll([0x1B, 0x45, 0x00]);
     if (headerSubtitle.isNotEmpty) {
-      buffer.addAll(latin1.encode('$headerSubtitle\n'));
+      buffer.addAll(_enc('$headerSubtitle\n'));
     }
     buffer.addAll([0x1B, 0x61, 0x00]);
-    buffer.addAll(latin1.encode('${line()}\n'));
-    buffer.addAll(latin1.encode('No  : ${sale.invoiceNo}\n'));
-    buffer.addAll(latin1.encode('Tgl : $dateStr\n'));
-    buffer.addAll(latin1.encode('${line()}\n'));
+    buffer.addAll(_enc('${line()}\n'));
+    buffer.addAll(_enc('No  : ${sale.invoiceNo}\n'));
+    buffer.addAll(_enc('Tgl : $dateStr\n'));
+    buffer.addAll(_enc('${line()}\n'));
 
     for (final item in sale.items) {
-      buffer.addAll(latin1.encode('${item.name}\n'));
-      final skuPart = showSku && item.sku.isNotEmpty ? ' [${item.sku}]' : '';
-      buffer.addAll(latin1.encode('${row("${item.qty} x ${money(item.price)}", money(item.lineTotal))}$skuPart\n'));
+      buffer.addAll(_enc('${item.name}\n'));
+      if (showSku && item.sku.isNotEmpty) {
+        buffer.addAll(_enc('  [${item.sku}]\n'));
+      }
+      buffer.addAll(
+        _enc('${row("${item.qty} x ${money(item.price)}", money(item.lineTotal))}\n'),
+      );
     }
 
-    buffer.addAll(latin1.encode('${line()}\n'));
-    buffer.addAll(latin1.encode('${row('Subtotal', money(sale.subtotal))}\n'));
+    buffer.addAll(_enc('${line()}\n'));
+    buffer.addAll(_enc('${row('Subtotal', money(sale.subtotal))}\n'));
     if (showDiscount) {
-      buffer.addAll(latin1.encode('${row('Diskon', money(sale.discount))}\n'));
+      buffer.addAll(_enc('${row('Diskon', money(sale.discount))}\n'));
     }
     if (showTax) {
-      buffer.addAll(latin1.encode('${row('Pajak', money(sale.tax))}\n'));
+      buffer.addAll(_enc('${row('Pajak', money(sale.tax))}\n'));
     }
-    buffer.addAll(latin1.encode('${line()}\n'));
+    buffer.addAll(_enc('${line()}\n'));
     buffer.addAll([0x1B, 0x45, 0x01]);
-    buffer.addAll(latin1.encode('${row('TOTAL', money(sale.total))}\n'));
+    buffer.addAll(_enc('${row('TOTAL', money(sale.total))}\n'));
     buffer.addAll([0x1B, 0x45, 0x00]);
-    buffer.addAll(latin1.encode(
+    buffer.addAll(_enc(
         '${row('Bayar (${sale.paymentMethod.toUpperCase()})', money(sale.paidAmount))}\n'));
-    buffer.addAll(latin1.encode('${row('Kembali', money(sale.changeAmount))}\n'));
-    buffer.addAll(latin1.encode('${line()}\n'));
+    if (sale.changeAmount > 0.5) {
+      buffer.addAll(_enc('${row('Kembali', money(sale.changeAmount))}\n'));
+    }
+    buffer.addAll(_enc('${line()}\n'));
     buffer.addAll([0x1B, 0x61, 0x01]);
-    buffer.addAll(latin1.encode('$footerNote\n\n\n'));
+    buffer.addAll(_enc('$footerNote\n\n\n'));
     buffer.addAll([0x1D, 0x56, 0x42, 0x00]);
 
     await sendBytes(device, buffer);

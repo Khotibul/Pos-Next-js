@@ -123,7 +123,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           body: LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
-              final isSplit = width >= 900;
+              final height = constraints.maxHeight;
+              final compactHeight = height < 500;
+              // Dua panel hanya dipakai bila masing-masing panel tetap lapang.
+              // Tinggi dapat turun saat keyboard terbuka, jadi jangan gunakan
+              // tinggi pendek sebagai pemicu layout horizontal.
+              final isSplit = width >= 720 && !compactHeight;
+              final cartWidth = (width * 0.42).clamp(300.0, 420.0).toDouble();
+              final catalogWidth = isSplit ? width - cartWidth - 1 : width;
+              final cardTargetWidth = compactHeight ? 150.0 : 180.0;
+              final crossAxisCount =
+                  (catalogWidth / cardTargetWidth).floor().clamp(2, 6).toInt();
 
               final catalog = _CatalogPanel(
                 products: products,
@@ -131,20 +141,19 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                 onQueryChanged: (v) => setState(() => _query = v),
                 onScan: _scanAndAddToCart,
                 onAdd: (p) => _addToCart(p),
-                crossAxisCount: isSplit
-                    ? (width * 0.6 >= 700 ? 3 : 2)
-                    : (width >= 620 ? 3 : 2),
+                crossAxisCount: crossAxisCount,
+                compactHeight: compactHeight,
               );
 
               if (isSplit) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(flex: 3, child: catalog),
+                    Expanded(child: catalog),
                     VerticalDivider(
                         width: 1, color: Theme.of(context).dividerColor),
-                    Expanded(
-                      flex: 2,
+                    SizedBox(
+                      width: cartWidth,
                       child: _buildCartSidePanel(kasirState),
                     ),
                   ],
@@ -647,6 +656,7 @@ class _CatalogPanel extends StatelessWidget {
   final VoidCallback onScan;
   final ValueChanged<Product> onAdd;
   final int crossAxisCount;
+  final bool compactHeight;
 
   const _CatalogPanel({
     required this.products,
@@ -655,6 +665,7 @@ class _CatalogPanel extends StatelessWidget {
     required this.onScan,
     required this.onAdd,
     required this.crossAxisCount,
+    required this.compactHeight,
   });
 
   @override
@@ -711,7 +722,7 @@ class _CatalogPanel extends StatelessWidget {
                         crossAxisCount: crossAxisCount,
                         mainAxisSpacing: 10,
                         crossAxisSpacing: 10,
-                        childAspectRatio: 0.72,
+                        childAspectRatio: compactHeight ? 0.82 : 0.72,
                       ),
                       itemCount: products.length,
                       itemBuilder: (context, i) => _ProductCard(
@@ -1112,6 +1123,7 @@ class _CartFooter extends StatelessWidget {
     final container = ProviderScope.containerOf(context);
     final notifier = container.read(kasirStateProvider.notifier);
     final config = await notifier.getReceiptConfig();
+    var paymentCommitted = false;
 
     void setPaid(double amount) {
       container.read(kasirStateProvider.notifier).setPaidAmount(amount);
@@ -1136,17 +1148,25 @@ class _CartFooter extends StatelessWidget {
       context: context,
       builder: (dialogContext) => PopScope(
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) return;
+          if (!didPop || paymentCommitted) return;
           container.read(kasirStateProvider.notifier).setPaidAmount(0);
         },
         child: Consumer(
           builder: (dialogContext, dialogRef, _) {
             final live = dialogRef.watch(kasirStateProvider);
             final change = live.paidAmount - live.total;
+            final dialogSize = MediaQuery.sizeOf(dialogContext);
+            final compactDialog = dialogSize.height < 520;
+            final dialogInset = EdgeInsets.symmetric(
+              horizontal: compactDialog ? 16 : 40,
+              vertical: compactDialog ? 8 : 24,
+            );
 
             // ============ TAMPILAN QRIS ============
             if (isQris) {
               return AlertDialog(
+                scrollable: true,
+                insetPadding: dialogInset,
                 title: const Text('Pembayaran QRIS'),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1166,7 +1186,7 @@ class _CartFooter extends StatelessWidget {
                       child: hasQrisImage
                           ? ProductImageThumb(
                               url: config.qrisImage,
-                              size: 250,
+                              size: compactDialog ? 120 : 250,
                               borderRadius: BorderRadius.circular(8),
                             )
                           : Column(
@@ -1204,11 +1224,13 @@ class _CartFooter extends StatelessWidget {
                       child: const Text('Batal')),
                   FilledButton.icon(
                     onPressed: () {
-                      Navigator.pop(dialogContext);
+                      if (paymentCommitted) return;
+                      paymentCommitted = true;
                       container
                           .read(kasirStateProvider.notifier)
                           .setPaidAmount(live.total);
-                      _payNow(context, ref, live);
+                      Navigator.pop(dialogContext);
+                      _payNow(context, config);
                     },
                     icon: const Icon(Icons.check_circle_outline, size: 18),
                     label: const Text('Pembayaran Diterima'),
@@ -1219,6 +1241,8 @@ class _CartFooter extends StatelessWidget {
 
             // ============ TUNAI / TRANSFER ============
             return AlertDialog(
+              scrollable: true,
+              insetPadding: dialogInset,
               title: const Text('Pembayaran'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1317,8 +1341,10 @@ class _CartFooter extends StatelessWidget {
                 FilledButton(
                   onPressed: live.paidAmount >= live.total
                       ? () {
+                          if (paymentCommitted) return;
+                          paymentCommitted = true;
                           Navigator.pop(dialogContext);
-                          _payNow(context, ref, live);
+                          _payNow(context, config);
                         }
                       : null,
                   child: const Text('Bayar'),
@@ -1331,11 +1357,9 @@ class _CartFooter extends StatelessWidget {
     );
   }
 
-  Future<void> _payNow(
-      BuildContext context, WidgetRef ref, KasirState state) async {
+  Future<void> _payNow(BuildContext context, ReceiptConfig config) async {
     final container = ProviderScope.containerOf(context);
     final notifier = container.read(kasirStateProvider.notifier);
-    final config = await notifier.getReceiptConfig();
     final sale = await notifier.checkout('');
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);

@@ -7,6 +7,7 @@ import '../../../data/repositories/customer_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/supplier_repository_impl.dart';
+import '../unit/unit_provider.dart';
 
 class SyncStatusInfo {
   final int pendingSales;
@@ -73,6 +74,12 @@ class SyncActions {
       await _ref.read(customerRepositoryProvider).getCustomers();
       await _ref.read(productRepositoryProvider).getProducts();
       await _ref.read(saleRepositoryProvider).getSales();
+
+      // Segarkan daftar satuan dari server (tombol/sumber dropdown produk).
+      _ref.invalidate(unitsProvider);
+      try {
+        await _ref.read(unitsProvider.future);
+      } catch (_) {}
 
       final box = await Hive.openBox('cache');
       await box.put('last_sync_at', DateTime.now().millisecondsSinceEpoch);

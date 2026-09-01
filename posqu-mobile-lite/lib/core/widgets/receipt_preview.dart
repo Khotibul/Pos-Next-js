@@ -96,7 +96,8 @@ pw.Document buildReceiptPdf(Sale sale, ReceiptConfig config) {
           _row('TOTAL', money(sale.total), bold: true),
           _row('Bayar (${sale.paymentMethod.toUpperCase()})',
               money(sale.paidAmount)),
-          _row('Kembali', money(sale.changeAmount)),
+          if (sale.changeAmount > 0.5)
+            _row('Kembali', money(sale.changeAmount)),
           pw.Divider(),
           pw.Center(
             child: pw.Text(config.footerNote,
@@ -370,9 +371,10 @@ Future<void> showReceiptPreview(
                           'Bayar (${sale.paymentMethod.toUpperCase()})',
                           CurrencyFormatter.formatWithoutSymbol(
                               sale.paidAmount)),
-                      _previewRow('Kembali',
-                          CurrencyFormatter.formatWithoutSymbol(
-                              sale.changeAmount)),
+                      if (sale.changeAmount > 0.5)
+                        _previewRow('Kembali',
+                            CurrencyFormatter.formatWithoutSymbol(
+                                sale.changeAmount)),
                       const Divider(),
                       Center(
                         child: Text(

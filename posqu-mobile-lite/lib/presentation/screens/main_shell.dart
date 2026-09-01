@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/utils/responsive_helper.dart';
+
 class MainShell extends StatelessWidget {
   final Widget child;
 
@@ -50,30 +52,109 @@ class MainShell extends StatelessWidget {
     return 0;
   }
 
+  void _navigate(BuildContext context, String location, int index) {
+    final target = _destinations[index].route;
+    if (location != target) {
+      context.go(target);
+    }
+  }
+
+  Widget _buildNavigationBar(
+    BuildContext context,
+    String location,
+    int index,
+  ) {
+    return NavigationBar(
+      selectedIndex: index,
+      onDestinationSelected: (i) => _navigate(context, location, i),
+      destinations: [
+        for (final destination in _destinations)
+          NavigationDestination(
+            icon: Icon(destination.icon),
+            selectedIcon: Icon(destination.selectedIcon),
+            label: destination.label,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScrollableNavigationRail(
+    BuildContext context,
+    String location,
+    int index,
+    double viewportHeight,
+  ) {
+    const destinationExtent = 72.0;
+    final minimumContentHeight = _destinations.length * destinationExtent;
+    final contentHeight = viewportHeight < minimumContentHeight
+        ? minimumContentHeight
+        : viewportHeight;
+
+    return SizedBox(
+      width: 64,
+      child: SingleChildScrollView(
+        child: SizedBox(
+          height: contentHeight,
+          child: NavigationRail(
+            minWidth: 64,
+            groupAlignment: -1,
+            labelType: NavigationRailLabelType.none,
+            selectedIndex: index,
+            onDestinationSelected: (i) => _navigate(context, location, i),
+            destinations: [
+              for (final destination in _destinations)
+                NavigationRailDestination(
+                  icon: Tooltip(
+                    message: destination.label,
+                    child: Icon(destination.icon),
+                  ),
+                  selectedIcon: Tooltip(
+                    message: destination.label,
+                    child: Icon(destination.selectedIcon),
+                  ),
+                  label: Text(destination.label),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     final index = _currentIndex(location);
 
-    return Scaffold(
-      body: SafeArea(child: child),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) {
-          final target = _destinations[i].route;
-          if (location != target) {
-            context.go(target);
-          }
-        },
-        destinations: [
-          for (final d in _destinations)
-            NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon),
-              label: d.label,
-            ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useNavigationRail = constraints.maxWidth >=
+            ResponsiveHelper.compactWidthBreakpoint;
+
+        return Scaffold(
+          body: SafeArea(
+            child: useNavigationRail
+                ? LayoutBuilder(
+                    builder: (context, safeConstraints) => Row(
+                      children: [
+                        _buildScrollableNavigationRail(
+                          context,
+                          location,
+                          index,
+                          safeConstraints.maxHeight,
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(child: child),
+                      ],
+                    ),
+                  )
+                : child,
+          ),
+          bottomNavigationBar: useNavigationRail
+              ? null
+              : _buildNavigationBar(context, location, index),
+        );
+      },
     );
   }
 }

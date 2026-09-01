@@ -42,88 +42,173 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 720;
+            final formCard = _buildFormCard(context, authState);
+
+            if (isWide) {
+              return Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.asset(
-                      'assets/images/logo_launcher.png',
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                    ),
+                  Expanded(
+                    child: _buildBrandingPanel(),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'POSQU Mobile Lite',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  SizedBox(
+                    width: 440.0.clamp(320.0, constraints.maxWidth * 0.5),
+                    child: Container(
+                      color: Theme.of(context).colorScheme.surface,
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(32),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 380),
+                            child: formCard,
+                          ),
                         ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Masuk untuk memulai',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                  const SizedBox(height: 48),
-                  AppTextField(
-                    label: 'Email',
-                    hint: 'Masukkan email',
-                    prefixIcon: Icons.email_outlined,
-                    controller: _emailController,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Email wajib diisi';
-                      if (!v.contains('@')) return 'Format email tidak valid';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Password wajib diisi';
-                      if (v.length < 8) return 'Password minimal 8 karakter';
-                      return null;
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Masukkan password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                        ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  AppButton(
-                    label: 'Masuk',
-                    loading: authState.maybeWhen(
-                      loading: () => true,
-                      orElse: () => false,
-                    ),
-                    onPressed: _handleLogin,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSocialSignInButtons(),
                 ],
+              );
+            }
+
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: formCard,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrandingPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.tertiary,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                'assets/images/logo_launcher.png',
+                width: 96,
+                height: 96,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'POSQU Mobile Lite',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kasir modern untuk toko Anda',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormCard(BuildContext context, AuthState authState) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.asset(
+              'assets/images/logo_launcher.png',
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'POSQU Mobile Lite',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Masuk untuk memulai',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 32),
+          AppTextField(
+            label: 'Email',
+            hint: 'Masukkan email',
+            prefixIcon: Icons.email_outlined,
+            controller: _emailController,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Email wajib diisi';
+              if (!v.contains('@')) return 'Format email tidak valid';
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscurePassword,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Password wajib diisi';
+              if (v.length < 8) return 'Password minimal 8 karakter';
+              return null;
+            },
+            decoration: InputDecoration(
+              labelText: 'Password',
+              hintText: 'Masukkan password',
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 24),
+          AppButton(
+            label: 'Masuk',
+            loading: authState.maybeWhen(
+              loading: () => true,
+              orElse: () => false,
+            ),
+            onPressed: _handleLogin,
+          ),
+          const SizedBox(height: 24),
+          _buildSocialSignInButtons(),
+        ],
       ),
     );
   }

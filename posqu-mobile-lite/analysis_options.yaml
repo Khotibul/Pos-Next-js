@@ -18,3 +18,6 @@ analyzer:
     - "**/*.freezed.dart"
     - "**/*.gr.dart"
     - "**/generated/**"
+    - build/**
+    - android/**
+    - windows/**

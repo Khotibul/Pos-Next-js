@@ -27,7 +27,6 @@ class DashboardScreen extends ConsumerWidget {
         userId.isEmpty ? null : ref.watch(activeShiftProvider(userId));
     final shift = shiftAsync?.valueOrNull;
     final data = dashboardAsync.valueOrNull;
-    final isWide = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,40 +50,52 @@ class DashboardScreen extends ConsumerWidget {
         icon: const Icon(Icons.point_of_sale),
         label: const Text('Kasir'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(dashboardProvider),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildGreeting(context, userName, shift),
-            const SizedBox(height: 16),
-            isWide
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 3, child: _buildOmzetHero(context, data)),
-                      const SizedBox(width: 12),
-                      Expanded(flex: 2, child: _buildStatChips(context, data)),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      _buildOmzetHero(context, data),
-                      const SizedBox(height: 12),
-                      _buildStatChips(context, data),
-                    ],
-                  ),
-            const SizedBox(height: 20),
-            _buildSectionTitle(context, 'Menu Cepat'),
-            const SizedBox(height: 10),
-            _buildQuickMenu(context),
-            const SizedBox(height: 20),
-            _buildSectionTitle(context, 'Status Toko'),
-            const SizedBox(height: 10),
-            _buildShiftCard(context, shift),
-            const SizedBox(height: 96),
-          ],
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 900;
+
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(dashboardProvider),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildGreeting(context, userName, shift),
+                const SizedBox(height: 16),
+                isWide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: _buildOmzetHero(context, data),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: _buildStatChips(context, data),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          _buildOmzetHero(context, data),
+                          const SizedBox(height: 12),
+                          _buildStatChips(context, data),
+                        ],
+                      ),
+                const SizedBox(height: 20),
+                _buildSectionTitle(context, 'Menu Cepat'),
+                const SizedBox(height: 10),
+                _buildQuickMenu(context),
+                const SizedBox(height: 20),
+                _buildSectionTitle(context, 'Status Toko'),
+                const SizedBox(height: 10),
+                _buildShiftCard(context, shift),
+                const SizedBox(height: 96),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

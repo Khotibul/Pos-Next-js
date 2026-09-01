@@ -7,16 +7,30 @@ import 'package:uuid/uuid.dart';
 
 import '../../../data/datasources/local/database/app_database.dart';
 
-final localUsersProvider = FutureProvider<List<UsersTableData>>((ref) async {
+final localUsersProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final db = ref.watch(appDatabaseProvider);
-  return db.userDao.getAll();
+  final users = await db.userDao.getAll();
+  return users
+      .map((u) => {
+            'id': u.id,
+            'name': u.name,
+            'email': u.email,
+            'isSuperAdmin': u.isSuperAdmin,
+            'isActive': u.isActive,
+          })
+      .toList();
 });
 
-class LocalUsersScreen extends ConsumerWidget {
+class LocalUsersScreen extends ConsumerStatefulWidget {
   const LocalUsersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LocalUsersScreen> createState() => _LocalUsersScreenState();
+}
+
+class _LocalUsersScreenState extends ConsumerState<LocalUsersScreen> {
+  @override
+  Widget build(BuildContext context) {
     final usersAsync = ref.watch(localUsersProvider);
 
     return Scaffold(
@@ -63,40 +77,45 @@ class LocalUsersScreen extends ConsumerWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final user = users[index];
+                    final name = user['name'] as String?;
+                    final email = user['email'] as String?;
+                    final isSuperAdmin = user['isSuperAdmin'] as bool? ?? false;
+                    final isActive = user['isActive'] as bool? ?? true;
+                    final id = user['id'] as String;
                     return Card(
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Theme.of(context).colorScheme.primary,
                           child: Text(
-                            (user.name ?? user.email ?? '?').substring(0, 1).toUpperCase(),
+                            (name ?? email ?? '?').substring(0, 1).toUpperCase(),
                             style: const TextStyle(color: Colors.white),
                           ),
                         ),
-                        title: Text(user.name ?? 'Tanpa Nama'),
+                        title: Text(name ?? 'Tanpa Nama'),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(user.email ?? '-', style: Theme.of(context).textTheme.bodySmall),
+                            Text(email ?? '-', style: Theme.of(context).textTheme.bodySmall),
                             const SizedBox(height: 2),
                             Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: user.isSuperAdmin ? Colors.red.withValues(alpha: 0.1) : Colors.blue.withValues(alpha: 0.1),
+                                    color: isSuperAdmin ? Colors.red.withValues(alpha: 0.1) : Colors.blue.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    user.isSuperAdmin ? 'ADMIN' : 'USER',
+                                    isSuperAdmin ? 'ADMIN' : 'USER',
                                     style: TextStyle(
                                       fontSize: 10,
-                                      color: user.isSuperAdmin ? Colors.red : Colors.blue,
+                                      color: isSuperAdmin ? Colors.red : Colors.blue,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                if (!user.isActive)
+                                if (!isActive)
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
@@ -116,7 +135,7 @@ class LocalUsersScreen extends ConsumerWidget {
                                 context: context,
                                 builder: (ctx) => AlertDialog(
                                   title: const Text('Hapus Akun Lokal?'),
-                                  content: Text('Hapus ${user.email}? Akun masih bisa login online jika ada di server.'),
+                                  content: Text('Hapus $email? Akun masih bisa login online jika ada di server.'),
                                   actions: [
                                     TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
                                     FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus')),
@@ -125,7 +144,7 @@ class LocalUsersScreen extends ConsumerWidget {
                               );
                               if (confirm == true) {
                                 final db = ref.read(appDatabaseProvider);
-                                await db.userDao.deleteUser(user.id);
+                                await db.userDao.deleteUser(id);
                                 ref.invalidate(localUsersProvider);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -245,12 +264,13 @@ class LocalUsersScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _showResetPasswordDialog(BuildContext context, WidgetRef ref, UsersTableData user) async {
+  Future<void> _showResetPasswordDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> user) async {
     final passwordController = TextEditingController();
+    final email = user['email'] as String? ?? '-';
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Reset Password ${user.email}'),
+        title: Text('Reset Password $email'),
         content: TextField(
           controller: passwordController,
           decoration: const InputDecoration(labelText: 'Password Baru', prefixIcon: Icon(Icons.lock_outline)),
@@ -272,8 +292,9 @@ class LocalUsersScreen extends ConsumerWidget {
     try {
       final db = ref.read(appDatabaseProvider);
       final hashed = sha256.convert(utf8.encode(newPass)).toString();
+      final id = user['id'] as String;
       await db.userDao.updateUser(UsersTableCompanion(
-        id: Value(user.id),
+        id: Value(id),
         passwordHash: Value(hashed),
         updatedAt: Value(DateTime.now()),
       ));

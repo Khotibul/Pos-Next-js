@@ -13,6 +13,7 @@ Future<String?> showBarcodeScannerSheet(BuildContext context) async {
   final result = await showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -53,83 +54,108 @@ class _BarcodeScannerSheetState extends State<_BarcodeScannerSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+      top: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const preferredHeight = 420.0;
+          final sheetHeight = constraints.maxHeight.isFinite &&
+                  constraints.maxHeight < preferredHeight
+              ? constraints.maxHeight
+              : preferredHeight;
+
+          return SizedBox(
+            height: sheetHeight,
+            child: Column(
               children: [
-                const Icon(Icons.qr_code_scanner, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Scan Barcode',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.bold)),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.qr_code_scanner, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Scan Barcode',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                const Divider(height: 1),
+                Expanded(
+                  child: _canUseCamera
+                      ? Stack(
+                          children: [
+                            MobileScanner(
+                              onDetect: (capture) {
+                                final code =
+                                    capture.barcodes.firstOrNull?.rawValue;
+                                if (code != null && code.isNotEmpty) {
+                                  _emit(code);
+                                }
+                              },
+                            ),
+                            Positioned(
+                              left: 12,
+                              right: 12,
+                              bottom: 12,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Text(
+                                    'Arahkan barcode ke dalam kotak kamera',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Perangkat ini tidak memiliki kamera. '
+                                  'Gunakan alat scanner barcode fisik — '
+                                  'deteksinya otomatis tanpa perlu klik apa pun.',
+                                  style:
+                                      Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
               ],
             ),
-          ),
-          const Divider(height: 1),
-          if (_canUseCamera) ...[
-            SizedBox(
-              height: 320,
-              child: Stack(
-                children: [
-                  MobileScanner(
-                    onDetect: (capture) {
-                      final code = capture.barcodes.firstOrNull?.rawValue;
-                      if (code != null && code.isNotEmpty) _emit(code);
-                    },
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 12,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Arahkan barcode ke dalam kotak kamera',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ] else
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.blue),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Perangkat ini tidak memiliki kamera. '
-                      'Gunakan alat scanner barcode fisik — '
-                      'deteksinya otomatis tanpa perlu klik apa pun.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 8),
-        ],
+          );
+        },
       ),
     );
   }

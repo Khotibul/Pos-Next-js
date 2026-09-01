@@ -223,15 +223,19 @@ class KasirNotifier extends StateNotifier<KasirState> {
   }
 
   void setPaidAmount(double amount) {
+    final paidAmount = amount.isFinite && amount > 0 ? amount : 0.0;
+    final changeAmount = paidAmount - state.total;
     state = state.copyWith(
-      paidAmount: amount,
-      changeAmount: amount - state.total,
+      paidAmount: paidAmount,
+      changeAmount: changeAmount > 0 ? changeAmount : 0,
     );
   }
 
   Future<Sale?> checkout(String cashierId) async {
     state = state.copyWith(isLoading: true);
     try {
+      final paidAmount = state.paidAmount;
+      final changeAmount = paidAmount - state.total;
       final now = DateTime.now();
       final invoiceNo = 'INV-${now.millisecondsSinceEpoch}';
       final saleId = const Uuid().v4();
@@ -249,8 +253,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
         discount: state.discount,
         tax: state.tax,
         total: state.total,
-        paidAmount: state.paidAmount,
-        changeAmount: state.changeAmount,
+        paidAmount: paidAmount,
+        changeAmount: changeAmount > 0 ? changeAmount : 0,
         items: items,
         updatedAt: now,
       );
