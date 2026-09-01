@@ -38,36 +38,46 @@ class GoogleAuthDataSource {
 
   Future<User?> signInWithGoogle() async {
     try {
+      // Pastikan Google Play Services tersedia (Android)
       final GoogleSignInAccount? googleUser = await _googleSignInInstance.signIn();
       if (googleUser == null) {
-        // The user canceled the sign-in
-        return null;
+        return null; // user batal
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       final idToken = googleAuth.idToken;
-      if (idToken == null) {
-        throw Exception('No ID token received from Google');
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception(
+            'No ID token received. Pastikan NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID di .env benar & SHA-1 keystore terdaftar di Google Cloud Console (OAuth Android). SHA-1 upload-keystore: A9:5F:59:A5:C7:C3:1A:E4:FA:11:D9:BA:62:31:9F:11:6E:DE:BC:CB');
       }
 
-      // Send the ID token to the backend for verification
       final dio = _ref.read(dioClientProvider).dio;
       final response = await dio.post(
         ApiConstants.mobileGoogleLogin,
-        data: {
-          'idToken': idToken,
-        },
+        data: {'idToken': idToken},
       );
 
       if (response.data['ok'] != true) {
-        throw Exception(response.data['message'] ?? 'Google Sign-In failed');
+        final code = response.data['code'] ?? '';
+        final msg = response.data['message'] ?? 'Google Sign-In failed';
+        // Backend akan validasi aud terhadap NEXT_PUBLIC_GOOGLE_WEB/ANDROID_CLIENT_ID
+        if (code == 'GOOGLE_TOKEN_INVALID') {
+          throw Exception('$msg (cek NEXT_PUBLIC_GOOGLE_* di .env & SHA-1 di console)');
+        }
+        throw Exception(msg);
       }
 
       final userModel = UserModel.fromJson(response.data['user']);
       return userModel.toEntity();
     } catch (e) {
+      final msg = e.toString();
+      // Deteksi DEVELOPER_ERROR / ApiException:10 = SHA-1 / package belum terdaftar
+      if (msg.contains('ApiException: 10') || msg.contains('DEVELOPER_ERROR')) {
+        throw Exception(
+            'Google Sign-In gagal (ApiException 10): SHA-1 upload-keystore.jks A9:5F:59:A5:C7:C3:1A:E4:FA:11:D9:BA:62:31:9F:11:6E:DE:BC:CB belum terdaftar untuk package com.posqu.mobile.lite & client 190762274336-j4mak... di https://console.cloud.google.com/apis/credentials. Tambahkan SHA-1 tersebut ke Android OAuth client.');
+      }
+      if (msg.contains('No ID token')) rethrow;
       throw Exception('Google Sign-In failed: $e');
     }
   }

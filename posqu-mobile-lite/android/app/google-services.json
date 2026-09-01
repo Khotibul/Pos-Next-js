@@ -1,0 +1,33 @@
+{
+  "project_info": {
+    "project_number": "190762274336",
+    "project_id": "posqu-pro",
+    "storage_bucket": "posqu-pro.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190762274336:android:9a8b7c6d5e4f3a2b1",
+        "android_client_info": {
+          "package_name": "com.posqu.mobile.lite"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "190762274336-j4makq35ipsfr0tu5ctm5l0ppnrd55nb.apps.googleusercontent.com",
+          "client_type": 1
+        },
+        {
+          "client_id": "190762274336-r591d3tfpghhbs741nhg9cne7ubhc7lh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyPlaceholderKey_DoNotUseInProduction"
+        }
+      ]
+    }
+  ],
+  "configuration_version": "1"
+}
