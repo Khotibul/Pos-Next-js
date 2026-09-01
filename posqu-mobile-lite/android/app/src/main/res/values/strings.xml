@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">POSQU Mobile Lite</string>
+    <!-- Google Sign-In: serverClientId / web client id. Sinkron dengan .env NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID -->
+    <string name="default_web_client_id">190762274336-r591d3tfpghhbs741nhg9cne7ubhc7lh.apps.googleusercontent.com</string>
 </resources>

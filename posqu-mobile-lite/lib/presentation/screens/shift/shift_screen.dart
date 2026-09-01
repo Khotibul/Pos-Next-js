@@ -214,7 +214,7 @@ class ShiftScreen extends ConsumerWidget {
     noteController.dispose();
 
     if (!context.mounted) return;
-    final openingCash = double.tryParse(rawOpening.replaceAll('.', '')) ?? 0;
+    final openingCash = double.tryParse(rawOpening.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     final ok = await ref.read(shiftControllerProvider.notifier).open(
           userId,
           openingCash: openingCash,
@@ -257,7 +257,7 @@ class ShiftScreen extends ConsumerWidget {
                 _summaryRow(dialogContext, 'E-wallet', CurrencyFormatter.format(summary.totalEwallet)),
                 _summaryRow(dialogContext, 'Pengeluaran', CurrencyFormatter.format(summary.totalExpenses)),
                 _summaryRow(dialogContext, 'Saldo awal', CurrencyFormatter.format(shift.openingCash)),
-                _summaryRow(dialogContext, 'Kas sistem', CurrencyFormatter.format(summary.cashSystem), bold: true),
+                _summaryRow(dialogContext, 'Kas sistem', CurrencyFormatter.format(summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem), bold: true),
                 const Divider(),
                 const SizedBox(height: 8),
                 const Text('Masukkan uang aktual (cash counted) untuk menutup shift.', style: TextStyle(fontSize: 12)),
@@ -266,7 +266,7 @@ class ShiftScreen extends ConsumerWidget {
                   controller: cashCountedController,
                   keyboardType: TextInputType.number,
                   autofocus: true,
-                  decoration: InputDecoration(labelText: 'Cash Counted', prefixText: 'Rp ', hintText: summary.cashSystem.toStringAsFixed(0)),
+                  decoration: InputDecoration(labelText: 'Cash Counted', prefixText: 'Rp ', hintText: (summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem).toStringAsFixed(0)),
                 ),
                 const SizedBox(height: 12),
                 TextField(controller: noteController, decoration: const InputDecoration(labelText: 'Catatan (opsional)')),
@@ -292,7 +292,8 @@ class ShiftScreen extends ConsumerWidget {
     noteController.dispose();
 
     if (!context.mounted) return;
-    final cashCounted = double.tryParse(rawCounted.replaceAll('.', '')) ?? summary.cashSystem;
+    final fallbackExpected = summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem;
+    final cashCounted = double.tryParse(rawCounted.replaceAll(RegExp(r'[^0-9]'), '')) ?? fallbackExpected;
     final ok = await ref.read(shiftControllerProvider.notifier).close(
           shiftId: shift.id,
           cashierId: userId,

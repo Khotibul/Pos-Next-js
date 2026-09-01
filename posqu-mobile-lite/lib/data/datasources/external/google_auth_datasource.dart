@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/constants/env_config.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../domain/entities/user.dart';
 import '../../models/user_model.dart';
@@ -16,16 +18,27 @@ class GoogleAuthDataSource {
 
   GoogleAuthDataSource(this._ref);
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'profile',
-    ],
-  );
+  GoogleSignIn? _googleSignIn;
+
+  GoogleSignIn get _googleSignInInstance {
+    if (_googleSignIn != null) return _googleSignIn!;
+    final serverClientId = EnvConfig.googleServerClientId;
+    if (serverClientId.isEmpty && kDebugMode) {
+      debugPrint('[GoogleAuth] WARN: serverClientId kosong. Set NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID / GOOGLE_CLIENT_ID di .env');
+    }
+    _googleSignIn = GoogleSignIn(
+      scopes: const ['email', 'profile'],
+      // Android: idToken audience harus salah satu dari allowedAudiences backend
+      // (GOOGLE_CLIENT_ID / NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID / NEXT_PUBLIC_GOOGLE_ANDROID_CLIENT_ID)
+      // Paket google_sign_in Android memakai serverClientId sebagai audience idToken.
+      serverClientId: serverClientId.isEmpty ? null : serverClientId,
+    );
+    return _googleSignIn!;
+  }
 
   Future<User?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser = await _googleSignInInstance.signIn();
       if (googleUser == null) {
         // The user canceled the sign-in
         return null;
@@ -60,12 +73,17 @@ class GoogleAuthDataSource {
   }
 
   Future<void> signOutFromGoogle() async {
-    await _googleSignIn.signOut();
-    // Note: Backend handles sign out via API call if needed
+    if (_googleSignIn != null) {
+      await _googleSignIn!.signOut();
+    } else {
+      // Belum pernah init -> buat instance lalu signOut untuk bersihkan state
+      await _googleSignInInstance.signOut();
+    }
   }
 
   Future<bool> isSignedInWithGoogle() async {
-    return await _googleSignIn.isSignedIn();
+    if (_googleSignIn != null) return await _googleSignIn!.isSignedIn();
+    return await _googleSignInInstance.isSignedIn();
   }
 }
 

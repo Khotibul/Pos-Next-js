@@ -847,7 +847,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     openingCashController.dispose();
     noteController.dispose();
 
-    final openingCash = double.tryParse(rawOpening.replaceAll('.', '')) ?? 0;
+    final openingCash = double.tryParse(rawOpening.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     final ok = await ref.read(shiftControllerProvider.notifier).open(
           userId,
           openingCash: openingCash,
@@ -904,7 +904,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                 _summaryRow(dialogContext, 'Saldo awal',
                     CurrencyFormatter.format(shift.openingCash)),
                 _summaryRow(dialogContext, 'Kas sistem',
-                    CurrencyFormatter.format(summary.cashSystem),
+                    CurrencyFormatter.format(summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem),
                     bold: true),
                 const Divider(),
                 const SizedBox(height: 8),
@@ -919,7 +919,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                     labelText: 'Cash Counted',
                     prefixText: 'Rp ',
                     hintText:
-                        summary.cashSystem.toStringAsFixed(0),
+                        (summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem).toStringAsFixed(0),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -958,8 +958,9 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     cashCountedController.dispose();
     noteController.dispose();
 
+    final fallbackExpected = summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem;
     final cashCounted =
-        double.tryParse(rawCounted.replaceAll('.', '')) ?? summary.cashSystem;
+        double.tryParse(rawCounted.replaceAll(RegExp(r'[^0-9]'), '')) ?? fallbackExpected;
     final ok = await ref
         .read(shiftControllerProvider.notifier)
         .close(

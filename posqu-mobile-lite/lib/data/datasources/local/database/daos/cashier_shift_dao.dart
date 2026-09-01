@@ -44,8 +44,11 @@ class CashierShiftDao extends DatabaseAccessor<AppDatabase>
     await into(cashierShiftsTable).insert(shift);
   }
 
-  Future<bool> updateShift(CashierShiftsTableCompanion shift) {
-    return update(cashierShiftsTable).replace(shift);
+  Future<bool> updateShift(CashierShiftsTableCompanion shift) async {
+    if (!shift.id.present) return false;
+    final targetId = shift.id.value;
+    final count = await (update(cashierShiftsTable)..where((t) => t.id.equals(targetId))).write(shift);
+    return count > 0;
   }
 
   Future<List<CashierShiftsTableData>> getUnsynced() {
