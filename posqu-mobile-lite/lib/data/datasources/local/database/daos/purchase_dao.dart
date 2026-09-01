@@ -54,4 +54,9 @@ class PurchaseDao extends DatabaseAccessor<AppDatabase> with _$PurchaseDaoMixin 
   Future<List<PurchasesTableData>> getUnsynced() {
     return (select(purchasesTable)..where((t) => t.isSynced.equals(false))).get();
   }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(purchasesTable)..where((t) => t.id.isIn(ids)))
+        .write(const PurchasesTableCompanion(isSynced: Value(true)));
+  }
 }

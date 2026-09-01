@@ -19,11 +19,11 @@ class ApiConstants {
   static const String suppliers = '/mobile/suppliers';
   static const String customers = '/mobile/customers';
   static const String units = '/mobile/units';
-  static const String purchases = '/purchases';
+  static const String purchases = '/mobile/purchases';
   static const String sales = '/mobile/sales';
-  static const String returns = '/returns';
-  static const String cashierShifts = '/cashier-shifts';
-  static const String cashTransactions = '/cash-transactions';
+  static const String returns = '/mobile/returns';
+  static const String cashierShifts = '/mobile/cashier-shifts';
+  static const String cashTransactions = '/mobile/cash-transactions';
   static const String reports = '/reports';
   static const String dashboard = '/dashboard';
   static const String sync = '/sync';

@@ -54,4 +54,13 @@ class ReturnDao extends DatabaseAccessor<AppDatabase> with _$ReturnDaoMixin {
   Future<void> insertReturnItem(ReturnItemsTableCompanion item) async {
     await into(returnItemsTable).insert(item);
   }
+
+  Future<List<ReturnsTableData>> getUnsynced() {
+    return (select(returnsTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(returnsTable)..where((t) => t.id.isIn(ids)))
+        .write(const ReturnsTableCompanion(isSynced: Value(true)));
+  }
 }

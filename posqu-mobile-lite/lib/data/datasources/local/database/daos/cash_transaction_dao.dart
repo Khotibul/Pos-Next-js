@@ -68,4 +68,13 @@ class CashTransactionDao extends DatabaseAccessor<AppDatabase>
         .get()
         .then((rows) => rows.fold<double>(0, (sum, v) => sum + v));
   }
+
+  Future<List<CashTransactionsTableData>> getUnsynced() {
+    return (select(cashTransactionsTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(cashTransactionsTable)..where((t) => t.id.isIn(ids)))
+        .write(const CashTransactionsTableCompanion(isSynced: Value(true)));
+  }
 }
