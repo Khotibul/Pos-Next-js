@@ -50,7 +50,7 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
   final suppliers = await db.supplierDao.getUnsynced();
   final shifts = await db.cashierShiftDao.getUnsynced();
 
-  final box = await Hive.openBox('cache');
+  final box = Hive.isBoxOpen('cache') ? Hive.box('cache') : await Hive.openBox('cache');
   final lastMs = box.get('last_sync_at') as int?;
 
   return SyncStatusInfo(
@@ -67,13 +67,17 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
 
 class SyncActions {
   final Ref _ref;
+  bool _isSyncing = false;
 
   SyncActions(this._ref);
 
   /// Memicu sinkronisasi dua arah untuk semua entitas:
   /// push pending lokal -> tarik data server -> simpan waktu sync.
   /// Urutan: kategori & supplier dulu (dependensi produk), lalu produk, pelanggan, penjualan, shift.
+  /// Guard mutex mencegah double-push concurrent (B21).
   Future<bool> syncNow() async {
+    if (_isSyncing) return false;
+    _isSyncing = true;
     try {
       await _ref.read(categoryRepositoryProvider).getCategories();
       await _ref.read(supplierRepositoryProvider).getSuppliers();
@@ -88,11 +92,13 @@ class SyncActions {
         await _ref.read(unitsProvider.future);
       } catch (_) {}
 
-      final box = await Hive.openBox('cache');
+      final box = Hive.isBoxOpen('cache') ? Hive.box('cache') : await Hive.openBox('cache');
       await box.put('last_sync_at', DateTime.now().millisecondsSinceEpoch);
       return true;
     } catch (_) {
       return false;
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -129,8 +135,8 @@ class SyncActions {
           }
           await db.cashierShiftDao.markSynced([s.id]);
         } catch (_) {
-          // 404/501 akan di-disable oleh datasource; hentikan retry berat
-          if (_ref.read(appDatabaseProvider) == db) break;
+          // 404/501 di-disable via MobileApiGate (TTL 5-15 menit), hentikan retry untuk siklus ini
+          break;
         }
       }
     } catch (_) {}

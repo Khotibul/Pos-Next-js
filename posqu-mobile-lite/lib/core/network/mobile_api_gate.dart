@@ -1,15 +1,31 @@
-/// Circuit breaker sederhana: jika sebuah grup endpoint mobile belum tersedia
-/// di server (HTTP 404), hentikan percobaan berikutnya sampai koneksi dipulihkan
-/// atau aplikasi direstart. Mencegah banjir request 404 saat backend belum
-/// ter-deploy.
+/// Circuit breaker: endpoint mobile yang belum tersedia (404/501) di-disable
+/// sementara untuk mencegah banjir request. Auto-reset setelah TTL atau saat
+/// koneksi pulih (via NetworkInfo). Sebelumnya permanent disable sampai restart.
 class MobileApiGate {
   MobileApiGate._();
 
-  static final Set<String> _disabled = <String>{};
+  static final Map<String, DateTime> _disabledUntil = {};
 
-  static bool isDisabled(String group) => _disabled.contains(group);
+  static bool isDisabled(String group) {
+    final until = _disabledUntil[group];
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      _disabledUntil.remove(group);
+      return false;
+    }
+    return true;
+  }
 
-  static void disable(String group) => _disabled.add(group);
+  /// Disable sementara [ttl] default 5 menit (404) / 15 menit (501).
+  /// 404 = endpoint mungkin belum deploy, 501 = not implemented.
+  static void disable(String group, {Duration ttl = const Duration(minutes: 5)}) {
+    _disabledUntil[group] = DateTime.now().add(ttl);
+  }
 
-  static void reset() => _disabled.clear();
+  static void disableNotImplemented(String group) =>
+      disable(group, ttl: const Duration(minutes: 15));
+
+  static void reset() => _disabledUntil.clear();
+
+  static void resetGroup(String group) => _disabledUntil.remove(group);
 }

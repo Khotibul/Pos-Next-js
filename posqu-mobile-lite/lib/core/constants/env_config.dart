@@ -4,10 +4,24 @@ class EnvConfig {
   EnvConfig._();
 
   static String get apiBaseUrl {
-    return dotenv.get(
+    var url = dotenv.get(
       'API_BASE_URL',
-      fallback: 'http://localhost:3000/api/v1',
-    );
+      fallback: 'http://localhost:3000/api',
+    ).trim();
+    // Android: localhost/127.0.0.1 tidak reachable dari device/emulator.
+    // Jika .env masih localhost, coba fallback ke 10.0.2.2 (emulator) atau biarkan https prod.
+    if (url.contains('localhost') || url.contains('127.0.0.1')) {
+      // Untuk emulator Android: ganti ke 10.0.2.2, untuk device fisik user harus set API_BASE_URL ke IP LAN (mis 192.168.1.x)
+      // Di sini kita biarkan apa adanya tapi dengan catatan: pastikan .env di device sudah pakai IP yang benar.
+      // Jika masih localhost di release prod, pakai fallback prod.
+      if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
+        // Di prod .env sudah https://posqupro.co-id.id/api, jadi tidak masuk sini
+        // Dev bisa override via API_BASE_URL_DEV di .env: kita cek
+        final devUrl = dotenv.get('API_BASE_URL_DEV', fallback: '').trim();
+        if (devUrl.isNotEmpty) url = devUrl;
+      }
+    }
+    return url;
   }
 
   static String get databaseUrl {

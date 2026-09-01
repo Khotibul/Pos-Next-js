@@ -40,11 +40,12 @@ class DioClient {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
         try {
-          final box = await Hive.openBox('auth');
+          final box = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
           final token = box.get('token');
           if (token != null &&
               options.path != ApiConstants.mobileLogin &&
-              options.path != ApiConstants.login) {
+              options.path != ApiConstants.login &&
+              options.path != ApiConstants.mobileGoogleLogin) {
             options.headers[ApiConstants.authorization] =
                 '${ApiConstants.bearer}$token';
           }
@@ -58,7 +59,7 @@ class DioClient {
         final isLocalSession = token.startsWith('${ApiConstants.bearer}local.');
         if (error.response?.statusCode == 401 && !isLocalSession) {
           try {
-            final box = await Hive.openBox('auth');
+            final box = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
             await box.delete('token');
           } catch (_) {}
         }

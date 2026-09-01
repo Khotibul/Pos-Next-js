@@ -27,6 +27,10 @@ class NetworkInfoImpl implements NetworkInfo {
   }
 
   bool _hasConnection(List<ConnectivityResult> results) {
+    if (results.isEmpty) return false;
+    // connectivity_plus mengembalikan list; false hanya jika semua none
+    // True-online tetap perlu validasi server (Dio akan handle timeout/401),
+    // tapi ACCESS_NETWORK_STATE (sudah ditambahkan Manifest) meningkatkan akurasi di Android 14+.
     return results.any((result) => result != ConnectivityResult.none);
   }
 }
