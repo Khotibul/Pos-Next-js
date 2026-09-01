@@ -3,18 +3,99 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/cashier_shift.dart';
 import '../../domain/repositories/cashier_shift_repository.dart';
 import '../datasources/local/database/app_database.dart';
+import '../datasources/remote/shift_remote_datasource.dart';
 
 final cashierShiftRepositoryProvider = Provider<CashierShiftRepository>((ref) {
-  return CashierShiftRepositoryImpl(database: ref.read(appDatabaseProvider));
+  return CashierShiftRepositoryImpl(
+    database: ref.read(appDatabaseProvider),
+    remoteDataSource: ref.read(shiftRemoteDataSourceProvider),
+    networkInfo: ref.read(networkInfoProvider),
+  );
 });
 
 class CashierShiftRepositoryImpl implements CashierShiftRepository {
   final AppDatabase database;
+  final ShiftRemoteDataSource remoteDataSource;
+  final NetworkInfo networkInfo;
 
-  CashierShiftRepositoryImpl({required this.database});
+  CashierShiftRepositoryImpl({
+    required this.database,
+    required this.remoteDataSource,
+    required this.networkInfo,
+  });
+
+  /// Hitung rekap shiftbook dari transaksi lokal yang menempel pada shift
+  /// (shiftId) + pengeluaran kasir di rentang waktu shift. Selaras dengan
+  /// `calculateShiftSummary` di backend pos-next-js.
+  @override
+  Future<Either<Failure, CashierShift>> computeShiftSummary(
+    CashierShift shift,
+  ) async {
+    try {
+      final sales = await database.saleDao.getByShiftId(shift.id);
+      final end = shift.closedAt ?? DateTime.now();
+
+      double totalSales = 0;
+      double totalCash = 0;
+      double totalQris = 0;
+      double totalTransfer = 0;
+      double totalEwallet = 0;
+      for (final sale in sales) {
+        totalSales += sale.total;
+        final payments = await database.paymentDao.getBySaleId(sale.id);
+        final method =
+            payments.isNotEmpty ? payments.first.method.toLowerCase() : 'cash';
+        switch (method) {
+          case 'qris':
+            totalQris += sale.total;
+            break;
+          case 'transfer':
+            totalTransfer += sale.total;
+            break;
+          case 'ewallet':
+            totalEwallet += sale.total;
+            break;
+          default:
+            totalCash += sale.total;
+        }
+      }
+
+      final totalExpenses = await database.cashTransactionDao.sumByType(
+        'expense',
+        startDate: shift.openedAt,
+        endDate: end,
+      );
+      final totalIncome = await database.cashTransactionDao.sumByType(
+        'income',
+        startDate: shift.openedAt,
+        endDate: end,
+      );
+
+      final cashSystem = totalCash;
+      final expectedBalance =
+          shift.openingCash + totalCash + totalIncome - totalExpenses;
+
+      final updated = shift.copyWith(
+        cashSystem: cashSystem,
+        totalSales: totalSales,
+        totalCash: totalCash,
+        totalQris: totalQris,
+        totalTransfer: totalTransfer,
+        totalEwallet: totalEwallet,
+        transactionCount: sales.length,
+        totalExpenses: totalExpenses,
+        expectedBalance: expectedBalance,
+      );
+      return Right(updated);
+    } catch (e) {
+      return Left(DatabaseFailure(message: 'Gagal menghitung rekap shift: $e'));
+    }
+  }
 
   @override
   Future<Either<Failure, CashierShift>> openShift(CashierShift shift) async {
@@ -30,8 +111,23 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
           status: const Value('OPEN'),
           openingCash: Value(data.openingCash),
           openNote: Value(data.openNote),
+          isSynced: const Value(false),
         ),
       );
+      // Coba push ke server bila online; gagal -> tetap lokal (isSynced=false) untuk sync berikutnya
+      if (await networkInfo.isConnected && !MobileApiGate.isDisabled('shifts')) {
+        try {
+          await remoteDataSource.openShift({
+            'id': data.id,
+            'cashierId': data.cashierId,
+            'branchId': data.branchId,
+            'openingCash': data.openingCash,
+            'openNote': data.openNote,
+            'openedAt': data.openedAt.toIso8601String(),
+          });
+          await database.cashierShiftDao.markSynced([data.id]);
+        } catch (_) {}
+      }
       return Right(data);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal membuka shift: $e'));
@@ -59,9 +155,28 @@ class CashierShiftRepositoryImpl implements CashierShiftRepository {
           expectedBalance: Value(shift.expectedBalance),
           totalExpenses: Value(shift.totalExpenses),
           closeNote: Value(shift.closeNote ?? shift.openNote),
+          isSynced: const Value(false),
           updatedAt: Value(DateTime.now()),
         ),
       );
+      if (await networkInfo.isConnected && !MobileApiGate.isDisabled('shifts')) {
+        try {
+          await remoteDataSource.closeShift(shift.id, {
+            'closedAt': shift.closedAt?.toIso8601String(),
+            'cashCounted': shift.cashCounted,
+            'cashSystem': shift.cashSystem,
+            'cashDifference': shift.cashDifference,
+            'totalSales': shift.totalSales,
+            'totalCash': shift.totalCash,
+            'totalQris': shift.totalQris,
+            'totalTransfer': shift.totalTransfer,
+            'totalEwallet': shift.totalEwallet,
+            'transactionCount': shift.transactionCount,
+            'closeNote': shift.closeNote,
+          });
+          await database.cashierShiftDao.markSynced([shift.id]);
+        } catch (_) {}
+      }
       return Right(shift);
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal menutup shift: $e'));

@@ -82,6 +82,10 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
     return (select(salesTable)..where((t) => t.isSynced.equals(false))).get();
   }
 
+  Future<List<SalesTableData>> getByShiftId(String shiftId) {
+    return (select(salesTable)..where((t) => t.shiftId.equals(shiftId))).get();
+  }
+
   Future<double> getTodaySalesTotal() {
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);

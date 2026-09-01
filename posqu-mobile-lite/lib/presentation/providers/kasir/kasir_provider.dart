@@ -231,7 +231,7 @@ class KasirNotifier extends StateNotifier<KasirState> {
     );
   }
 
-  Future<Sale?> checkout(String cashierId) async {
+  Future<Sale?> checkout(String cashierId, {String? shiftId}) async {
     state = state.copyWith(isLoading: true);
     try {
       final paidAmount = state.paidAmount;
@@ -246,6 +246,7 @@ class KasirNotifier extends StateNotifier<KasirState> {
         id: saleId,
         invoiceNo: invoiceNo,
         cashierId: cashierId.isEmpty ? null : cashierId,
+        shiftId: shiftId,
         createdAt: now,
         status: 'PAID',
         paymentMethod: state.paymentMethod,

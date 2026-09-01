@@ -47,4 +47,13 @@ class CashierShiftDao extends DatabaseAccessor<AppDatabase>
   Future<bool> updateShift(CashierShiftsTableCompanion shift) {
     return update(cashierShiftsTable).replace(shift);
   }
+
+  Future<List<CashierShiftsTableData>> getUnsynced() {
+    return (select(cashierShiftsTable)..where((t) => t.isSynced.equals(false))).get();
+  }
+
+  Future<void> markSynced(List<String> ids) {
+    return (update(cashierShiftsTable)..where((t) => t.id.isIn(ids)))
+        .write(const CashierShiftsTableCompanion(isSynced: Value(true)));
+  }
 }

@@ -339,11 +339,16 @@ Future<void> showReceiptPreview(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      '${item.qty} x ${CurrencyFormatter.formatWithoutSymbol(item.price)}'
-                                      '${config.showSku && item.sku.isNotEmpty ? '  [${item.sku}]' : ''}',
-                                      style: const TextStyle(fontSize: 11),
+                                    Expanded(
+                                      child: Text(
+                                        '${item.qty} x ${CurrencyFormatter.formatWithoutSymbol(item.price)}'
+                                        '${config.showSku && item.sku.isNotEmpty ? '  [${item.sku}]' : ''}',
+                                        style:
+                                            const TextStyle(fontSize: 11),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
+                                    const SizedBox(width: 8),
                                     Text(
                                       CurrencyFormatter.formatWithoutSymbol(
                                           item.lineTotal),

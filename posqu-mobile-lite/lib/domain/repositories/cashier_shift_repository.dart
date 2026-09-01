@@ -14,4 +14,5 @@ abstract class CashierShiftRepository {
   Future<Either<Failure, CashierShift>> openShift(CashierShift shift);
   Future<Either<Failure, CashierShift>> closeShift(CashierShift shift);
   Future<Either<Failure, CashierShift>> getShift(String id);
+  Future<Either<Failure, CashierShift>> computeShiftSummary(CashierShift shift);
 }

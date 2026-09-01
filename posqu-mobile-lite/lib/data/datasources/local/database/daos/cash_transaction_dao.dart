@@ -51,4 +51,21 @@ class CashTransactionDao extends DatabaseAccessor<AppDatabase>
           .then((rows) => rows.fold<double>(0, (sum, t) => sum + t.amount)),
     ]).then((values) => values[0] - values[1]);
   }
+
+  Future<double> sumByType(String type, {DateTime? startDate, DateTime? endDate}) {
+    return (select(cashTransactionsTable)
+          ..where((t) {
+            final exprs = <Expression<bool>>[t.type.equals(type)];
+            if (startDate != null) {
+              exprs.add(t.transactionDate.isBiggerOrEqualValue(startDate));
+            }
+            if (endDate != null) {
+              exprs.add(t.transactionDate.isSmallerOrEqualValue(endDate));
+            }
+            return exprs.reduce((a, b) => a & b);
+          }))
+        .map((t) => t.amount)
+        .get()
+        .then((rows) => rows.fold<double>(0, (sum, v) => sum + v));
+  }
 }

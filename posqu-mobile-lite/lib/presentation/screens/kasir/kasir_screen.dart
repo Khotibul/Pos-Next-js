@@ -8,11 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/kasir/kasir_provider.dart';
 import '../../providers/kasir/kasir_state.dart';
 import '../../providers/product/product_provider.dart';
+import '../../providers/shift/shift_provider.dart';
+import '../../providers/auth/auth_provider.dart';
+import '../../../data/repositories/cashier_shift_repository_impl.dart';
 import '../../../core/widgets/receipt_preview.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
 import '../../../core/widgets/product_image.dart';
 import '../../../domain/entities/product.dart';
+import '../../../domain/entities/cashier_shift.dart';
 
 class KasirScreen extends ConsumerStatefulWidget {
   const KasirScreen({super.key});
@@ -86,6 +91,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final kasirState = ref.watch(kasirStateProvider);
     final productsAsync = ref.watch(productListProvider);
 
+    final userId = ref.watch(authStateProvider).maybeWhen(
+          authenticated: (user) => user.id,
+          orElse: () => '',
+        );
+    final activeShiftAsync = userId.isEmpty
+        ? const AsyncValue<CashierShift?>.data(null)
+        : ref.watch(activeShiftProvider(userId));
+    final activeShift = activeShiftAsync.valueOrNull;
+    final shiftLoading =
+        activeShiftAsync.isLoading && activeShiftAsync.valueOrNull == null;
+
     final products = (productsAsync.valueOrNull ?? const <Product>[])
         .where((p) =>
             _query.isEmpty ||
@@ -120,53 +136,174 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
               const SizedBox(width: 4),
             ],
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final height = constraints.maxHeight;
-              final compactHeight = height < 500;
-              // Dua panel hanya dipakai bila masing-masing panel tetap lapang.
-              // Tinggi dapat turun saat keyboard terbuka, jadi jangan gunakan
-              // tinggi pendek sebagai pemicu layout horizontal.
-              final isSplit = width >= 720 && !compactHeight;
-              final cartWidth = (width * 0.42).clamp(300.0, 420.0).toDouble();
-              final catalogWidth = isSplit ? width - cartWidth - 1 : width;
-              final cardTargetWidth = compactHeight ? 150.0 : 180.0;
-              final crossAxisCount =
-                  (catalogWidth / cardTargetWidth).floor().clamp(2, 6).toInt();
+          body: _buildShiftGate(context, userId, activeShift, shiftLoading,
+              kasirState, products, (constraints) {
+            final width = constraints.maxWidth;
+            final height = constraints.maxHeight;
+            final compactHeight = height < 500;
+            // Dua panel hanya dipakai bila masing-masing panel tetap lapang.
+            // Tinggi dapat turun saat keyboard terbuka, jadi jangan gunakan
+            // tinggi pendek sebagai pemicu layout horizontal.
+            final isSplit = width >= 720 && !compactHeight;
+            final cartWidth = (width * 0.42).clamp(300.0, 420.0).toDouble();
+            final catalogWidth = isSplit ? width - cartWidth - 1 : width;
+            final cardTargetWidth = compactHeight ? 150.0 : 180.0;
+            final crossAxisCount =
+                (catalogWidth / cardTargetWidth).floor().clamp(2, 6).toInt();
 
-              final catalog = _CatalogPanel(
-                products: products,
-                query: _query,
-                onQueryChanged: (v) => setState(() => _query = v),
-                onScan: _scanAndAddToCart,
-                onAdd: (p) => _addToCart(p),
-                crossAxisCount: crossAxisCount,
-                compactHeight: compactHeight,
-              );
+            final catalog = _CatalogPanel(
+              products: products,
+              query: _query,
+              onQueryChanged: (v) => setState(() => _query = v),
+              onScan: _scanAndAddToCart,
+              onAdd: (p) => _addToCart(p),
+              crossAxisCount: crossAxisCount,
+              compactHeight: compactHeight,
+            );
 
-              if (isSplit) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(child: catalog),
-                    VerticalDivider(
-                        width: 1, color: Theme.of(context).dividerColor),
-                    SizedBox(
-                      width: cartWidth,
-                      child: _buildCartSidePanel(kasirState),
-                    ),
-                  ],
-                );
-              }
-
-              return Column(
+            if (isSplit) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: catalog),
-                  _buildFloatingCartBar(context, kasirState),
+                  VerticalDivider(
+                      width: 1, color: Theme.of(context).dividerColor),
+                  SizedBox(
+                    width: cartWidth,
+                    child: _buildCartSidePanel(kasirState),
+                  ),
                 ],
               );
-            },
+            }
+
+            return Column(
+              children: [
+                Expanded(child: catalog),
+                _buildFloatingCartBar(context, kasirState),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  // ================= GERBANG SHIFT (WAJIB BUKA SHIFT) =================
+
+  Widget _buildShiftGate(
+    BuildContext context,
+    String userId,
+    CashierShift? activeShift,
+    bool loading,
+    KasirState kasirState,
+    List<Product> products,
+    Widget Function(BoxConstraints) bodyBuilder,
+  ) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (activeShift == null) {
+      return _buildNoShiftBlock(context, userId);
+    }
+    return Column(
+      children: [
+        _buildShiftBanner(context, activeShift, userId),
+        Expanded(
+          child: LayoutBuilder(builder: (context, c) => bodyBuilder(c)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoShiftBlock(BuildContext context, String userId) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.lock_clock_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Shift belum dibuka',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Buka shift terlebih dahulu sebelum mulai transaksi kasir, '
+              'seperti pada aplikasi web.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () => _openShift(context, userId),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Buka Shift'),
+              style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShiftBanner(
+      BuildContext context, CashierShift shift, String userId) {
+    final readable = DateFormatter.formatTime(shift.openedAt);
+    return Material(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                Icons.shield_outlined,
+                size: 18,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Shift aktif sejak $readable',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color:
+                        Theme.of(context).colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _closeShift(context, shift, userId),
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      Theme.of(context).colorScheme.onPrimaryContainer,
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.lock_outline, size: 16),
+                label: const Text('Tutup Shift'),
+              ),
+            ],
           ),
         ),
       ),
@@ -644,6 +781,219 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     if (mounted) setState(() {});
   }
 
+  // ================= BUKA / TUTUP SHIFT =================
+
+  Future<void> _openShift(BuildContext context, String userId) async {
+    if (userId.isEmpty) return;
+    final openingCashController = TextEditingController();
+    final noteController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Buka Shift'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set modal awal (opening cash) sebelum mulai transaksi kasir.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: openingCashController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Saldo Awal',
+                  prefixText: 'Rp ',
+                  hintText: '0',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan (opsional)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Buka Shift'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      openingCashController.dispose();
+      noteController.dispose();
+      return;
+    }
+
+    final rawOpening = openingCashController.text;
+    final rawOpenNote = noteController.text;
+    openingCashController.dispose();
+    noteController.dispose();
+
+    final openingCash = double.tryParse(rawOpening.replaceAll('.', '')) ?? 0;
+    final ok = await ref.read(shiftControllerProvider.notifier).open(
+          userId,
+          openingCash: openingCash,
+          openNote: rawOpenNote.trim().isEmpty ? null : rawOpenNote.trim(),
+        );
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Shift berhasil dibuka' : 'Gagal membuka shift'),
+      ),
+    );
+  }
+
+  Future<void> _closeShift(
+      BuildContext context, CashierShift shift, String userId) async {
+    if (userId.isEmpty) return;
+    final container = ProviderScope.containerOf(context);
+    final repo = container.read(cashierShiftRepositoryProvider);
+    final summaryResult = await repo.computeShiftSummary(shift);
+    final summary = summaryResult.fold((_) => shift, (s) => s);
+
+    if (!context.mounted) return;
+    final cashCountedController = TextEditingController();
+    final noteController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Tutup Shift'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryRow(dialogContext, 'Total penjualan',
+                    CurrencyFormatter.format(summary.totalSales),
+                    bold: true),
+                _summaryRow(dialogContext, 'Jumlah transaksi',
+                    '${summary.transactionCount}'),
+                const Divider(),
+                _summaryRow(dialogContext, 'Kas',
+                    CurrencyFormatter.format(summary.totalCash)),
+                _summaryRow(dialogContext, 'QRIS',
+                    CurrencyFormatter.format(summary.totalQris)),
+                _summaryRow(dialogContext, 'Transfer',
+                    CurrencyFormatter.format(summary.totalTransfer)),
+                _summaryRow(dialogContext, 'E-wallet',
+                    CurrencyFormatter.format(summary.totalEwallet)),
+                _summaryRow(dialogContext, 'Pengeluaran',
+                    CurrencyFormatter.format(summary.totalExpenses)),
+                _summaryRow(dialogContext, 'Saldo awal',
+                    CurrencyFormatter.format(shift.openingCash)),
+                _summaryRow(dialogContext, 'Kas sistem',
+                    CurrencyFormatter.format(summary.cashSystem),
+                    bold: true),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text('Masukkan uang aktual (cash counted) untuk menutup shift.',
+                    style: TextStyle(fontSize: 12)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: cashCountedController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Cash Counted',
+                    prefixText: 'Rp ',
+                    hintText:
+                        summary.cashSystem.toStringAsFixed(0),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Catatan (opsional)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.lock_outline),
+              label: const Text('Tutup Shift'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      cashCountedController.dispose();
+      noteController.dispose();
+      return;
+    }
+
+    final rawCounted = cashCountedController.text;
+    final rawCloseNote = noteController.text;
+    cashCountedController.dispose();
+    noteController.dispose();
+
+    final cashCounted =
+        double.tryParse(rawCounted.replaceAll('.', '')) ?? summary.cashSystem;
+    final ok = await ref
+        .read(shiftControllerProvider.notifier)
+        .close(
+          shiftId: shift.id,
+          cashierId: userId,
+          cashCounted: cashCounted,
+          closeNote:
+              rawCloseNote.trim().isEmpty ? null : rawCloseNote.trim(),
+        );
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Shift ditutup' : 'Gagal menutup shift'),
+      ),
+    );
+  }
+
+  Widget _summaryRow(BuildContext context, String label, String value,
+      {bool bold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: bold ? 14 : 12.5,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        Text(value,
+            style: TextStyle(
+                fontSize: bold ? 16 : 12.5,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+      ],
+    );
+  }
 
 }
 
@@ -1360,7 +1710,14 @@ class _CartFooter extends StatelessWidget {
   Future<void> _payNow(BuildContext context, ReceiptConfig config) async {
     final container = ProviderScope.containerOf(context);
     final notifier = container.read(kasirStateProvider.notifier);
-    final sale = await notifier.checkout('');
+    final userId = container.read(authStateProvider).maybeWhen(
+          authenticated: (u) => u.id,
+          orElse: () => '',
+        );
+    final activeShift = userId.isEmpty
+        ? null
+        : container.read(activeShiftProvider(userId)).valueOrNull;
+    final sale = await notifier.checkout(userId, shiftId: activeShift?.id);
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.showSnackBar(

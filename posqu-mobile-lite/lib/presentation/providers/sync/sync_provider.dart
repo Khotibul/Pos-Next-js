@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../data/datasources/local/database/app_database.dart';
+import '../../../data/datasources/remote/shift_remote_datasource.dart';
 import '../../../data/repositories/category_repository_impl.dart';
 import '../../../data/repositories/customer_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
@@ -15,6 +16,7 @@ class SyncStatusInfo {
   final int pendingCategories;
   final int pendingCustomers;
   final int pendingSuppliers;
+  final int pendingShifts;
   final DateTime? lastSync;
 
   const SyncStatusInfo({
@@ -23,6 +25,7 @@ class SyncStatusInfo {
     this.pendingCategories = 0,
     this.pendingCustomers = 0,
     this.pendingSuppliers = 0,
+    this.pendingShifts = 0,
     this.lastSync,
   });
 
@@ -31,7 +34,8 @@ class SyncStatusInfo {
       pendingProducts +
       pendingCategories +
       pendingCustomers +
-      pendingSuppliers;
+      pendingSuppliers +
+      pendingShifts;
 }
 
 /// Status sinkronisasi nyata: hitungan data lokal yang belum terkirim
@@ -44,6 +48,7 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
   final categories = await db.categoryDao.getUnsynced();
   final customers = await db.customerDao.getUnsynced();
   final suppliers = await db.supplierDao.getUnsynced();
+  final shifts = await db.cashierShiftDao.getUnsynced();
 
   final box = await Hive.openBox('cache');
   final lastMs = box.get('last_sync_at') as int?;
@@ -54,6 +59,7 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
     pendingCategories: categories.length,
     pendingCustomers: customers.length,
     pendingSuppliers: suppliers.length,
+    pendingShifts: shifts.length,
     lastSync:
         lastMs != null ? DateTime.fromMillisecondsSinceEpoch(lastMs) : null,
   );
@@ -66,7 +72,7 @@ class SyncActions {
 
   /// Memicu sinkronisasi dua arah untuk semua entitas:
   /// push pending lokal -> tarik data server -> simpan waktu sync.
-  /// Urutan: kategori & supplier dulu (dependensi produk), lalu produk, pelanggan, penjualan.
+  /// Urutan: kategori & supplier dulu (dependensi produk), lalu produk, pelanggan, penjualan, shift.
   Future<bool> syncNow() async {
     try {
       await _ref.read(categoryRepositoryProvider).getCategories();
@@ -74,6 +80,7 @@ class SyncActions {
       await _ref.read(customerRepositoryProvider).getCustomers();
       await _ref.read(productRepositoryProvider).getProducts();
       await _ref.read(saleRepositoryProvider).getSales();
+      await _pushPendingShifts();
 
       // Segarkan daftar satuan dari server (tombol/sumber dropdown produk).
       _ref.invalidate(unitsProvider);
@@ -87,6 +94,46 @@ class SyncActions {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<void> _pushPendingShifts() async {
+    try {
+      final db = _ref.read(appDatabaseProvider);
+      final remote = _ref.read(shiftRemoteDataSourceProvider);
+      final pending = await db.cashierShiftDao.getUnsynced();
+      for (final s in pending) {
+        try {
+          if (s.status == 'OPEN') {
+            await remote.openShift({
+              'id': s.id,
+              'cashierId': s.cashierId,
+              'branchId': s.branchId,
+              'openingCash': s.openingCash,
+              'openNote': s.openNote,
+              'openedAt': s.openedAt.toIso8601String(),
+            });
+          } else {
+            await remote.closeShift(s.id, {
+              'closedAt': s.closedAt?.toIso8601String(),
+              'cashCounted': s.cashCounted,
+              'cashSystem': s.cashSystem,
+              'cashDifference': s.cashDifference,
+              'totalSales': s.totalSales,
+              'totalCash': s.totalCash,
+              'totalQris': s.totalQris,
+              'totalTransfer': s.totalTransfer,
+              'totalEwallet': s.totalEwallet,
+              'transactionCount': s.transactionCount,
+              'closeNote': s.closeNote,
+            });
+          }
+          await db.cashierShiftDao.markSynced([s.id]);
+        } catch (_) {
+          // 404/501 akan di-disable oleh datasource; hentikan retry berat
+          if (_ref.read(appDatabaseProvider) == db) break;
+        }
+      }
+    } catch (_) {}
   }
 }
 
