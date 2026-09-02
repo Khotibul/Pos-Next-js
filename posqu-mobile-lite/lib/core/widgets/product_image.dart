@@ -25,7 +25,7 @@ class ProductImageThumb extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
+        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
         borderRadius: borderRadius ?? BorderRadius.circular(8),
       ),
       clipBehavior: Clip.antiAlias,
@@ -87,7 +87,7 @@ class ProductImageThumb extends StatelessWidget {
     return Icon(
       Icons.inventory_2_outlined,
       size: size * 0.5,
-      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
     );
   }
 }

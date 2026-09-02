@@ -40,7 +40,7 @@ class SaleListScreen extends ConsumerWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: _getPaymentColor(sale.paymentMethod).withValues(alpha: 0.1),
+                        color: _getPaymentColor(sale.paymentMethod).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(

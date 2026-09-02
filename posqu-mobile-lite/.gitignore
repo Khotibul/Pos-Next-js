@@ -50,3 +50,6 @@ Thumbs.db
 # Testing
 coverage/
 test_reports/
+
+# FVM Version Cache
+.fvm/

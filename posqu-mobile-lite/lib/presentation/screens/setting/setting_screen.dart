@@ -72,7 +72,7 @@ class SettingScreen extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: mode == 'manual' ? Colors.orange.withValues(alpha: 0.12) : Colors.green.withValues(alpha: 0.12),
+                          color: mode == 'manual' ? Colors.orange.withOpacity(0.12) : Colors.green.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -278,7 +278,7 @@ class SettingScreen extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.08),
+                      color: Colors.green.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(

@@ -49,7 +49,7 @@ class _LocalUsersScreenState extends ConsumerState<LocalUsersScreen> {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -102,7 +102,7 @@ class _LocalUsersScreenState extends ConsumerState<LocalUsersScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: isSuperAdmin ? Colors.red.withValues(alpha: 0.1) : Colors.blue.withValues(alpha: 0.1),
+                                    color: isSuperAdmin ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
@@ -119,7 +119,7 @@ class _LocalUsersScreenState extends ConsumerState<LocalUsersScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: Colors.grey.withValues(alpha: 0.2),
+                                      color: Colors.grey.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Text('NONAKTIF', style: TextStyle(fontSize: 10)),
@@ -208,7 +208,7 @@ class _LocalUsersScreenState extends ConsumerState<LocalUsersScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: role,
+                  value: role,
                   decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.shield_outlined)),
                   items: const [
                     DropdownMenuItem(value: 'USER', child: Text('USER')),

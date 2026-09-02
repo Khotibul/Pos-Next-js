@@ -124,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             Text(
               'Kasir modern untuk toko Anda',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: Colors.white.withOpacity(0.9),
                   ),
             ),
           ],

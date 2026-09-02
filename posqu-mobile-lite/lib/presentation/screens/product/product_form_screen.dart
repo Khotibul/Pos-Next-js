@@ -373,7 +373,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   const SizedBox(height: 16),
                   categoriesAsync.when(
                     data: (categories) => DropdownButtonFormField<String>(
-                      initialValue: _selectedCategoryId,
+                      value: _selectedCategoryId,
                       decoration: const InputDecoration(
                         labelText: 'Kategori',
                         prefixIcon: Icon(Icons.category),
@@ -417,9 +417,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.06),
+                      color: Colors.blue.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.withValues(alpha: 0.25)),
+                      border: Border.all(color: Colors.blue.withOpacity(0.25)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +521,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             final current = _selectedUnit ?? 'pcs';
             final allUnits = units.contains(current) ? units : [...units, current];
             return DropdownButtonFormField<String>(
-              initialValue: current,
+              value: current,
               decoration: const InputDecoration(
                 labelText: 'Satuan',
                 prefixIcon: Icon(Icons.straighten),
@@ -603,7 +603,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

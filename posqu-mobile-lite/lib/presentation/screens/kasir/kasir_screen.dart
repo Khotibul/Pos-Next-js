@@ -367,7 +367,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
+              color: Colors.black.withOpacity(0.10),
               blurRadius: 18,
               offset: const Offset(0, 4),
             ),
@@ -1152,7 +1152,7 @@ class _ProductCard extends StatelessWidget {
           color: theme.colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: theme.dividerColor.withValues(alpha: 0.3),
+            color: theme.dividerColor.withOpacity(0.3),
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -1351,7 +1351,7 @@ class _CartTile extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.12),
+                          color: Colors.blue.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text('Grosir',
@@ -1401,7 +1401,7 @@ class _QtyStepper extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.6),
+            .withOpacity(0.6),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -1662,9 +1662,9 @@ class _CartFooter extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                                 color: Colors.green)),
                         backgroundColor:
-                            Colors.green.withValues(alpha: 0.08),
+                            Colors.green.withOpacity(0.08),
                         side: BorderSide(
-                            color: Colors.green.withValues(alpha: 0.4)),
+                            color: Colors.green.withOpacity(0.4)),
                         onPressed: () => setPaid(live.total),
                       ),
                       for (final value in quickAmounts)
@@ -1702,8 +1702,8 @@ class _CartFooter extends StatelessWidget {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: change >= 0
-                            ? Colors.green.withValues(alpha: 0.08)
-                            : Colors.orange.withValues(alpha: 0.08),
+                            ? Colors.green.withOpacity(0.08)
+                            : Colors.orange.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(

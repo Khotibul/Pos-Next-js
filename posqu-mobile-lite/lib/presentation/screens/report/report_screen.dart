@@ -231,7 +231,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             color: Theme.of(context)
                 .colorScheme
                 .primary
-                .withValues(alpha: 0.3),
+                .withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -491,7 +491,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
                         backgroundColor: Theme.of(context)
                             .colorScheme
                             .primaryContainer
-                            .withValues(alpha: 0.5),
+                            .withOpacity(0.5),
                         child: Icon(
                           _methodIcon(t.paymentMethod),
                           size: 18,

@@ -85,3 +85,6 @@ public/downloads/*.apk
 
 # AI / tooling caches
 .mimocode/
+
+# FVM Version Cache
+.fvm/

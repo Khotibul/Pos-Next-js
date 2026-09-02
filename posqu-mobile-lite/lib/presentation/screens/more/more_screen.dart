@@ -86,7 +86,7 @@ class MoreScreen extends StatelessWidget {
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor:
-                    Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
                 child: Icon(
                   item.icon,
                   color: Theme.of(context).colorScheme.primary,
