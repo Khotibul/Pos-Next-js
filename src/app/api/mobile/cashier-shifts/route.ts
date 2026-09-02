@@ -27,9 +27,6 @@ const closeSchema = z.object({
   totalEwallet: z.number().nullish(),
   transactionCount: z.number().int().nullish(),
   closeNote: z.string().nullish(),
-  closingBalance: z.number().nullish(),
-  expectedBalance: z.number().nullish(),
-  totalExpenses: z.number().nullish(),
 });
 
 // POST /api/mobile/cashier-shifts -> buka shift (upsert). Free tidak bisa pakai DB.
@@ -68,9 +65,6 @@ export const POST = withApiHandler(async (req: Request) => {
         totalEwallet: d.totalEwallet ?? 0,
         transactionCount: d.transactionCount ?? 0,
         closeNote: d.closeNote ?? null,
-        closingBalance: d.closingBalance ?? d.cashCounted ?? 0,
-        expectedBalance: d.expectedBalance ?? 0,
-        totalExpenses: d.totalExpenses ?? 0,
         status: "CLOSED" as never,
       },
     });
