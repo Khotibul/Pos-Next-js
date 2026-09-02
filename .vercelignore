@@ -1,15 +1,14 @@
+# Vercel deploy ignore - synced with .gitignore
 # dependencies
 node_modules/
 .npm-cache/
+**/.npm-cache/
+src/.npm-cache/
 
 # next.js
 .next/
 .next-desktop/
 out/
-
-# env
-.env
-.env.*.local
 
 # desktop/electron build outputs
 dist-electron/
@@ -49,9 +48,33 @@ overview_architecture.puml
 # legacy UI folders (keep local only)
 UI/
 legacy/
-.vercel
-.env*
+src/legacy/
 
-# mobile/desktop - not part of web deploy (added to fix 24k file limit)
+# vercel
+.vercel/
+
+# env - keep example
+.env
+.env.*.local
+.env*
+!.env.example
+
+# Flutter / mobile - not part of web deploy (fix 24k file limit)
+posqu-mobile-lite/.dart_tool/
+posqu-mobile-lite/build/
+posqu-mobile-lite/.gradle/
+posqu-mobile-lite/android/.gradle/
+posqu-mobile-lite/android/app/build/
+posqu-mobile-lite/android/.cxx/
+posqu-mobile-lite/windows/flutter/ephemeral/
+posqu-mobile-lite/.flutter-plugins*
 posqu-mobile-lite
+posqu-pro-desktop-java/
 posqu-pro-desktop-java
+*.apk
+*.aab
+*.blockmap
+public/downloads/*.apk
+
+# AI / tooling caches
+.mimocode/

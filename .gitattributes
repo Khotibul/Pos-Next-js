@@ -1,2 +1,18 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary files - prevent CRLF corruption
+*.apk binary
+*.aab binary
+*.exe binary
+*.blockmap binary
+*.jks binary
+*.keystore binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+
+# Electron / native
+*.node binary

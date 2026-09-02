@@ -1,15 +1,13 @@
 # dependencies
 node_modules/
 .npm-cache/
+**/.npm-cache/
+src/.npm-cache/
 
 # next.js
 .next/
 .next-desktop/
 out/
-
-# env
-.env
-.env.*.local
 
 # desktop/electron build outputs
 dist-electron/
@@ -49,5 +47,41 @@ overview_architecture.puml
 # legacy UI folders (keep local only)
 UI/
 legacy/
-.vercel
+src/legacy/
+
+# vercel
+.vercel/
+
+# env - keep example
+.env
+.env.*.local
 .env*
+!.env.example
+
+# Flutter / mobile - not part of web repo (keep source, ignore build artifacts)
+posqu-mobile-lite/.dart_tool/
+posqu-mobile-lite/build/
+posqu-mobile-lite/.gradle/
+posqu-mobile-lite/android/.gradle/
+posqu-mobile-lite/android/app/build/
+posqu-mobile-lite/android/.cxx/
+posqu-mobile-lite/windows/flutter/ephemeral/
+posqu-mobile-lite/windows/flutter/generated_*
+posqu-mobile-lite/.flutter-plugins*
+posqu-mobile-lite/android/local.properties
+posqu-mobile-lite/android/keystore.properties
+posqu-mobile-lite/android/app/*.jks
+posqu-mobile-lite/android/app/*.keystore
+posqu-mobile-lite/**/*.g.dart
+posqu-mobile-lite/**/*.freezed.dart
+posqu-mobile-lite/**/*.gr.dart
+posqu-mobile-lite/*.iml
+posqu-mobile-lite/*.lock
+posqu-pro-desktop-java/
+*.apk
+*.aab
+*.blockmap
+public/downloads/*.apk
+
+# AI / tooling caches
+.mimocode/
