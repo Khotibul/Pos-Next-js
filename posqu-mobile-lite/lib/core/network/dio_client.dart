@@ -33,9 +33,19 @@ final dioClientProvider = Provider<DioClient>((ref) {
 
 class DioClient {
   late final Dio _dio;
+  String? _cachedToken;
 
   DioClient() {
     _dio = _createDio();
+    _preloadToken();
+  }
+
+  void _preloadToken() {
+    try {
+      if (Hive.isBoxOpen('auth')) {
+        _cachedToken = Hive.box('auth').get('token') as String?;
+      }
+    } catch (_) {}
   }
 
   Dio get dio => _dio;
@@ -45,6 +55,7 @@ class DioClient {
       baseUrl: ApiConstants.defaultBaseUrl,
       connectTimeout: ApiConstants.connectTimeout,
       receiveTimeout: ApiConstants.timeout,
+      sendTimeout: const Duration(seconds: 10),
       headers: {
         ApiConstants.contentType: ApiConstants.applicationJson,
       },
@@ -62,24 +73,27 @@ class DioClient {
     return InterceptorsWrapper(
       onRequest: (options, handler) async {
         try {
-          final box = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
-          final token = box.get('token');
+          // Pakai cache memori untuk hindari await Hive per-request (30-120ms → <1ms)
+          String? token = _cachedToken;
+          if (token == null) {
+            final box = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
+            token = box.get('token') as String?;
+            _cachedToken = token;
+          }
           if (token != null &&
               options.path != ApiConstants.mobileLogin &&
               options.path != ApiConstants.login &&
               options.path != ApiConstants.mobileGoogleLogin) {
-            options.headers[ApiConstants.authorization] =
-                '${ApiConstants.bearer}$token';
+            options.headers[ApiConstants.authorization] = '${ApiConstants.bearer}$token';
           }
         } catch (_) {}
         handler.next(options);
       },
       onError: (error, handler) async {
-        final token = error.requestOptions.headers[ApiConstants.authorization]
-                as String? ??
-            '';
+        final token = error.requestOptions.headers[ApiConstants.authorization] as String? ?? '';
         final isLocalSession = token.startsWith('${ApiConstants.bearer}local.');
         if (error.response?.statusCode == 401 && !isLocalSession) {
+          _cachedToken = null;
           try {
             final box = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
             await box.delete('token');

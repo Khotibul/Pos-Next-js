@@ -214,6 +214,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleLogin() {
+    final isLoading = ref.read(authStateProvider).maybeWhen(loading: () => true, orElse: () => false);
+    if (isLoading) return;
     if (_formKey.currentState!.validate()) {
       ref.read(authStateProvider.notifier).login(
             _emailController.text.trim(),

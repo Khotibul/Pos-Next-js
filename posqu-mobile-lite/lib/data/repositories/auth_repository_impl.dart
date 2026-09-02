@@ -40,29 +40,44 @@ class AuthRepositoryImpl implements AuthRepository {
   });
 
   static const String _localTokenPrefix = 'local.';
+  bool _isLoggingIn = false;
 
   @override
   Future<Either<Failure, User>> login(String email, String password) async {
-    final normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail.isEmpty || password.isEmpty) {
-      return const Left(ServerFailure(message: 'Email dan password wajib diisi.'));
+    if (_isLoggingIn) {
+      return const Left(ServerFailure(message: 'Login sedang diproses, harap tunggu.'));
     }
-
-    final online = await networkInfo.isConnected;
-    if (!online) {
-      return _loginLocally(normalizedEmail, password);
-    }
-
-    Failure? remoteFailure;
+    _isLoggingIn = true;
     try {
-      final result = await remoteDataSource.login(normalizedEmail, password);
-      final user = result.user.toEntity();
+      final normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail.isEmpty || password.isEmpty) {
+        return const Left(ServerFailure(message: 'Email dan password wajib diisi.'));
+      }
 
-      await cache.saveToken(result.token);
-      await cache.saveUserData(result.user.toJson());
-      await _cacheLocalCredentials(normalizedEmail, password, user);
+      final online = await networkInfo.hasInternetAccess.timeout(const Duration(seconds: 4), onTimeout: () => false);
+      if (!online) {
+        return await _loginLocally(normalizedEmail, password);
+      }
 
-      return Right(user);
+      Failure? remoteFailure;
+      try {
+        // Timeout 8 detik untuk login online agar tidak hang 45s (15+30)
+        final result = await remoteDataSource.login(normalizedEmail, password).timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => throw DioException(requestOptions: RequestOptions(path: '/mobile/auth/login'), type: DioExceptionType.connectionTimeout, error: 'Login timeout 8s'),
+            );
+        final user = result.user.toEntity();
+
+        // Simpan token & user paralel (50-80ms → 20ms) + cache lokal fire-and-forget
+        await Future.wait([
+          cache.saveToken(result.token),
+          cache.saveUserData(result.user.toJson()),
+        ]);
+        // Jangan blok login success dengan drift upsert (50-120ms) — jalankan background
+        // ignore: unawaited_futures
+        _cacheLocalCredentials(normalizedEmail, password, user);
+
+        return Right(user);
     } on ServerException catch (e) {
       remoteFailure = ServerFailure(message: e.message, statusCode: e.statusCode);
       if (e.statusCode != 401 && e.statusCode != 404) {
@@ -84,10 +99,14 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     final localResult = await _loginLocally(normalizedEmail, password);
+    // ignore: unawaited_return_in_try_block
     return localResult.fold(
       (localError) => Left(remoteFailure ?? localError),
       (user) => Right(user),
     );
+    } finally {
+      _isLoggingIn = false;
+    }
   }
 
   Future<Either<Failure, User>> _loginLocally(

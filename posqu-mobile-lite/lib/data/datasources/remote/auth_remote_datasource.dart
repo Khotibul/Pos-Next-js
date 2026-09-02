@@ -23,10 +23,15 @@ class AuthRemoteDataSource {
   AuthRemoteDataSource(this._dio);
 
   Future<LoginResponse> login(String email, String password) async {
-    final response = await _dio.post(ApiConstants.mobileLogin, data: {
-      'email': email,
-      'password': password,
-    });
+    final response = await _dio.post(
+      ApiConstants.mobileLogin,
+      data: {'email': email, 'password': password},
+      options: Options(
+        sendTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 8),
+        validateStatus: (s) => s != null && s < 500,
+      ),
+    );
     final data = response.data;
     return LoginResponse(
       user: UserModel.fromJson(data['user']),
@@ -35,7 +40,12 @@ class AuthRemoteDataSource {
   }
 
   Future<void> logout() async {
-    await _dio.post(ApiConstants.logout);
+    try {
+      await _dio.post(ApiConstants.logout, options: Options(validateStatus: (s) => s != null && s < 500));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400 || e.response?.statusCode == 401 || e.response?.statusCode == 404) return;
+      rethrow;
+    } catch (_) {}
   }
 
   Future<UserModel> getCurrentUser() async {

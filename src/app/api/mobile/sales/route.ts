@@ -113,20 +113,48 @@ export const POST = withApiHandler(async (req: Request) => {
     return apiOk({ duplicate: true, id: existing.id });
   }
 
+  // Filter item yang produknya masih ada di tenant (hindari FK violation yang bikin 500)
+  const validItems: typeof input.items = [];
+  for (const item of input.items) {
+    const prod = await prisma.product.findFirst({
+      where: { tenantId: ctx.tenantId, id: item.productId },
+      select: { id: true },
+    });
+    if (prod) validItems.push(item);
+    else {
+      // Fallback: cari by sku jika id tidak cocok (produk mobile mungkin pakai id lokal)
+      const bySku = await prisma.product.findFirst({
+        where: { tenantId: ctx.tenantId, sku: item.sku },
+        select: { id: true },
+      });
+      if (bySku) validItems.push({ ...item, productId: bySku.id });
+    }
+  }
+  if (validItems.length === 0) {
+    return Response.json({ ok: false, code: "VALIDATION_ERROR", message: "Produk tidak ditemukan untuk tenant ini." }, { status: 400 });
+  }
+
+  // Shift validasi: jika shiftId tidak ditemukan di tenant, set null agar tidak FK error
+  let resolvedShiftId: string | null = input.shiftId ?? null;
+  if (resolvedShiftId) {
+    const shift = await prisma.cashierShift.findFirst({ where: { id: resolvedShiftId, tenantId: ctx.tenantId }, select: { id: true } });
+    if (!shift) resolvedShiftId = null;
+  }
+
   const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
         tenantId: ctx.tenantId,
         invoiceNo: input.invoiceNo,
         cashierId: input.cashierId ?? null,
-        shiftId: input.shiftId ?? null,
+        shiftId: resolvedShiftId,
         status: input.status,
         subtotal: input.subtotal,
         discount: input.discount,
         tax: input.tax,
         total: input.total,
         items: {
-          create: input.items.map((item) => ({
+          create: validItems.map((item) => ({
             tenantId: ctx.tenantId,
             productId: item.productId,
             name: item.name,
@@ -157,7 +185,7 @@ export const POST = withApiHandler(async (req: Request) => {
     });
 
     if (warehouse) {
-      for (const item of input.items) {
+      for (const item of validItems) {
         const stock = await tx.productWarehouseStock.findFirst({
           where: {
             tenantId: ctx.tenantId,

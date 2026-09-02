@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive_helper.dart';
 
 class MainShell extends StatelessWidget {
@@ -90,17 +91,24 @@ class MainShell extends StatelessWidget {
         ? minimumContentHeight
         : viewportHeight;
 
-    return SizedBox(
-      width: 64,
+    return Container(
+      color: AppColors.sidebar,
+      width: 72,
       child: SingleChildScrollView(
         child: SizedBox(
           height: contentHeight,
           child: NavigationRail(
-            minWidth: 64,
+            backgroundColor: Colors.transparent,
+            minWidth: 72,
             groupAlignment: -1,
             labelType: NavigationRailLabelType.none,
             selectedIndex: index,
             onDestinationSelected: (i) => _navigate(context, location, i),
+            indicatorColor: const Color(0xFF1E3A8A),
+            selectedIconTheme: const IconThemeData(color: Colors.white, size: 22),
+            unselectedIconTheme: const IconThemeData(color: Color(0xFF94A3C8), size: 22),
+            selectedLabelTextStyle: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+            unselectedLabelTextStyle: const TextStyle(color: Color(0xFF94A3C8), fontSize: 11),
             destinations: [
               for (final destination in _destinations)
                 NavigationRailDestination(
@@ -132,21 +140,21 @@ class MainShell extends StatelessWidget {
             ResponsiveHelper.compactWidthBreakpoint;
 
         return Scaffold(
+          backgroundColor: AppColors.background,
           body: SafeArea(
+            top: false,
+            bottom: false,
             child: useNavigationRail
-                ? LayoutBuilder(
-                    builder: (context, safeConstraints) => Row(
-                      children: [
-                        _buildScrollableNavigationRail(
-                          context,
-                          location,
-                          index,
-                          safeConstraints.maxHeight,
-                        ),
-                        const VerticalDivider(width: 1),
-                        Expanded(child: child),
-                      ],
-                    ),
+                ? Row(
+                    children: [
+                      _buildScrollableNavigationRail(
+                        context,
+                        location,
+                        index,
+                        MediaQuery.of(context).size.height,
+                      ),
+                      Expanded(child: child),
+                    ],
                   )
                 : child,
           ),

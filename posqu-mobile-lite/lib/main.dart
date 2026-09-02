@@ -10,8 +10,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/theme/app_theme.dart';
 import 'data/datasources/local/hive_cache.dart';
-import 'presentation/providers/theme_provider.dart';
+import 'presentation/providers/setting/setting_provider.dart';
 import 'presentation/routers/app_router.dart';
 
 Future<void> main() async {
@@ -65,12 +66,15 @@ class POSQUApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeData = ref.watch(themeDataProvider);
+    final themeModeStr = ref.watch(themeModeProvider);
+    final themeMode = themeModeStr == 'dark' ? ThemeMode.dark : ThemeMode.light;
 
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: themeData,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

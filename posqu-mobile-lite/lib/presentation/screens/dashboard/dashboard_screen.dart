@@ -413,38 +413,38 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildShiftCard(BuildContext context, shift) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: (shift == null ? Colors.grey : Colors.green).withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (shift == null ? Colors.grey : Colors.green).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.shield_outlined,
+              size: 22,
+              color: shift == null ? Colors.grey : Colors.green,
+            ),
           ),
-          child: Icon(
-            Icons.shield_outlined,
-            size: 22,
-            color: shift == null ? Colors.grey : Colors.green,
+          title: const Text(
+            'Shift Kasir',
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
+          subtitle: Text(
+            shift == null
+                ? 'Belum ada shift aktif'
+                : 'Shift aktif sejak ${DateFormatter.formatTime(shift.openedAt)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/shifts'),
         ),
-        title: const Text(
-          'Shift Kasir',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          shift == null
-              ? 'Belum ada shift aktif'
-              : 'Shift aktif sejak ${DateFormatter.formatTime(shift.openedAt)}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/shifts'),
       ),
     );
   }
