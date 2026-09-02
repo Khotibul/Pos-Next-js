@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/plan/plan_provider.dart';
 import '../../providers/sync/sync_provider.dart';
 import '../../providers/product/product_provider.dart';
 import '../../providers/sale/sale_provider.dart';
@@ -13,6 +14,8 @@ class SyncScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final syncStatusAsync = ref.watch(syncStatusProvider);
     final syncActions = ref.read(syncActionProvider);
+    final canSync = ref.watch(canSyncProvider);
+    final plan = ref.watch(tenantPlanProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sinkronisasi')),
@@ -55,6 +58,24 @@ class SyncScreen extends ConsumerWidget {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
+                  if (!canSync)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.workspace_premium, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              plan != null ? 'Paket ${plan.planName} (Free) — sinkronisasi PostgreSQL nonaktif. Upgrade ke Pro/Enterprise di website super-admin untuk aktifkan database & sync.' : 'Paket Free — sinkronisasi nonaktif. Hubungi admin website untuk upgrade.',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (!canSync) const SizedBox(height: 12),
                   const SizedBox(height: 18),
                   syncStatusAsync.when(
                     data: (status) => Column(
@@ -135,23 +156,25 @@ class SyncScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 22),
                   FilledButton.icon(
-                    onPressed: () async {
-                      final success = await syncActions.syncNow();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(success
-                                ? 'Sinkronisasi selesai'
-                                : 'Sinkronisasi gagal — periksa koneksi'),
-                          ),
-                        );
-                        ref.invalidate(syncStatusProvider);
-                        ref.invalidate(productListProvider);
-                        ref.invalidate(saleListProvider);
-                      }
-                    },
+                    onPressed: !canSync
+                        ? null
+                        : () async {
+                            final success = await syncActions.syncNow();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(success
+                                      ? 'Sinkronisasi selesai'
+                                      : 'Sinkronisasi gagal — periksa koneksi'),
+                                ),
+                              );
+                              ref.invalidate(syncStatusProvider);
+                              ref.invalidate(productListProvider);
+                              ref.invalidate(saleListProvider);
+                            }
+                          },
                     icon: const Icon(Icons.sync),
-                    label: const Text('Sinkronisasi Sekarang'),
+                    label: Text(canSync ? 'Sinkronisasi Sekarang' : 'Upgrade untuk Sinkronisasi'),
                   ),
                 ],
               ),

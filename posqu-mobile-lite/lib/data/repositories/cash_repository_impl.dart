@@ -1,20 +1,62 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/cashier_shift.dart';
 import '../../domain/repositories/cash_repository.dart';
 import '../datasources/local/database/app_database.dart';
+import '../datasources/remote/cash_transaction_remote_datasource.dart';
 
 final cashRepositoryProvider = Provider<CashRepository>((ref) {
-  return CashRepositoryImpl(database: ref.read(appDatabaseProvider));
+  return CashRepositoryImpl(
+    database: ref.read(appDatabaseProvider),
+    remoteDataSource: ref.read(cashTransactionRemoteDataSourceProvider),
+    networkInfo: ref.read(networkInfoProvider),
+  );
 });
 
 class CashRepositoryImpl implements CashRepository {
   final AppDatabase database;
+  final CashTransactionRemoteDataSource remoteDataSource;
+  final NetworkInfo networkInfo;
 
-  CashRepositoryImpl({required this.database});
+  CashRepositoryImpl({
+    required this.database,
+    required this.remoteDataSource,
+    required this.networkInfo,
+  });
+
+  Future<void> _pushPendingCash() async {
+    final pending = await database.cashTransactionDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        await remoteDataSource.createTransaction({
+          'id': row.id,
+          'shiftId': row.shiftId,
+          'type': row.type,
+          'category': row.category,
+          'amount': row.amount,
+          'description': row.description,
+          'transactionDate': row.transactionDate.toIso8601String(),
+          'userId': row.userId,
+        });
+        await database.cashTransactionDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.cashTransactionDao.markSynced([row.id]);
+          continue;
+        }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) MobileApiGate.disable('cashTransactions');
+        break;
+      } catch (_) {
+        break;
+      }
+    }
+  }
 
   @override
   Future<Either<Failure, CashTransaction>> createCashTransaction(
@@ -57,6 +99,10 @@ class CashRepositoryImpl implements CashRepository {
     String? type,
   }) async {
     try {
+      // Online: push pending lalu baca SQLite (offline-first konsisten web)
+      if (await networkInfo.isConnected && !MobileApiGate.isDisabled('cashTransactions')) {
+        await _pushPendingCash();
+      }
       final transactions = await database.cashTransactionDao.getAll(
         startDate: startDate,
         endDate: endDate,

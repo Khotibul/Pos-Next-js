@@ -11,7 +11,9 @@ import '../../providers/product/product_provider.dart';
 import '../../providers/shift/shift_provider.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../../data/repositories/cashier_shift_repository_impl.dart';
+import '../../../core/widgets/offline_banner.dart';
 import '../../../core/widgets/receipt_preview.dart';
+import '../../providers/plan/plan_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
@@ -199,14 +201,55 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     List<Product> products,
     Widget Function(BoxConstraints) bodyBuilder,
   ) {
+    final canUseDb = ref.watch(canUseDatabaseProvider);
+    final planAsync = ref.watch(tenantPlanProvider);
+    final plan = planAsync.valueOrNull;
+    final freeBanner = !canUseDb
+        ? Material(
+            color: Colors.red.shade700,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium, size: 16, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        plan?.planName != null ? 'Paket ${plan!.planName} (Free) — transaksi & produk hanya lokal, upgrade ke Pro/Enterprise untuk sync PostgreSQL' : 'Paket Free — upgrade ke Pro/Enterprise untuk pakai database & sinkronisasi',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
+
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Column(
+        children: [
+          const OfflineBanner(),
+          freeBanner,
+          const Expanded(child: Center(child: CircularProgressIndicator())),
+        ],
+      );
     }
     if (activeShift == null) {
-      return _buildNoShiftBlock(context, userId);
+      return Column(
+        children: [
+          const OfflineBanner(),
+          freeBanner,
+          Expanded(child: _buildNoShiftBlock(context, userId)),
+        ],
+      );
     }
     return Column(
       children: [
+        const OfflineBanner(),
+        freeBanner,
         _buildShiftBanner(context, activeShift, userId),
         Expanded(
           child: LayoutBuilder(builder: (context, c) => bodyBuilder(c)),

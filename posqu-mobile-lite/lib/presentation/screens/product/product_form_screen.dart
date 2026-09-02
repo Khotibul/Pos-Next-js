@@ -13,6 +13,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../providers/category/category_provider.dart';
 import '../../providers/product/product_provider.dart';
 import '../../providers/unit/unit_provider.dart';
+import '../../providers/plan/plan_provider.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../domain/entities/product.dart';
 
@@ -205,6 +206,23 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   Future<void> _saveProduct() async {
+    final canStore = ref.read(canUseDatabaseProvider);
+    if (!canStore) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Paket Free tidak bisa simpan produk ke database. Upgrade ke Pro/Enterprise di website (super-admin).')),
+        );
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Upgrade Paket'),
+            content: const Text('Paket Free menonaktifkan penyimpanan produk ke database & sinkronisasi. Hubungi admin website untuk upgrade ke Pro/Enterprise.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+          ),
+        );
+      }
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 

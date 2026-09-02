@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
+import { requireCanUseDatabase } from "@/lib/plan-guard";
 
 export const runtime = "nodejs";
 
@@ -29,9 +30,18 @@ const productUpsertSchema = z.object({
   type: z.string().default("SINGLE"),
 });
 
-// Upsert produk dari mobile (dibuat/diubah saat offline).
+// Upsert produk dari mobile (dibuat/diubah saat offline). Paket free (starter) tidak boleh simpan ke DB.
 export const POST = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
+  try {
+    await requireCanUseDatabase(ctx.tenantId);
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err.message === "PLAN_FREE_NO_DB") {
+      return Response.json({ ok: false, code: "PLAN_FREE_NO_DB", message: "Paket Free tidak bisa simpan produk ke database. Upgrade ke Pro/Enterprise." }, { status: 403 });
+    }
+    throw e;
+  }
   const body = await req.json().catch(() => null);
   const parsed = productUpsertSchema.safeParse(body);
   if (!parsed.success) {

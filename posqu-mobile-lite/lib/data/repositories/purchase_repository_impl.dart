@@ -1,20 +1,95 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/purchase.dart';
 import '../../domain/repositories/purchase_repository.dart';
 import '../datasources/local/database/app_database.dart';
+import '../datasources/remote/purchase_remote_datasource.dart';
 
 final purchaseRepositoryProvider = Provider<PurchaseRepository>((ref) {
-  return PurchaseRepositoryImpl(database: ref.read(appDatabaseProvider));
+  return PurchaseRepositoryImpl(
+    database: ref.read(appDatabaseProvider),
+    remoteDataSource: ref.read(purchaseRemoteDataSourceProvider),
+    networkInfo: ref.read(networkInfoProvider),
+  );
 });
 
 class PurchaseRepositoryImpl implements PurchaseRepository {
   final AppDatabase database;
+  final PurchaseRemoteDataSource remoteDataSource;
+  final NetworkInfo networkInfo;
 
-  PurchaseRepositoryImpl({required this.database});
+  PurchaseRepositoryImpl({
+    required this.database,
+    required this.remoteDataSource,
+    required this.networkInfo,
+  });
+
+  Future<void> _pushPendingPurchases() async {
+    final pending = await database.purchaseDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        final items = await database.purchaseDao.getItems(row.id);
+        await remoteDataSource.createPurchase({
+          'id': row.id,
+          'orderNo': row.orderNo,
+          'supplierId': row.supplierId,
+          'status': row.status,
+          'subtotal': row.subtotal,
+          'tax': row.tax,
+          'total': row.total,
+          'notes': row.notes,
+          'createdAt': row.createdAt.toIso8601String(),
+          'items': items.map((i) => {'productId': i.productId, 'qty': i.qty, 'price': i.costPrice}).toList(),
+        });
+        await database.purchaseDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.purchaseDao.markSynced([row.id]);
+          continue;
+        }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) MobileApiGate.disable('purchases');
+        break;
+      } catch (_) {
+        break;
+      }
+    }
+  }
+
+  Future<void> _syncFromServer() async {
+    if (!await networkInfo.isConnected) return;
+    if (MobileApiGate.isDisabled('purchases')) return;
+    await _pushPendingPurchases();
+    try {
+      final remote = await remoteDataSource.getPurchases(limit: 100);
+      for (final m in remote) {
+        final existing = await database.purchaseDao.getById(m['id'] as String);
+        if (existing != null) continue;
+        await database.purchaseDao.insertPurchase(
+          PurchasesTableCompanion(
+            id: Value(m['id'] as String),
+            orderNo: Value(m['orderNo'] as String? ?? m['id'] as String),
+            supplierId: Value(m['supplierId'] as String?),
+            status: Value(m['status'] as String? ?? 'DRAFT'),
+            subtotal: Value((m['subtotal'] as num?)?.toDouble() ?? 0),
+            tax: Value((m['tax'] as num?)?.toDouble() ?? 0),
+            total: Value((m['total'] as num?)?.toDouble() ?? 0),
+            notes: Value(m['notes'] as String?),
+            isSynced: const Value(true),
+            createdAt: Value(m['createdAt'] != null ? DateTime.tryParse(m['createdAt'] as String) ?? DateTime.now() : DateTime.now()),
+            updatedAt: Value(m['updatedAt'] != null ? DateTime.tryParse(m['updatedAt'] as String) ?? DateTime.now() : DateTime.now()),
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 501) MobileApiGate.disable('purchases');
+    } catch (_) {}
+  }
 
   @override
   Future<Either<Failure, Purchase>> createPurchase(Purchase purchase) async {
@@ -100,6 +175,8 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
     DateTime? endDate,
   }) async {
     try {
+      // Online: langsung sync ke PostgreSQL via API, lalu baca SQLite (offline-first konsisten web)
+      await _syncFromServer();
       final purchases = await database.purchaseDao.getAll(
         search: search,
         startDate: startDate,

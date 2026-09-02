@@ -45,7 +45,7 @@ class SettingRepositoryImpl implements SettingRepository {
   @override
   Future<Either<Failure, void>> updateApiBaseUrl(String url) async {
     try {
-      await cache.setSetting('API_BASE_URL', url);
+      await cache.setSetting('API_BASE_URL', url.trim());
       return const Right(null);
     } catch (e) {
       return const Left(CacheFailure(message: 'Gagal mengupdate URL API'));

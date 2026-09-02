@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
+import { requireCanUseDatabase } from "@/lib/plan-guard";
 
 export const runtime = "nodejs";
 
@@ -31,9 +32,18 @@ const closeSchema = z.object({
   totalExpenses: z.number().nullish(),
 });
 
-// POST /api/mobile/cashier-shifts -> buka shift (upsert)
+// POST /api/mobile/cashier-shifts -> buka shift (upsert). Free tidak bisa pakai DB.
 export const POST = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
+  try {
+    await requireCanUseDatabase(ctx.tenantId);
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err.message === "PLAN_FREE_NO_DB") {
+      return Response.json({ ok: false, code: "PLAN_FREE_NO_DB", message: "Paket Free tidak bisa simpan shift ke database. Upgrade ke Pro/Enterprise." }, { status: 403 });
+    }
+    throw e;
+  }
   const body = await req.json().catch(() => null);
 
   // Deteksi close: jika ada cashCounted/closedAt maka ini close, bukan open

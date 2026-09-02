@@ -4,9 +4,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../constants/api_constants.dart';
+import 'mobile_api_gate.dart';
+import '../../presentation/providers/setting/setting_provider.dart';
 
 final dioClientProvider = Provider<DioClient>((ref) {
-  return DioClient();
+  final client = DioClient();
+  // Sinkron URL efektif (otomatis dari EnvConfig atau manual dari Pengaturan) ke Dio
+  // Otomatis: EnvConfig.apiBaseUrl (https://posqupro.co-id.id/api)
+  // Manual: Hive settings API_BASE_URL
+  void syncEffective() {
+    try {
+      final effective = ref.read(effectiveApiBaseUrlProvider);
+      if (effective.isNotEmpty) client.updateBaseUrl(effective);
+    } catch (_) {}
+  }
+
+  syncEffective();
+  ref.listen<String>(effectiveApiBaseUrlProvider, (prev, next) {
+    if (prev != next && next.isNotEmpty) {
+      client.updateBaseUrl(next);
+      MobileApiGate.reset();
+      if (kDebugMode) debugPrint('[Dio] baseUrl efektif: $next (prev: $prev) → reset gate');
+    }
+  });
+
+  return client;
 });
 
 class DioClient {

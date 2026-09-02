@@ -1,7 +1,7 @@
 name: posqu_mobile_lite
 description: Aplikasi POS UMKM - Offline First dengan Clean Architecture
 publish_to: 'none'
-version: 1.0.8+11
+version: 1.0.8+12
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

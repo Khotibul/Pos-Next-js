@@ -11,6 +11,7 @@ import '../../../data/repositories/customer_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/supplier_repository_impl.dart';
+import '../plan/plan_provider.dart';
 import '../unit/unit_provider.dart';
 
 class SyncStatusInfo {
@@ -52,8 +53,19 @@ class SyncStatusInfo {
 
 /// Status sinkronisasi nyata: hitungan data lokal yang belum terkirim
 /// ke server + waktu sinkronisasi terakhir.
+/// Paket Free (starter): database & sync nonaktif → pending selalu 0 (data hanya lokal SQLite)
 final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
+  final canSync = ref.watch(canSyncProvider);
   final db = ref.read(appDatabaseProvider);
+
+  // Free: tidak pakai PostgreSQL, jadi tidak ada pending ke server
+  if (!canSync) {
+    final box = Hive.isBoxOpen('cache') ? Hive.box('cache') : await Hive.openBox('cache');
+    final lastMs = box.get('last_sync_at') as int?;
+    return SyncStatusInfo(
+      lastSync: lastMs != null ? DateTime.fromMillisecondsSinceEpoch(lastMs) : null,
+    );
+  }
 
   final sales = await db.saleDao.getUnsynced();
   final products = await db.productDao.getUnsynced();
@@ -92,8 +104,11 @@ class SyncActions {
   /// Memicu sinkronisasi dua arah untuk semua entitas:
   /// push pending lokal -> tarik data server -> simpan waktu sync.
   /// Urutan: kategori & supplier dulu (dependensi produk), lalu produk, pelanggan, penjualan, shift, purchase, return, cash.
+  /// Paket Free: sync nonaktif (hanya SQLite lokal) → return false.
   /// Guard mutex mencegah double-push concurrent (B21).
   Future<bool> syncNow() async {
+    final canSync = _ref.read(canSyncProvider);
+    if (!canSync) return false;
     if (_isSyncing) return false;
     _isSyncing = true;
     try {

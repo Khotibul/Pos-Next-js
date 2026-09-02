@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/plan/plan_provider.dart';
 import '../../providers/report/report_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -96,6 +97,8 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     final reportAsync = ref.watch(periodReportProvider(_range));
+    final canUseDb = ref.watch(canUseDatabaseProvider);
+    final plan = ref.watch(tenantPlanProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -105,18 +108,38 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
           IconButton(
             tooltip: 'Export Excel',
             icon: const Icon(Icons.grid_on_outlined, color: Colors.green),
-            onPressed: _exporting ? null : () => _export(excel: true),
+            onPressed: (!canUseDb || _exporting) ? null : () => _export(excel: true),
           ),
           IconButton(
             tooltip: 'Export PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.red),
-            onPressed: _exporting ? null : () => _export(excel: false),
+            onPressed: (!canUseDb || _exporting) ? null : () => _export(excel: false),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (!canUseDb)
+            Card(
+              color: Colors.orange.shade700,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        plan != null ? 'Paket ${plan.planName} (Free) — laporan hanya lokal SQLite, tidak tersimpan ke PostgreSQL. Upgrade ke Pro/Enterprise di website super-admin.' : 'Paket Free — laporan tidak sinkron ke database. Upgrade via admin website.',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (!canUseDb) const SizedBox(height: 12),
           _buildPeriodSelector(),
           const SizedBox(height: 16),
           reportAsync.when(

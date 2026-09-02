@@ -1,21 +1,63 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
+import '../../core/network/mobile_api_gate.dart';
+import '../../core/network/network_info.dart';
 import '../../domain/entities/return.dart';
 import '../../domain/repositories/return_repository.dart';
 import '../datasources/local/database/app_database.dart';
+import '../datasources/remote/return_remote_datasource.dart';
 
 final returnRepositoryProvider = Provider<ReturnRepository>((ref) {
-  return ReturnRepositoryImpl(database: ref.read(appDatabaseProvider));
+  return ReturnRepositoryImpl(
+    database: ref.read(appDatabaseProvider),
+    remoteDataSource: ref.read(returnRemoteDataSourceProvider),
+    networkInfo: ref.read(networkInfoProvider),
+  );
 });
 
 class ReturnRepositoryImpl implements ReturnRepository {
   final AppDatabase database;
+  final ReturnRemoteDataSource remoteDataSource;
+  final NetworkInfo networkInfo;
 
-  ReturnRepositoryImpl({required this.database});
+  ReturnRepositoryImpl({
+    required this.database,
+    required this.remoteDataSource,
+    required this.networkInfo,
+  });
+
+  Future<void> _pushPendingReturns() async {
+    final pending = await database.returnDao.getUnsynced();
+    for (final row in pending) {
+      try {
+        final items = await database.returnDao.getItems(row.id);
+        await remoteDataSource.createReturn({
+          'id': row.id,
+          'returnNumber': row.returnNumber,
+          'saleId': row.saleId,
+          'type': row.type,
+          'reason': row.reason,
+          'total': row.total,
+          'items': items.map((i) => {'productId': i.productId, 'quantity': i.quantity, 'price': i.price}).toList(),
+        });
+        await database.returnDao.markSynced([row.id]);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 400) {
+          await database.returnDao.markSynced([row.id]);
+          continue;
+        }
+        if (e.response?.statusCode == 404 || e.response?.statusCode == 501) MobileApiGate.disable('returns');
+        break;
+      } catch (_) {
+        break;
+      }
+    }
+  }
 
   @override
   Future<Either<Failure, Return>> createReturn(Return returnData) async {
@@ -82,6 +124,9 @@ class ReturnRepositoryImpl implements ReturnRepository {
     String? type,
   }) async {
     try {
+      if (await networkInfo.isConnected && !MobileApiGate.isDisabled('returns')) {
+        await _pushPendingReturns();
+      }
       final returns = await database.returnDao.getAll(
         search: search,
         startDate: startDate,

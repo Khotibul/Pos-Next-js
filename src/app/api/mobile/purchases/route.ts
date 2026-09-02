@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
+import { requireCanUseDatabase } from "@/lib/plan-guard";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,15 @@ const purchaseUpsertSchema = z.object({
 
 export const POST = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
+  try {
+    await requireCanUseDatabase(ctx.tenantId);
+  } catch (e) {
+    const err = e as Error & { status?: number };
+    if (err.message === "PLAN_FREE_NO_DB") {
+      return Response.json({ ok: false, code: "PLAN_FREE_NO_DB", message: "Paket Free tidak bisa simpan purchase ke database. Upgrade ke Pro/Enterprise." }, { status: 403 });
+    }
+    throw e;
+  }
   const body = await req.json().catch(() => null);
   const parsed = purchaseUpsertSchema.safeParse(body);
   if (!parsed.success) {
