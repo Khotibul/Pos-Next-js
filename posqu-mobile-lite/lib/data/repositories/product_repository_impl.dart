@@ -159,19 +159,31 @@ class ProductRepositoryImpl implements ProductRepository {
         id: Value(p.id),
         isSynced: Value(synced),
         sku: Value(p.sku),
+        slug: Value(p.slug),
         name: Value(p.name),
         barcode: Value(p.barcode),
+        qrCode: Value(p.qrCode),
         description: Value(p.description),
         categoryId: Value(p.categoryId),
+        brandId: Value(p.brandId),
         supplierId: Value(p.supplierId),
+        unitId: Value(p.unitId),
         costPrice: Value(p.costPrice),
         sellingPrice: Value(p.sellingPrice),
-        wholesalePrice: Value(p.wholesalePrice),
-        stock: Value(p.stock),
+        marginPct: Value(p.marginPct),
+        taxRate: Value(p.taxRate),
         minStock: Value(p.minStock),
+        reorderPoint: Value(p.reorderPoint),
+        wholesalePrice: Value(p.wholesalePrice),
+        wholesaleDiscountPercent: Value(p.wholesaleDiscountPercent),
+        wholesaleMinQty: Value(p.wholesaleMinQty),
+        isActive: Value(p.isActive),
+        isFeatured: Value(p.isFeatured),
+        isConsignment: Value(p.isConsignment),
+        type: Value(p.type),
+        stock: Value(p.stock),
         unit: Value(p.unit),
         imageUrl: Value(p.imageUrl),
-        isActive: Value(p.isActive),
       ),
     );
   }
@@ -258,39 +270,47 @@ class ProductRepositoryImpl implements ProductRepository {
     var pushed = false;
     try {
       final model = ProductModel.fromEntity(product);
-      // POST upsert (endpoint /mobile/products) — sama untuk buat & ubah.
       await remoteDataSource.createProduct(model.toJson());
       pushed = true;
-    } catch (_) {
-      // Offline -> tandai belum sync, nanti di-push saat sync.
-    }
+    } catch (_) {}
 
     try {
-      await database.productDao.updateProduct(
+      await database.productDao.upsertProduct(
         ProductsTableCompanion(
           id: Value(product.id),
           sku: Value(product.sku),
+          slug: Value(product.slug),
           name: Value(product.name),
           barcode: Value(product.barcode),
+          qrCode: Value(product.qrCode),
           description: Value(product.description),
           categoryId: Value(product.categoryId),
+          brandId: Value(product.brandId),
           supplierId: Value(product.supplierId),
+          unitId: Value(product.unitId),
           costPrice: Value(product.costPrice),
           sellingPrice: Value(product.sellingPrice),
-          wholesalePrice: Value(product.wholesalePrice),
-          stock: Value(product.stock),
+          marginPct: Value(product.marginPct),
+          taxRate: Value(product.taxRate),
           minStock: Value(product.minStock),
+          reorderPoint: Value(product.reorderPoint),
+          wholesalePrice: Value(product.wholesalePrice),
+          wholesaleDiscountPercent: Value(product.wholesaleDiscountPercent),
+          wholesaleMinQty: Value(product.wholesaleMinQty),
+          isActive: Value(product.isActive),
+          isFeatured: Value(product.isFeatured),
+          isConsignment: Value(product.isConsignment),
+          type: Value(product.type),
+          stock: Value(product.stock),
           unit: Value(product.unit),
           imageUrl: Value(product.imageUrl),
-          isActive: Value(product.isActive),
           isSynced: Value(pushed),
           updatedAt: Value(DateTime.now()),
         ),
       );
       return Right(product);
     } catch (localError) {
-      return Left(
-          DatabaseFailure(message: 'Gagal update produk: $localError'));
+      return Left(DatabaseFailure(message: 'Gagal update produk: $localError'));
     }
   }
 

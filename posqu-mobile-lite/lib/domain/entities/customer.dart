@@ -11,6 +11,9 @@ class Customer extends Equatable {
   final int purchaseCount;
   final double points;
   final bool isActive;
+  /// Pelanggan grosir dapat harga grosir tanpa minimal qty
+  final bool isWholesale;
+  final String customerType; // RETAIL | GROSIR
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +28,8 @@ class Customer extends Equatable {
     this.purchaseCount = 0,
     this.points = 0,
     this.isActive = true,
+    this.isWholesale = false,
+    this.customerType = 'RETAIL',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -40,6 +45,8 @@ class Customer extends Equatable {
     int? purchaseCount,
     double? points,
     bool? isActive,
+    bool? isWholesale,
+    String? customerType,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -54,6 +61,8 @@ class Customer extends Equatable {
       purchaseCount: purchaseCount ?? this.purchaseCount,
       points: points ?? this.points,
       isActive: isActive ?? this.isActive,
+      isWholesale: isWholesale ?? this.isWholesale,
+      customerType: customerType ?? this.customerType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -71,6 +80,8 @@ class Customer extends Equatable {
         purchaseCount,
         points,
         isActive,
+        isWholesale,
+        customerType,
         createdAt,
         updatedAt,
       ];

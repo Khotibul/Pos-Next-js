@@ -10,6 +10,7 @@ import '../../providers/kasir/kasir_state.dart';
 import '../../providers/product/product_provider.dart';
 import '../../providers/shift/shift_provider.dart';
 import '../../providers/auth/auth_provider.dart';
+import '../../providers/customer/customer_provider.dart';
 import '../../../data/repositories/cashier_shift_repository_impl.dart';
 import '../../../core/widgets/offline_banner.dart';
 import '../../../core/widgets/receipt_preview.dart';
@@ -123,6 +124,52 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             title: const Text('Kasir'),
             automaticallyImplyLeading: false,
             actions: [
+              // Pelanggan grosir — harga grosir otomatis
+              Consumer(
+                builder: (context, ref, _) {
+                  final kasir = ref.watch(kasirStateProvider);
+                  final isGrosir = kasir.isWholesaleCustomer;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: InkWell(
+                      onTap: () => _showCustomerPicker(context, ref),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isGrosir ? Colors.blue : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isGrosir ? Colors.blue : Colors.transparent),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.person_outline, size: 16, color: isGrosir ? Colors.white : null),
+                            const SizedBox(width: 4),
+                            Text(
+                              kasir.customerName ?? 'Umum',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isGrosir ? Colors.white : null,
+                              ),
+                            ),
+                            if (isGrosir) ...[
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
+                                child: const Text('GROSIR', style: TextStyle(fontSize: 8, color: Colors.blue, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                            const Icon(Icons.arrow_drop_down, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 tooltip: 'Simpan Keranjang',
                 icon: const Icon(Icons.bookmark_add_outlined),
@@ -732,6 +779,121 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
         setState(() {});
       }
     }
+  }
+
+  Future<void> _showCustomerPicker(BuildContext context, WidgetRef ref) async {
+    final customersAsync = ref.read(customerListProvider);
+    final selectedId = ref.read(kasirStateProvider).customerId;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.85,
+          builder: (_, controller) {
+            return Consumer(
+              builder: (context, ref2, _) {
+                final async = ref2.watch(customerListProvider);
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(4))),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Text('Pilih Pelanggan', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          if (selectedId != null)
+                            TextButton(
+                              onPressed: () {
+                                ref.read(kasirStateProvider.notifier).clearCustomer();
+                                Navigator.pop(sheetContext);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pelanggan dihapus — harga normal')) );
+                              },
+                              child: const Text('Hapus'),
+                            ),
+                          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(sheetContext)),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: async.when(
+                        data: (customers) {
+                          if (customers.isEmpty) {
+                            return const Center(child: Text('Belum ada pelanggan. Tambah di menu Pelanggan.'));
+                          }
+                          return ListView.separated(
+                            controller: controller,
+                            padding: const EdgeInsets.all(12),
+                            itemCount: customers.length + 1,
+                            separatorBuilder: (_, __) => const SizedBox(height: 6),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                final isSelected = selectedId == null;
+                                return Card(
+                                  color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+                                  child: ListTile(
+                                    leading: const Icon(Icons.person_outline),
+                                    title: const Text('Umum (Retail)'),
+                                    subtitle: const Text('Harga normal'),
+                                    trailing: isSelected ? const Icon(Icons.check, color: Colors.green) : null,
+                                    onTap: () {
+                                      ref.read(kasirStateProvider.notifier).clearCustomer();
+                                      Navigator.pop(sheetContext);
+                                    },
+                                  ),
+                                );
+                              }
+                              final c = customers[index - 1];
+                              final isSelected = selectedId == c.id;
+                              final isGrosir = c.isWholesale || c.customerType == 'GROSIR';
+                              return Card(
+                                color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: isGrosir ? Colors.blue : Theme.of(context).colorScheme.primary,
+                                    child: Text((c.name.isNotEmpty ? c.name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.white)),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Expanded(child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                                      if (isGrosir)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
+                                          child: const Text('GROSIR', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                                        ),
+                                    ],
+                                  ),
+                                  subtitle: Text(c.phone ?? c.city ?? '-', style: Theme.of(context).textTheme.bodySmall),
+                                  trailing: isSelected ? const Icon(Icons.check, color: Colors.green) : null,
+                                  onTap: () {
+                                    ref.read(kasirStateProvider.notifier).setCustomer(id: c.id, name: c.name, isWholesale: isGrosir);
+                                    Navigator.pop(sheetContext);
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isGrosir ? 'Pelanggan grosir: ${c.name} — harga grosir aktif' : 'Pelanggan: ${c.name}')));
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (e, _) => Center(child: Text('Gagal: $e')),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _showSavedCartsSheet() async {

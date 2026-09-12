@@ -72,7 +72,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -102,6 +102,10 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(categoriesTable, categoriesTable.isSynced);
           await m.addColumn(customersTable, customersTable.isSynced);
           await m.addColumn(suppliersTable, suppliersTable.isSynced);
+        }
+        if (from < 4) {
+          await m.addColumn(customersTable, customersTable.isWholesale);
+          await m.addColumn(customersTable, customersTable.customerType);
         }
       },
       beforeOpen: (details) async {

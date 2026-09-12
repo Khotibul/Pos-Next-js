@@ -112,6 +112,8 @@ class CustomerRepositoryImpl implements CustomerRepository {
           purchaseCount: Value(customer.purchaseCount),
           points: Value(customer.points),
           isActive: Value(customer.isActive),
+          isWholesale: Value(customer.isWholesale),
+          customerType: Value(customer.customerType),
           isSynced: Value(pushed),
         ),
       );
@@ -191,6 +193,8 @@ class CustomerRepositoryImpl implements CustomerRepository {
           purchaseCount: Value(customer.purchaseCount),
           points: Value(customer.points),
           isActive: Value(customer.isActive),
+          isWholesale: Value(customer.isWholesale),
+          customerType: Value(customer.customerType),
           updatedAt: Value(DateTime.now()),
           isSynced: Value(pushed),
         ),
@@ -213,6 +217,8 @@ class CustomerRepositoryImpl implements CustomerRepository {
       purchaseCount: c.purchaseCount,
       points: c.points,
       isActive: c.isActive,
+      isWholesale: c.isWholesale,
+      customerType: c.customerType,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     );

@@ -14,6 +14,8 @@ class CustomersTable extends Table {
   RealColumn get totalPurchase => real().withDefault(const Constant(0.0))();
   IntColumn get purchaseCount => integer().withDefault(const Constant(0))();
   RealColumn get points => real().withDefault(const Constant(0.0))();
+  BoolColumn get isWholesale => boolean().withDefault(const Constant(false))();
+  TextColumn get customerType => text().withDefault(const Constant('RETAIL'))();
 
   BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
 

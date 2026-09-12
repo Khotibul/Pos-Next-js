@@ -109,17 +109,56 @@ class KasirNotifier extends StateNotifier<KasirState> {
         super(const KasirState());
 
   double _priceFor(Product product, double qty) {
+    final isWholesaleCustomer = state.isWholesaleCustomer;
+    // Pelanggan grosir: harga grosir tanpa minimal qty, atau diskon persen
+    if (isWholesaleCustomer) {
+      if (product.wholesalePrice > 0) return product.wholesalePrice;
+      if (product.wholesaleDiscountPercent > 0) {
+        return product.sellingPrice * (1 - product.wholesaleDiscountPercent / 100);
+      }
+    }
     final hasWholesale = product.wholesalePrice > 0 &&
         product.wholesaleMinQty > 0 &&
         qty >= product.wholesaleMinQty;
-    return hasWholesale ? product.wholesalePrice : product.sellingPrice;
+    if (hasWholesale) return product.wholesalePrice;
+    // Fallback diskon grosir untuk qty memenuhi syarat
+    if (hasWholesale && product.wholesaleDiscountPercent > 0) {
+      return product.sellingPrice * (1 - product.wholesaleDiscountPercent / 100);
+    }
+    return product.sellingPrice;
   }
 
   bool isWholesalePrice(Product product, double price) {
+    if (state.isWholesaleCustomer && product.wholesalePrice > 0 && price <= product.wholesalePrice) return true;
     return product.wholesalePrice > 0 &&
         product.wholesaleMinQty > 0 &&
         price <= product.wholesalePrice;
   }
+
+  void setCustomer({String? id, String? name, bool isWholesale = false}) {
+    state = state.copyWith(
+      customerId: id,
+      customerName: name,
+      isWholesaleCustomer: isWholesale,
+    );
+    // Hitung ulang harga semua item saat ganti pelanggan (grosir ↔ retail)
+    if (state.items.isNotEmpty) {
+      final newItems = <SaleItem>[];
+      for (final item in state.items) {
+        final product = _productCache[item.productId];
+        if (product != null) {
+          final newPrice = _priceFor(product, item.qty);
+          newItems.add(item.copyWith(price: newPrice, lineTotal: item.qty * newPrice));
+        } else {
+          newItems.add(item);
+        }
+      }
+      state = state.copyWith(items: newItems);
+      _recalculate();
+    }
+  }
+
+  void clearCustomer() => setCustomer(id: null, name: null, isWholesale: false);
 
   Product? cachedProduct(String productId) => _productCache[productId];
 
@@ -247,6 +286,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
         invoiceNo: invoiceNo,
         cashierId: cashierId.isEmpty ? null : cashierId,
         shiftId: shiftId,
+        customerId: state.customerId,
+        customerName: state.customerName,
         createdAt: now,
         status: 'PAID',
         paymentMethod: state.paymentMethod,
