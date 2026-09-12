@@ -15,6 +15,8 @@ import '../../../data/repositories/cashier_shift_repository_impl.dart';
 import '../../../core/widgets/offline_banner.dart';
 import '../../../core/widgets/receipt_preview.dart';
 import '../../providers/plan/plan_provider.dart';
+import '../../../domain/entities/sale.dart';
+import '../../../domain/entities/product.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
@@ -146,12 +148,15 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                           children: [
                             Icon(Icons.person_outline, size: 16, color: isGrosir ? Colors.white : null),
                             const SizedBox(width: 4),
-                            Text(
-                              kasir.customerName ?? 'Umum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isGrosir ? Colors.white : null,
+                            Flexible(
+                              child: Text(
+                                kasir.customerName ?? 'Umum',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isGrosir ? Colors.white : null,
+                                ),
                               ),
                             ),
                             if (isGrosir) ...[
@@ -782,7 +787,6 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
   }
 
   Future<void> _showCustomerPicker(BuildContext context, WidgetRef ref) async {
-    final customersAsync = ref.read(customerListProvider);
     final selectedId = ref.read(kasirStateProvider).customerId;
     await showModalBottomSheet(
       context: context,
@@ -1503,9 +1507,12 @@ class _CartTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Text(
-                      '${CurrencyFormatter.format(item.price)} x ${item.qty % 1 == 0 ? item.qty.toInt() : item.qty}',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    Flexible(
+                      child: Text(
+                        '${CurrencyFormatter.format(item.price)} x ${item.qty % 1 == 0 ? item.qty.toInt() : item.qty}',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                     if (isWholesale) ...[
                       const SizedBox(width: 6),
@@ -1528,8 +1535,10 @@ class _CartTile extends StatelessWidget {
           ),
           _QtyStepper(
             qty: item.qty,
+            unit: item.unit ?? product?.unit ?? 'pcs',
             onDecrement: () => notifier.decrementQuantity(index),
             onIncrement: () => notifier.incrementQuantity(index),
+            onEdit: () => _showQtyDialog(context, ref, index, item, product),
           ),
           const SizedBox(width: 8),
           SizedBox(
@@ -1549,14 +1558,26 @@ class _CartTile extends StatelessWidget {
 
 class _QtyStepper extends StatelessWidget {
   final double qty;
+  final String unit;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+  final VoidCallback onEdit;
 
   const _QtyStepper({
     required this.qty,
+    this.unit = 'pcs',
     required this.onDecrement,
     required this.onIncrement,
+    required this.onEdit,
   });
+
+  String _formatQty(double v) {
+    if (v % 1 == 0) return v.toInt().toString();
+    // Hilangkan trailing 0 (1.50 -> 1.5, 1.20 -> 1.2)
+    var s = v.toStringAsFixed(2);
+    s = s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    return s;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1570,12 +1591,22 @@ class _QtyStepper extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _stepIcon(context, Icons.remove, onDecrement),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              qty % 1 == 0 ? qty.toInt().toString() : qty.toString(),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.bold),
+          InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatQty(qty),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.edit_outlined, size: 10, color: Theme.of(context).colorScheme.primary),
+                ],
+              ),
             ),
           ),
           _stepIcon(context, Icons.add, onIncrement),
@@ -1593,6 +1624,92 @@ class _QtyStepper extends StatelessWidget {
         child: Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
       ),
     );
+  }
+}
+
+Future<void> _showQtyDialog(
+  BuildContext context,
+  WidgetRef ref,
+  int index,
+  SaleItem item,
+  Product? product,
+) async {
+  final notifier = ref.read(kasirStateProvider.notifier);
+  final unit = item.unit ?? product?.unit ?? 'pcs';
+  final controller = TextEditingController(text: item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString());
+
+  String? error;
+  final result = await showDialog<double>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text('Edit Jumlah — ${item.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Satuan: $unit${product != null ? ' • Stok: ${product.stock} $unit' : ''}', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: false),
+              decoration: InputDecoration(
+                labelText: 'Jumlah ($unit)',
+                hintText: 'Contoh: 1.5',
+                prefixIcon: const Icon(Icons.numbers),
+                suffixText: unit,
+                errorText: error,
+              ),
+              onChanged: (_) => setState(() => error = null),
+              onSubmitted: (_) => Navigator.pop(dialogContext, double.tryParse(controller.text.replaceAll(',', '.'))),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final quick in [0.5, 1.0, 1.5, 2.0])
+                  ActionChip(
+                    label: Text(quick % 1 == 0 ? quick.toInt().toString() : quick.toString()),
+                    onPressed: () => setState(() => controller.text = quick % 1 == 0 ? quick.toInt().toString() : quick.toString()),
+                  ),
+              ],
+            ),
+            if (product != null && product.wholesaleMinQty > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Grosir: ${CurrencyFormatter.format(product.wholesalePrice)} min ${product.wholesaleMinQty} $unit',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.blue),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () {
+              final raw = controller.text.trim().replaceAll(',', '.');
+              final val = double.tryParse(raw);
+              if (val == null || val <= 0) {
+                setState(() => error = 'Jumlah harus > 0');
+                return;
+              }
+              if (val > 9999) {
+                setState(() => error = 'Maks 9999');
+                return;
+              }
+              Navigator.pop(dialogContext, val);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  controller.dispose();
+  if (result != null && result > 0) {
+    notifier.updateQuantity(index, result);
   }
 }
 

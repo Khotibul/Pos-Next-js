@@ -242,14 +242,24 @@ class KasirNotifier extends StateNotifier<KasirState> {
     _recalculate();
   }
 
-  void incrementQuantity(int index, {double step = 1}) {
+  void incrementQuantity(int index, {double? step}) {
     if (index < 0 || index >= state.items.length) return;
-    updateQuantity(index, state.items[index].qty + step);
+    final item = state.items[index];
+    final product = _productCache[item.productId];
+    final unit = product?.unit ?? item.unit ?? 'pcs';
+    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm'].contains(unit.toLowerCase());
+    final s = step ?? (isFractional ? 0.5 : 1.0);
+    updateQuantity(index, item.qty + s);
   }
 
-  void decrementQuantity(int index, {double step = 1}) {
+  void decrementQuantity(int index, {double? step}) {
     if (index < 0 || index >= state.items.length) return;
-    updateQuantity(index, state.items[index].qty - step);
+    final item = state.items[index];
+    final product = _productCache[item.productId];
+    final unit = product?.unit ?? item.unit ?? 'pcs';
+    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm'].contains(unit.toLowerCase());
+    final s = step ?? (isFractional ? 0.5 : 1.0);
+    updateQuantity(index, item.qty - s);
   }
 
   void setDiscount(double discount) {
