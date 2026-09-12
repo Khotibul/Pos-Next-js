@@ -127,6 +127,8 @@ const navTranslations: Record<Locale, Record<string, string>> = {
     "Audit Log": "Audit Log",
     Billing: "Billing",
     "Dashboard Kasir": "Cashier Dashboard",
+    Piutang: "Receivables",
+    Utang: "Payables",
     "Super Admin": "Super Admin",
   },
 };

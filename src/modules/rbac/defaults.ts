@@ -47,6 +47,12 @@ export const DEFAULT_PERMISSIONS = [
   { key: "settings.read", name: "Read settings" },
   { key: "settings.write", name: "Update settings" },
   { key: "billing.read", name: "Read billing" },
+  { key: "receivables.read", name: "Read receivables (piutang)" },
+  { key: "receivables.write", name: "Create/update receivables & payments" },
+  { key: "receivables.delete", name: "Delete receivables" },
+  { key: "payables.read", name: "Read payables (utang)" },
+  { key: "payables.write", name: "Create/update payables & payments" },
+  { key: "payables.delete", name: "Delete payables" },
 ] as const;
 
 export const DEFAULT_ROLE_PERMISSION_MATRIX: Record<(typeof DEFAULT_ROLES)[number], string[]> = {
@@ -97,6 +103,12 @@ export const DEFAULT_ROLE_PERMISSION_MATRIX: Record<(typeof DEFAULT_ROLES)[numbe
     "settings.read",
     "settings.write",
     "billing.read",
+    "receivables.read",
+    "receivables.write",
+    "receivables.delete",
+    "payables.read",
+    "payables.write",
+    "payables.delete",
   ],
   ADMIN: [
     "dashboard.read",
@@ -145,6 +157,12 @@ export const DEFAULT_ROLE_PERMISSION_MATRIX: Record<(typeof DEFAULT_ROLES)[numbe
     "settings.read",
     "settings.write",
     "billing.read",
+    "receivables.read",
+    "receivables.write",
+    "receivables.delete",
+    "payables.read",
+    "payables.write",
+    "payables.delete",
   ],
   CASHIER: ["dashboard.read", "sales.read", "sales.write", "transactions.shift.read", "transactions.shift.open", "transactions.shift.close", "products.read", "customers.read"],
   WAREHOUSE: [
@@ -181,6 +199,12 @@ export const DEFAULT_ROLE_PERMISSION_MATRIX: Record<(typeof DEFAULT_ROLES)[numbe
     "customers.read",
     "suppliers.read",
     "billing.read",
+    "receivables.read",
+    "receivables.write",
+    "receivables.delete",
+    "payables.read",
+    "payables.write",
+    "payables.delete",
   ],
   BRANCH_MANAGER: [
     "dashboard.read",
@@ -216,5 +240,9 @@ export const DEFAULT_ROLE_PERMISSION_MATRIX: Record<(typeof DEFAULT_ROLES)[numbe
     "inventory.write",
     "reports.read",
     "settings.read",
+    "receivables.read",
+    "receivables.write",
+    "payables.read",
+    "payables.write",
   ],
 };

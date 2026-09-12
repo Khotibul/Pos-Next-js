@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2, Upload, Download, Barcode, ScanLine, CalendarClock, PackageSearch, Percent, Coins, KeyRound, MonitorSmartphone } from "lucide-react";
+import { BarChart3, Boxes, CreditCard, LayoutDashboard, Settings, ShoppingCart, Truck, Users, Warehouse, ClipboardList, Shield, Tags, Ruler, Building2, Upload, Download, Barcode, ScanLine, CalendarClock, PackageSearch, Percent, Coins, KeyRound, MonitorSmartphone, HandCoins, Receipt } from "lucide-react";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 
 export const NAV_ITEMS = [
@@ -28,6 +28,8 @@ export const NAV_ITEMS = [
   { href: "/settings/staff", label: "Pegawai", icon: Users, section: "more", permission: PERMISSIONS.staff_read },
   { href: "/customers", label: "Pelanggan", icon: Users, section: "more", permission: PERMISSIONS.customers_read },
   { href: "/suppliers", label: "Supplier", icon: Truck, section: "more", permission: PERMISSIONS.suppliers_read },
+  { href: "/receivables", label: "Piutang", icon: HandCoins, section: "more", permission: PERMISSIONS.receivables_read },
+  { href: "/payables", label: "Utang", icon: Receipt, section: "more", permission: PERMISSIONS.payables_read },
   { href: "/inventory", label: "Inventory", icon: Warehouse, section: "more", permission: PERMISSIONS.inventory_read },
   { href: "/purchases", label: "Pembelian", icon: ClipboardList, section: "more", permission: PERMISSIONS.inventory_read },
   { href: "/audit-logs", label: "Audit Log", icon: Shield, section: "more", permission: PERMISSIONS.settings_read },

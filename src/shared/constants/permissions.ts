@@ -51,6 +51,12 @@ export const PERMISSIONS = {
   printer_delete: "printer.delete",
   printer_test: "printer.test",
   printer_print: "printer.print",
+  receivables_read: "receivables.read",
+  receivables_write: "receivables.write",
+  receivables_delete: "receivables.delete",
+  payables_read: "payables.read",
+  payables_write: "payables.write",
+  payables_delete: "payables.delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

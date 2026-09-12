@@ -20,6 +20,8 @@ import 'tables/sales_table.dart';
 import 'tables/returns_table.dart';
 import 'tables/cashier_shifts_table.dart';
 import 'tables/sync_queue_table.dart';
+import 'tables/receivables_table.dart';
+import 'tables/payables_table.dart';
 import 'daos/user_dao.dart';
 import 'daos/category_dao.dart';
 import 'daos/product_dao.dart';
@@ -32,6 +34,8 @@ import 'daos/return_dao.dart';
 import 'daos/cashier_shift_dao.dart';
 import 'daos/cash_transaction_dao.dart';
 import 'daos/sync_queue_dao.dart';
+import 'daos/receivable_dao.dart';
+import 'daos/payable_dao.dart';
 
 part 'app_database.g.dart';
 
@@ -52,6 +56,10 @@ part 'app_database.g.dart';
     CashierShiftsTable,
     CashTransactionsTable,
     SyncQueueTable,
+    ReceivablesTable,
+    ReceivablePaymentsTable,
+    PayablesTable,
+    PayablePaymentsTable,
   ],
   daos: [
     UserDao,
@@ -66,13 +74,15 @@ part 'app_database.g.dart';
     CashierShiftDao,
     CashTransactionDao,
     SyncQueueDao,
+    ReceivableDao,
+    PayableDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -106,6 +116,12 @@ class AppDatabase extends _$AppDatabase {
         if (from < 4) {
           await m.addColumn(customersTable, customersTable.isWholesale);
           await m.addColumn(customersTable, customersTable.customerType);
+        }
+        if (from < 5) {
+          await m.createTable(receivablesTable);
+          await m.createTable(receivablePaymentsTable);
+          await m.createTable(payablesTable);
+          await m.createTable(payablePaymentsTable);
         }
       },
       beforeOpen: (details) async {

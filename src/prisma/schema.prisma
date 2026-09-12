@@ -38,6 +38,13 @@ enum ShiftStatus {
   APPROVED
 }
 
+enum DebtStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
 model Plan {
   id           String   @id @default(cuid())
   slug         String   @unique
@@ -106,14 +113,18 @@ model Tenant {
   productAssemblyItems ProductAssemblyItem[]
   productTransfers ProductTransfer[]
   productTransferItems ProductTransferItem[]
-  productAdjustments ProductAdjustment[]
-  productAdjustmentItems ProductAdjustmentItem[]
-  productOpnames ProductOpname[]
-  productOpnameItems ProductOpnameItem[]
+   productAdjustments ProductAdjustment[]
+   productAdjustmentItems ProductAdjustmentItem[]
+   productOpnames ProductOpname[]
+   productOpnameItems ProductOpnameItem[]
+   receivables Receivable[]
+   receivablePayments ReceivablePayment[]
+   payables Payable[]
+   payablePayments PayablePayment[]
 
-  @@unique([domain])
-  @@unique([subdomain])
-  @@index([planId])
+   @@unique([domain])
+   @@unique([subdomain])
+   @@index([planId])
 }
 
 model LicenseKey {
@@ -1034,6 +1045,7 @@ model Sale {
   invoiceNo String
   cashierId String?
   shiftId   String?
+  customerId String?
   subtotal  Decimal  @default(0)
   tax       Decimal  @default(0)
   discount  Decimal  @default(0)
@@ -1044,8 +1056,10 @@ model Sale {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   shift  CashierShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items  SaleItem[]
   payments Payment[]
+  receivable Receivable?
 
   @@unique([tenantId, invoiceNo])
   @@index([tenantId])
@@ -1175,6 +1189,8 @@ model Customer {
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sales Sale[]
+  receivables Receivable[]
 
   @@index([tenantId])
   @@index([name])
@@ -1199,6 +1215,7 @@ model Supplier {
   products Product[] @relation("SupplierProducts")
   productLinks ProductSupplier[]
   productDiscounts ProductDiscount[] @relation("ProductDiscountSupplier")
+  payables Payable[]
 
   @@index([tenantId])
   @@index([name])
@@ -1222,6 +1239,7 @@ model PurchaseOrder {
   tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   items    PurchaseOrderItem[]
+  payable  Payable?
 
   @@unique([tenantId, orderNo])
   @@index([tenantId])
@@ -1330,6 +1348,102 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Receivable {
+  id              String     @id @default(cuid())
+  tenantId        String
+  customerId      String?
+  saleId          String?    @unique
+  invoiceNo       String
+  description     String?
+  totalAmount     Decimal    @default(0)
+  paidAmount      Decimal    @default(0)
+  remainingAmount Decimal    @default(0)
+  dueDate         DateTime?
+  status          DebtStatus @default(UNPAID)
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sale     Sale?     @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  payments ReceivablePayment[]
+
+  @@unique([tenantId, invoiceNo])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([tenantId, status])
+}
+
+model ReceivablePayment {
+  id           String   @id @default(cuid())
+  tenantId     String
+  receivableId String
+  amount       Decimal  @default(0)
+  method       String   @default("CASH")
+  reference    String?
+  notes        String?
+  paidAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receivable Receivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([receivableId])
+  @@index([paidAt])
+}
+
+model Payable {
+  id              String     @id @default(cuid())
+  tenantId        String
+  supplierId      String?
+  purchaseOrderId String?    @unique
+  invoiceNo       String
+  description     String?
+  totalAmount     Decimal    @default(0)
+  paidAmount      Decimal    @default(0)
+  remainingAmount Decimal    @default(0)
+  dueDate         DateTime?
+  status          DebtStatus @default(UNPAID)
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  payments      PayablePayment[]
+
+  @@unique([tenantId, invoiceNo])
+  @@index([tenantId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([tenantId, status])
+}
+
+model PayablePayment {
+  id        String   @id @default(cuid())
+  tenantId  String
+  payableId String
+  amount    Decimal  @default(0)
+  method    String   @default("CASH")
+  reference String?
+  notes     String?
+  paidAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payable Payable @relation(fields: [payableId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([payableId])
+  @@index([paidAt])
 }
 
 model Printer {
