@@ -13,6 +13,7 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/local/hive_cache.dart';
 import 'presentation/providers/setting/setting_provider.dart';
+import 'presentation/providers/sync/sync_provider.dart';
 import 'presentation/routers/app_router.dart';
 
 Future<void> main() async {
@@ -68,6 +69,8 @@ class POSQUApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final themeModeStr = ref.watch(themeModeProvider);
     final themeMode = themeModeStr == 'dark' ? ThemeMode.dark : ThemeMode.light;
+    // Aktifkan scheduler sinkronisasi otomatis (periodik + saat online)
+    ref.watch(syncSchedulerProvider);
 
     return MaterialApp.router(
       title: AppConstants.appName,

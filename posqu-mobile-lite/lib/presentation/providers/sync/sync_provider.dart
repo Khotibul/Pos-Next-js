@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../../core/constants/env_config.dart';
+import '../../../core/network/connection_status_provider.dart';
 import '../../../data/datasources/local/database/app_database.dart';
 import '../../../data/datasources/remote/cash_transaction_remote_datasource.dart';
 import '../../../data/datasources/remote/purchase_remote_datasource.dart';
@@ -258,4 +262,42 @@ class SyncActions {
 
 final syncActionProvider = Provider<SyncActions>((ref) {
   return SyncActions(ref);
+});
+
+/// Auto-sync periodik & saat koneksi pulih — memastikan sinkronisasi selalu bisa
+final syncSchedulerProvider = Provider<void>((ref) {
+  Timer? timer;
+
+  void schedule() {
+    timer?.cancel();
+    final canSync = ref.read(canSyncProvider);
+    if (!canSync) return;
+    final intervalMin = EnvConfig.syncIntervalMinutes;
+    timer = Timer.periodic(Duration(minutes: intervalMin), (_) async {
+      final isOnline = ref.read(isOnlineProvider);
+      if (!isOnline) return;
+      final actions = ref.read(syncActionProvider);
+      final ok = await actions.syncNow();
+      if (ok) ref.invalidate(syncStatusProvider);
+    });
+  }
+
+  // Dengarkan online/offline → auto-sync saat kembali online
+  ref.listen<bool>(isOnlineProvider, (prev, next) {
+    if (next == true && prev == false) {
+      Future.delayed(const Duration(seconds: 2), () async {
+        final ok = await ref.read(syncActionProvider).syncNow();
+        if (ok) ref.invalidate(syncStatusProvider);
+      });
+    }
+  });
+
+  // Dengarkan paket berubah (free ↔ pro) → reschedule
+  ref.listen<bool>(canSyncProvider, (prev, next) {
+    if (prev != next) schedule();
+  });
+
+  schedule();
+  ref.onDispose(() => timer?.cancel());
+  return;
 });

@@ -58,15 +58,71 @@ class DioClient {
       sendTimeout: const Duration(seconds: 10),
       headers: {
         ApiConstants.contentType: ApiConstants.applicationJson,
+        'Connection': 'keep-alive',
+        'Keep-Alive': 'timeout=30, max=100',
       },
+      // Keep-alive pooling: Dio's HttpClient reuses connections by default (persistentConnection true)
+      persistentConnection: true,
     ));
 
     dio.interceptors.addAll([
       _authInterceptor(),
+      _retryInterceptor(dio),
       if (kDebugMode) _loggingInterceptor(),
     ]);
 
     return dio;
+  }
+
+  /// Retry untuk error transient (500/502/503/504/429/timeout) — exponential backoff 2x
+  /// Membuat koneksi stabil di jaringan Android yang flaky
+  Interceptor _retryInterceptor(Dio dio) {
+    return InterceptorsWrapper(
+      onError: (error, handler) async {
+        final extra = error.requestOptions.extra;
+        final retries = (extra['retries'] as int?) ?? 0;
+        final status = error.response?.statusCode;
+        final shouldRetry = retries < 2 &&
+            (error.type == DioExceptionType.connectionTimeout ||
+                error.type == DioExceptionType.receiveTimeout ||
+                error.type == DioExceptionType.sendTimeout ||
+                error.type == DioExceptionType.connectionError ||
+                status == 500 ||
+                status == 502 ||
+                status == 503 ||
+                status == 504 ||
+                status == 429);
+        if (shouldRetry) {
+          final delayMs = (retries + 1) * 800 + (retries * 400);
+          await Future.delayed(Duration(milliseconds: delayMs));
+          try {
+            error.requestOptions.extra['retries'] = retries + 1;
+            final res = await dio.fetch(error.requestOptions);
+            return handler.resolve(res);
+          } catch (_) {
+            return handler.next(error);
+          }
+        }
+        return handler.next(error);
+      },
+    );
+  }
+
+  /// Health check cepat ke posqupro.co-id.id — dipakai NetworkInfo & Sync untuk validasi online nyata
+  Future<bool> healthCheck() async {
+    try {
+      final res = await _dio.get(
+        '/health',
+        options: Options(
+          sendTimeout: const Duration(seconds: 3),
+          receiveTimeout: const Duration(seconds: 3),
+          validateStatus: (s) => s != null && s < 500,
+        ),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   InterceptorsWrapper _authInterceptor() {
