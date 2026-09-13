@@ -23,6 +23,7 @@ jobs:
       # Hanya untuk proses build di GitHub Actions.
       # TIDAK digunakan sebagai database production.
       DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
+      DIRECT_URL: "postgresql://build:build@127.0.0.1:5432/build"
 
       # ==========================================================
       # CPANEL
@@ -39,16 +40,16 @@ jobs:
       # ============================================================
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       # ============================================================
-      # NODE 22
+      # NODE 20 (match cPanel)
       # ============================================================
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v7
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
           cache: "npm"
 
       - name: Show versions
@@ -603,6 +604,7 @@ jobs:
       # ============================================================
 
       - name: Setup SSH for cPanel
+        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
         run: |
@@ -635,6 +637,7 @@ jobs:
       # ============================================================
 
       - name: Test cPanel SSH connection
+        if: ${{ secrets.CPANEL_HOST != '' }}
         run: |
           set -e
 
@@ -653,6 +656,7 @@ jobs:
       # ============================================================
 
       - name: Deploy latest build to cPanel
+        if: ${{ secrets.CPANEL_HOST != '' }}
         run: |
           set -e
 
@@ -754,6 +758,7 @@ jobs:
       # ============================================================
 
       - name: Verify deployment on cPanel
+        if: ${{ secrets.CPANEL_HOST != '' }}
         run: |
           set -e
 
