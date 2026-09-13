@@ -614,6 +614,14 @@ jobs:
           echo "=== Setup SSH ==="
           echo "================================="
 
+          # Fallback port 22 jika CPANEL_SSH_PORT tidak di-set
+          PORT="${CPANEL_PORT:-22}"
+          if [ -z "$CPANEL_HOST" ]; then
+            echo "SKIP: CPANEL_HOST kosong, lewati setup SSH (build-only mode)"
+            exit 0
+          fi
+          echo "Using port: $PORT host: $CPANEL_HOST"
+
           mkdir -p ~/.ssh
 
           chmod 700 ~/.ssh
@@ -624,7 +632,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
           ssh-keyscan \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             "$CPANEL_HOST" \
             >> ~/.ssh/known_hosts
 
@@ -645,8 +653,14 @@ jobs:
           echo "=== Test SSH connection ==="
           echo "================================="
 
+          PORT="${CPANEL_PORT:-22}"
+          if [ -z "$CPANEL_HOST" ]; then
+            echo "SKIP: CPANEL_HOST kosong"
+            exit 0
+          fi
+
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "echo 'SSH connection OK'"
@@ -663,6 +677,13 @@ jobs:
           echo "================================="
           echo "=== DEPLOY TO CPANEL ==="
           echo "================================="
+
+          PORT="${CPANEL_PORT:-22}"
+          if [ -z "$CPANEL_HOST" ]; then
+            echo "SKIP: CPANEL_HOST kosong (build-only)"
+            exit 0
+          fi
+          echo "Using port: $PORT"
 
           echo ""
           echo "Host:"
@@ -681,7 +702,7 @@ jobs:
           # --------------------------------------------------------
 
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "mkdir -p '$CPANEL_APP_DIR'"
@@ -696,7 +717,7 @@ jobs:
           # --------------------------------------------------------
 
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -719,7 +740,7 @@ jobs:
             -C cpanel-package \
             -czf - . \
           | ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "tar -xzf - -C '$CPANEL_APP_DIR'"
@@ -729,7 +750,7 @@ jobs:
           # --------------------------------------------------------
 
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -741,7 +762,7 @@ jobs:
           # --------------------------------------------------------
 
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -766,8 +787,14 @@ jobs:
           echo "=== VERIFY CPANEL ==="
           echo "================================="
 
+          PORT="${CPANEL_PORT:-22}"
+          if [ -z "$CPANEL_HOST" ]; then
+            echo "SKIP: CPANEL_HOST kosong"
+            exit 0
+          fi
+
           ssh \
-            -p "$CPANEL_PORT" \
+            -p "$PORT" \
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
