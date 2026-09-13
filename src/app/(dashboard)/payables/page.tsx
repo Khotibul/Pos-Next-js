@@ -61,7 +61,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
         q={result.q}
         status={result.status}
         suppliers={suppliers}
-        items={result.items.map((r: any) => ({
+        items={result.items.map((r: (typeof result.items)[number]) => ({
           id: r.id,
           invoiceNo: r.invoiceNo,
           description: r.description,

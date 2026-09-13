@@ -61,7 +61,7 @@ export default async function ReceivablesPage({ searchParams }: { searchParams: 
         q={result.q}
         status={result.status}
         customers={customers}
-        items={result.items.map((r: any) => ({
+        items={result.items.map((r: (typeof result.items)[number]) => ({
           id: r.id,
           invoiceNo: r.invoiceNo,
           description: r.description,
