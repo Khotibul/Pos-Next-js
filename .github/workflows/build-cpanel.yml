@@ -1,4 +1,4 @@
-name: Build Next.js for cPanel
+﻿name: Build Next.js for cPanel
 
 on:
   workflow_dispatch:
@@ -16,22 +16,8 @@ jobs:
     env:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
-
-      # ==========================================================
-      # BUILD DATABASE URL
-      # ==========================================================
-      # Hanya untuk proses build di GitHub Actions.
-      # TIDAK digunakan sebagai database production.
       DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
       DIRECT_URL: "postgresql://build:build@127.0.0.1:5432/build"
-
-      # ==========================================================
-      # CPANEL
-      # ==========================================================
-      CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
-      CPANEL_USER: ${{ secrets.CPANEL_USER }}
-      CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT }}
-      CPANEL_APP_DIR: ${{ secrets.CPANEL_APP_DIR }}
 
     steps:
 
@@ -383,10 +369,6 @@ jobs:
 
           mkdir -p cpanel-package
 
-          # --------------------------------------------------------
-          # FIND server.js
-          # --------------------------------------------------------
-
           SERVER_JS=$(find .next/standalone \
             -type f \
             -name "server.js" \
@@ -406,15 +388,7 @@ jobs:
           echo "Standalone directory:"
           echo "$SERVER_DIR"
 
-          # --------------------------------------------------------
-          # COPY STANDALONE
-          # --------------------------------------------------------
-
           cp -a "$SERVER_DIR"/. cpanel-package/
-
-          # --------------------------------------------------------
-          # COPY PUBLIC
-          # --------------------------------------------------------
 
           if [ -d public ]; then
             mkdir -p cpanel-package/public
@@ -422,10 +396,6 @@ jobs:
             cp -a public/. \
               cpanel-package/public/
           fi
-
-          # --------------------------------------------------------
-          # COPY NEXT STATIC
-          # --------------------------------------------------------
 
           if [ -d .next/static ]; then
             mkdir -p cpanel-package/.next
@@ -452,20 +422,12 @@ jobs:
           mkdir -p cpanel-package/node_modules/@prisma
           mkdir -p cpanel-package/node_modules/.prisma
 
-          # --------------------------------------------------------
-          # @prisma/client
-          # --------------------------------------------------------
-
           rm -rf \
             cpanel-package/node_modules/@prisma/client
 
           cp -a \
             node_modules/@prisma/client \
             cpanel-package/node_modules/@prisma/client
-
-          # --------------------------------------------------------
-          # Generated Prisma client
-          # --------------------------------------------------------
 
           rm -rf \
             cpanel-package/node_modules/.prisma/client
@@ -607,6 +569,8 @@ jobs:
         if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_HOST_VAL: ${{ secrets.CPANEL_HOST }}
         run: |
           set -e
 
@@ -614,13 +578,9 @@ jobs:
           echo "=== Setup SSH ==="
           echo "================================="
 
-          # Fallback port 22 jika CPANEL_SSH_PORT tidak di-set
-          PORT="${CPANEL_PORT:-22}"
-          if [ -z "$CPANEL_HOST" ]; then
-            echo "SKIP: CPANEL_HOST kosong, lewati setup SSH (build-only mode)"
-            exit 0
-          fi
-          echo "Using port: $PORT host: $CPANEL_HOST"
+          PORT="${CPANEL_SSH_PORT:-22}"
+
+          echo "Using port: $PORT host: $CPANEL_HOST_VAL"
 
           mkdir -p ~/.ssh
 
@@ -633,7 +593,7 @@ jobs:
 
           ssh-keyscan \
             -p "$PORT" \
-            "$CPANEL_HOST" \
+            "$CPANEL_HOST_VAL" \
             >> ~/.ssh/known_hosts
 
           chmod 644 ~/.ssh/known_hosts
@@ -645,7 +605,11 @@ jobs:
       # ============================================================
 
       - name: Test cPanel SSH connection
-        if: ${{ secrets.CPANEL_HOST != '' }}
+        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
+        env:
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_HOST_VAL: ${{ secrets.CPANEL_HOST }}
+          CPANEL_USER_VAL: ${{ secrets.CPANEL_USER }}
         run: |
           set -e
 
@@ -653,16 +617,12 @@ jobs:
           echo "=== Test SSH connection ==="
           echo "================================="
 
-          PORT="${CPANEL_PORT:-22}"
-          if [ -z "$CPANEL_HOST" ]; then
-            echo "SKIP: CPANEL_HOST kosong"
-            exit 0
-          fi
+          PORT="${CPANEL_SSH_PORT:-22}"
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
             "echo 'SSH connection OK'"
 
       # ============================================================
@@ -670,7 +630,12 @@ jobs:
       # ============================================================
 
       - name: Deploy latest build to cPanel
-        if: ${{ secrets.CPANEL_HOST != '' }}
+        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
+        env:
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_HOST_VAL: ${{ secrets.CPANEL_HOST }}
+          CPANEL_USER_VAL: ${{ secrets.CPANEL_USER }}
+          CPANEL_APP_DIR_VAL: ${{ secrets.CPANEL_APP_DIR }}
         run: |
           set -e
 
@@ -678,50 +643,32 @@ jobs:
           echo "=== DEPLOY TO CPANEL ==="
           echo "================================="
 
-          PORT="${CPANEL_PORT:-22}"
-          if [ -z "$CPANEL_HOST" ]; then
-            echo "SKIP: CPANEL_HOST kosong (build-only)"
-            exit 0
-          fi
-          echo "Using port: $PORT"
+          PORT="${CPANEL_SSH_PORT:-22}"
 
           echo ""
           echo "Host:"
-          echo "$CPANEL_HOST"
+          echo "$CPANEL_HOST_VAL"
 
           echo ""
           echo "User:"
-          echo "$CPANEL_USER"
+          echo "$CPANEL_USER_VAL"
 
           echo ""
           echo "Application directory:"
-          echo "$CPANEL_APP_DIR"
-
-          # --------------------------------------------------------
-          # CREATE APP DIRECTORY
-          # --------------------------------------------------------
+          echo "$CPANEL_APP_DIR_VAL"
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
-            "mkdir -p '$CPANEL_APP_DIR'"
-
-          # --------------------------------------------------------
-          # CLEAN OLD DEPLOYMENT
-          #
-          # .env  = production environment
-          # tmp   = Passenger runtime directory
-          #
-          # Keduanya TIDAK dihapus.
-          # --------------------------------------------------------
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
+            "mkdir -p '$CPANEL_APP_DIR_VAL'"
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
             "
-              find '$CPANEL_APP_DIR' \
+              find '$CPANEL_APP_DIR_VAL' \
                 -mindepth 1 \
                 -maxdepth 1 \
                 ! -name '.env' \
@@ -729,44 +676,29 @@ jobs:
                 -exec rm -rf {} +
             "
 
-          # --------------------------------------------------------
-          # UPLOAD PACKAGE
-          #
-          # Menggunakan tar melalui SSH.
-          # Tidak membutuhkan rsync di server cPanel.
-          # --------------------------------------------------------
-
           tar \
             -C cpanel-package \
             -czf - . \
           | ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
-            "tar -xzf - -C '$CPANEL_APP_DIR'"
-
-          # --------------------------------------------------------
-          # ENSURE TMP
-          # --------------------------------------------------------
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
+            "tar -xzf - -C '$CPANEL_APP_DIR_VAL'"
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
             "
-              mkdir -p '$CPANEL_APP_DIR/tmp'
+              mkdir -p '$CPANEL_APP_DIR_VAL/tmp'
             "
-
-          # --------------------------------------------------------
-          # RESTART PASSENGER
-          # --------------------------------------------------------
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
             "
-              touch '$CPANEL_APP_DIR/tmp/restart.txt'
+              touch '$CPANEL_APP_DIR_VAL/tmp/restart.txt'
             "
 
           echo ""
@@ -779,7 +711,12 @@ jobs:
       # ============================================================
 
       - name: Verify deployment on cPanel
-        if: ${{ secrets.CPANEL_HOST != '' }}
+        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
+        env:
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_HOST_VAL: ${{ secrets.CPANEL_HOST }}
+          CPANEL_USER_VAL: ${{ secrets.CPANEL_USER }}
+          CPANEL_APP_DIR_VAL: ${{ secrets.CPANEL_APP_DIR }}
         run: |
           set -e
 
@@ -787,56 +724,52 @@ jobs:
           echo "=== VERIFY CPANEL ==="
           echo "================================="
 
-          PORT="${CPANEL_PORT:-22}"
-          if [ -z "$CPANEL_HOST" ]; then
-            echo "SKIP: CPANEL_HOST kosong"
-            exit 0
-          fi
+          PORT="${CPANEL_SSH_PORT:-22}"
 
           ssh \
             -p "$PORT" \
             -o BatchMode=yes \
-            "$CPANEL_USER@$CPANEL_HOST" \
+            "$CPANEL_USER_VAL@$CPANEL_HOST_VAL" \
             "
               set -e
 
               echo '=== server.js ==='
-              test -f '$CPANEL_APP_DIR/server.js'
-              ls -lh '$CPANEL_APP_DIR/server.js'
+              test -f '$CPANEL_APP_DIR_VAL/server.js'
+              ls -lh '$CPANEL_APP_DIR_VAL/server.js'
 
               echo ''
               echo '=== package.json ==='
-              test -f '$CPANEL_APP_DIR/package.json'
-              ls -lh '$CPANEL_APP_DIR/package.json'
+              test -f '$CPANEL_APP_DIR_VAL/package.json'
+              ls -lh '$CPANEL_APP_DIR_VAL/package.json'
 
               echo ''
               echo '=== .next ==='
-              test -d '$CPANEL_APP_DIR/.next'
+              test -d '$CPANEL_APP_DIR_VAL/.next'
 
               echo ''
               echo '=== Prisma ==='
-              test -f '$CPANEL_APP_DIR/node_modules/@prisma/client/index.js'
-              test -d '$CPANEL_APP_DIR/node_modules/.prisma/client'
+              test -f '$CPANEL_APP_DIR_VAL/node_modules/@prisma/client/index.js'
+              test -d '$CPANEL_APP_DIR_VAL/node_modules/.prisma/client'
 
               echo ''
               echo '=== Prisma engines ==='
-              find '$CPANEL_APP_DIR/node_modules/.prisma/client' \
+              find '$CPANEL_APP_DIR_VAL/node_modules/.prisma/client' \
                 -maxdepth 1 \
                 -type f \
-                \\( \
+                \( \
                   -name '*query_engine*' \
                   -o \
                   -name '*libquery_engine*' \
-                \\) \
+                \) \
                 -print
 
               echo ''
               echo '=== bcryptjs ==='
-              test -d '$CPANEL_APP_DIR/node_modules/bcryptjs'
+              test -d '$CPANEL_APP_DIR_VAL/node_modules/bcryptjs'
 
               echo ''
               echo '=== seed ==='
-              test -f '$CPANEL_APP_DIR/scripts/seed.mjs'
+              test -f '$CPANEL_APP_DIR_VAL/scripts/seed.mjs'
 
               echo ''
               echo '================================='
