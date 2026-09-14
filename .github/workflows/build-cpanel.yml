@@ -10,118 +10,866 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     env:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
+
+      # ==========================================================
+      # BUILD DATABASE URL
+      # ==========================================================
+      # Hanya untuk proses build di GitHub Actions.
+      # Production tetap menggunakan DATABASE_URL di cPanel.
       DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
-      DIRECT_URL: "postgresql://build:build@127.0.0.1:5432/build"
+
+      # ==========================================================
+      # CPANEL
+      # ==========================================================
+      CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+      CPANEL_USER: ${{ secrets.CPANEL_USER }}
+      CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+      CPANEL_APP_DIR: ${{ secrets.CPANEL_APP_DIR }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ============================================================
+      # NODE 22
+      # ============================================================
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       - name: Show versions
-        run: node -v && npm -v
+        run: |
+          echo "================================="
+          echo "=== Node ==="
+          echo "================================="
+          node -v
+
+          echo ""
+          echo "================================="
+          echo "=== NPM ==="
+          echo "================================="
+          npm -v
+
+      # ============================================================
+      # CHECK PACKAGE LOCK
+      # ============================================================
 
       - name: Check package-lock.json
         run: |
+          echo "================================="
+          echo "=== package-lock.json ==="
+          echo "================================="
+
           if [ ! -f package-lock.json ]; then
             echo "ERROR: package-lock.json tidak ditemukan."
+            echo ""
+            echo "Jalankan npm install terlebih dahulu."
+            echo "Kemudian commit package-lock.json ke repository."
             exit 1
           fi
+
           echo "OK: package-lock.json ditemukan."
 
+      # ============================================================
+      # NEXT.JS CONFIG
+      # ============================================================
+
+      - name: Check Next.js configuration
+        run: |
+          echo "================================="
+          echo "=== next.config.mjs ==="
+          echo "================================="
+
+          test -f next.config.mjs
+
+          ls -lh next.config.mjs
+
+          echo ""
+          echo "=== Standalone ==="
+
+          grep -n "standalone" next.config.mjs || true
+
+          echo ""
+          echo "=== Output / distDir ==="
+
+          grep -nE "output|distDir|DESKTOP_BUILD" \
+            next.config.mjs || true
+
+      # ============================================================
+      # PRISMA SCHEMA CHECK
+      # ============================================================
+
+      - name: Check Prisma schema
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== Prisma schema ==="
+          echo "================================="
+
+          test -f src/prisma/schema.prisma
+
+          grep -n -A30 \
+            "^generator client" \
+            src/prisma/schema.prisma
+
+          echo ""
+          echo "================================="
+          echo "=== Required Prisma engines ==="
+          echo "================================="
+
+          echo "- debian-openssl-1.0.x"
+          echo "- debian-openssl-1.1.x"
+          echo "- debian-openssl-3.0.x"
+
+          echo ""
+          echo "Checking 1.0.x..."
+
+          grep -q \
+            'debian-openssl-1.0.x' \
+            src/prisma/schema.prisma
+
+          echo "OK"
+
+          echo ""
+          echo "Checking 1.1.x..."
+
+          grep -q \
+            'debian-openssl-1.1.x' \
+            src/prisma/schema.prisma
+
+          echo "OK"
+
+          echo ""
+          echo "Checking 3.0.x..."
+
+          grep -q \
+            'debian-openssl-3.0.x' \
+            src/prisma/schema.prisma
+
+          echo "OK"
+
+      # ============================================================
+      # INSTALL
+      # ============================================================
+
       - name: Install dependencies
-        run: npm ci --include=dev --no-audit --no-fund
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== npm ci ==="
+          echo "================================="
+
+          npm ci \
+            --include=dev \
+            --no-audit \
+            --no-fund
+
+      # ============================================================
+      # VERIFY PRISMA CLI
+      # ============================================================
 
       - name: Verify Prisma CLI
         run: |
+          set -e
+
+          echo "================================="
+          echo "=== Prisma CLI ==="
+          echo "================================="
+
           test -f node_modules/.bin/prisma
+
           ./node_modules/.bin/prisma --version
 
-      - name: Generate Prisma Client
+      # ============================================================
+      # VERIFY NEXT CLI
+      # ============================================================
+
+      - name: Verify Next.js CLI
         run: |
+          set -e
+
+          echo "================================="
+          echo "=== Next.js CLI ==="
+          echo "================================="
+
+          test -f node_modules/.bin/next
+
+          ./node_modules/.bin/next --version
+
+      # ============================================================
+      # PRISMA GENERATE
+      # ============================================================
+
+      - name: Generate Prisma Client for cPanel
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== Generate Prisma Client ==="
+          echo "================================="
+
+          # Jangan gunakan engine dari path cPanel.
           unset PRISMA_QUERY_ENGINE_LIBRARY
-          ./node_modules/.bin/prisma generate --schema src/prisma/schema.prisma
+
+          # Bersihkan konfigurasi engine lokal jika ada.
+          if [ -f .env ]; then
+            sed -i \
+              '/PRISMA_QUERY_ENGINE_LIBRARY/d' \
+              .env || true
+          fi
+
+          if [ -f posqu-mobile-lite/.env ]; then
+            sed -i \
+              '/PRISMA_QUERY_ENGINE_LIBRARY/d' \
+              posqu-mobile-lite/.env || true
+          fi
+
+          ./node_modules/.bin/prisma generate \
+            --schema src/prisma/schema.prisma
+
+          echo ""
+          echo "================================="
+          echo "=== Generated Prisma Client ==="
+          echo "================================="
+
           test -d node_modules/.prisma/client
+
           test -d node_modules/@prisma/client
-          echo "Prisma Client generated."
+
+          ls -la \
+            node_modules/.prisma/client \
+            | head -60
+
+      # ============================================================
+      # VERIFY PRISMA ENGINES
+      # ============================================================
 
       - name: Verify Prisma engines
         run: |
-          find node_modules/.prisma/client -maxdepth 1 -type f \( -name "*query_engine*" -o -name "*libquery_engine*" \) -print
+          set -e
+
+          echo "================================="
+          echo "=== Prisma engines ==="
+          echo "================================="
+
+          find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( \
+              -name "*query_engine*" \
+              -o \
+              -name "*libquery_engine*" \
+            \) \
+            -print
+
+          echo ""
+          echo "=== OpenSSL 1.0.x ==="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.0.x*" \
+            -print -quit)"
+
+          echo "OK: debian-openssl-1.0.x"
+
+          echo ""
+          echo "=== OpenSSL 1.1.x ==="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-1.1.x*" \
+            -print -quit)"
+
+          echo "OK: debian-openssl-1.1.x"
+
+          echo ""
+          echo "=== OpenSSL 3.0.x ==="
+
+          test -n "$(find node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            -name "*debian-openssl-3.0.x*" \
+            -print -quit)"
+
+          echo "OK: debian-openssl-3.0.x"
+
+          echo ""
+          echo "================================="
+          echo "ALL PRISMA ENGINES FOUND"
+          echo "================================="
+
+      # ============================================================
+      # NEXT BUILD
+      # ============================================================
 
       - name: Build Next.js
-        run: npm run build
-
-      - name: Verify build output
         run: |
+          set -e
+
+          echo "================================="
+          echo "=== Next.js production build ==="
+          echo "================================="
+
+          npm run build
+
+      # ============================================================
+      # VERIFY NEXT BUILD
+      # ============================================================
+
+      - name: Verify Next.js build
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== .next ==="
+          echo "================================="
+
+          test -d .next
+
+          ls -la .next
+
+          echo ""
+          echo "================================="
+          echo "=== Standalone ==="
+          echo "================================="
+
           test -d .next/standalone
-          test -f $(find .next/standalone -type f -name "server.js" | head -n 1)
-          echo "Build verified."
+
+          find .next/standalone \
+            -maxdepth 5 \
+            -type f \
+            | head -100
+
+          echo ""
+          echo "================================="
+          echo "=== server.js ==="
+          echo "================================="
+
+          find .next/standalone \
+            -type f \
+            -name "server.js" \
+            -print
+
+      # ============================================================
+      # PREPARE CPANEL PACKAGE
+      # ============================================================
 
       - name: Prepare cPanel package
         run: |
           set -e
+
+          echo "================================="
+          echo "=== Prepare cPanel package ==="
+          echo "================================="
+
           rm -rf cpanel-package
+
           mkdir -p cpanel-package
 
-          SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
+          # --------------------------------------------------------
+          # FIND STANDALONE SERVER
+          # --------------------------------------------------------
+
+          SERVER_JS=$(find .next/standalone \
+            -type f \
+            -name "server.js" \
+            | head -n 1)
+
+          if [ -z "$SERVER_JS" ]; then
+            echo "ERROR: server.js tidak ditemukan."
+            exit 1
+          fi
+
+          echo "server.js:"
+          echo "$SERVER_JS"
+
           SERVER_DIR=$(dirname "$SERVER_JS")
-          cp -a "$SERVER_DIR"/. cpanel-package/
 
-          [ -d public ] && { mkdir -p cpanel-package/public; cp -a public/. cpanel-package/public/; }
-          [ -d .next/static ] && { mkdir -p cpanel-package/.next; cp -a .next/static cpanel-package/.next/; }
+          echo ""
+          echo "Standalone directory:"
+          echo "$SERVER_DIR"
 
-          mkdir -p cpanel-package/node_modules/@prisma
-          mkdir -p cpanel-package/node_modules/.prisma
-          cp -a node_modules/@prisma/client cpanel-package/node_modules/@prisma/client
-          cp -a node_modules/.prisma/client cpanel-package/node_modules/.prisma/client
-          cp -a node_modules/bcryptjs cpanel-package/node_modules/bcryptjs
-          mkdir -p cpanel-package/scripts
-          cp scripts/seed.mjs cpanel-package/scripts/seed.mjs
+          # --------------------------------------------------------
+          # COPY STANDALONE
+          # --------------------------------------------------------
 
-          rm -f cpanel-package/.env cpanel-package/.env.production cpanel-package/.env.local
+          cp -a \
+            "$SERVER_DIR"/. \
+            cpanel-package/
 
-          echo "Package ready."
-          test -f cpanel-package/server.js
-          test -f cpanel-package/package.json
-          test -d cpanel-package/.next
-          test -d cpanel-package/node_modules
-          echo "All checks passed."
+          # --------------------------------------------------------
+          # COPY PUBLIC
+          # --------------------------------------------------------
+
+          if [ -d public ]; then
+
+            mkdir -p \
+              cpanel-package/public
+
+            cp -a \
+              public/. \
+              cpanel-package/public/
+
+          fi
+
+          # --------------------------------------------------------
+          # COPY NEXT STATIC
+          # --------------------------------------------------------
+
+          if [ -d .next/static ]; then
+
+            mkdir -p \
+              cpanel-package/.next
+
+            cp -a \
+              .next/static \
+              cpanel-package/.next/
+
+          fi
+
+          echo ""
+          echo "Standalone package ready."
+
+      # ============================================================
+      # ADD PRISMA RUNTIME
+      # ============================================================
+
+      - name: Add Prisma runtime
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== Add Prisma runtime ==="
+          echo "================================="
+
+          mkdir -p \
+            cpanel-package/node_modules/@prisma
+
+          mkdir -p \
+            cpanel-package/node_modules/.prisma
+
+          # --------------------------------------------------------
+          # @prisma/client
+          # --------------------------------------------------------
+
+          rm -rf \
+            cpanel-package/node_modules/@prisma/client
+
+          cp -a \
+            node_modules/@prisma/client \
+            cpanel-package/node_modules/@prisma/client
+
+          # --------------------------------------------------------
+          # Generated Prisma Client
+          # --------------------------------------------------------
+
+          rm -rf \
+            cpanel-package/node_modules/.prisma/client
+
+          cp -a \
+            node_modules/.prisma/client \
+            cpanel-package/node_modules/.prisma/client
+
+          echo ""
+          echo "Prisma runtime copied."
+
+      # ============================================================
+      # ADD BCRYPTJS
+      # ============================================================
+
+      - name: Add bcryptjs
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== Add bcryptjs ==="
+          echo "================================="
+
+          test -d node_modules/bcryptjs
+
+          rm -rf \
+            cpanel-package/node_modules/bcryptjs
+
+          cp -a \
+            node_modules/bcryptjs \
+            cpanel-package/node_modules/bcryptjs
+
+          echo "bcryptjs copied."
+
+      # ============================================================
+      # ADD SEED
+      # ============================================================
+
+      - name: Add Prisma seed
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== Add seed ==="
+          echo "================================="
+
+          test -f scripts/seed.mjs
+
+          mkdir -p \
+            cpanel-package/scripts
+
+          cp \
+            scripts/seed.mjs \
+            cpanel-package/scripts/seed.mjs
+
+          echo "seed.mjs copied."
+
+      # ============================================================
+      # REMOVE BUILD ENV
+      # ============================================================
+
+      - name: Remove build environment files
+        run: |
+          echo "================================="
+          echo "=== Remove build .env ==="
+          echo "================================="
+
+          rm -f cpanel-package/.env
+          rm -f cpanel-package/.env.production
+          rm -f cpanel-package/.env.local
+
+          echo "Production .env di cPanel akan dipertahankan."
+
+      # ============================================================
+      # FINAL PACKAGE VERIFICATION
+      # ============================================================
+
+      - name: Verify cPanel package
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== FINAL CPANEL PACKAGE ==="
+          echo "================================="
+
+          test -f \
+            cpanel-package/server.js
+
+          test -f \
+            cpanel-package/package.json
+
+          test -d \
+            cpanel-package/.next
+
+          test -d \
+            cpanel-package/node_modules
+
+          test -f \
+            cpanel-package/node_modules/@prisma/client/index.js
+
+          test -d \
+            cpanel-package/node_modules/.prisma/client
+
+          test -f \
+            cpanel-package/scripts/seed.mjs
+
+          echo ""
+          echo "=== server.js ==="
+
+          ls -lh \
+            cpanel-package/server.js
+
+          echo ""
+          echo "=== package.json ==="
+
+          ls -lh \
+            cpanel-package/package.json
+
+          echo ""
+          echo "=== node_modules ==="
+
+          du -sh \
+            cpanel-package/node_modules
+
+          echo ""
+          echo "=== Prisma engines ==="
+
+          find cpanel-package/node_modules/.prisma/client \
+            -maxdepth 1 \
+            -type f \
+            \( \
+              -name "*query_engine*" \
+              -o \
+              -name "*libquery_engine*" \
+            \) \
+            -print
+
+          echo ""
+          echo "================================="
+          echo "PACKAGE READY"
+          echo "================================="
+
+      # ============================================================
+      # SAVE ARTIFACT BACKUP
+      # ============================================================
+
+      - name: Upload cPanel package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-next-cpanel
+          path: cpanel-package/
+          include-hidden-files: true
+          retention-days: 7
+
+      # ============================================================
+      # SETUP SSH
+      # ============================================================
 
       - name: Setup SSH for cPanel
-        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
         env:
-          SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
         run: |
           set -e
-          echo "Setup SSH..."
+
+          echo "================================="
+          echo "=== Setup SSH ==="
+          echo "================================="
+
           mkdir -p ~/.ssh
+
           chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" \
+            > ~/.ssh/id_ed25519
+
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT || '22' }} "${{ secrets.CPANEL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh-keyscan \
+            -p "$CPANEL_PORT" \
+            "$CPANEL_HOST" \
+            >> ~/.ssh/known_hosts
+
           chmod 644 ~/.ssh/known_hosts
+
           echo "SSH ready."
 
-      - name: Deploy to cPanel
-        if: ${{ secrets.CPANEL_HOST != '' && secrets.CPANEL_SSH_KEY != '' }}
+      # ============================================================
+      # TEST SSH
+      # ============================================================
+
+      - name: Test cPanel SSH connection
         run: |
           set -e
-          echo "Deploy to cPanel..."
-          PORT=${{ secrets.CPANEL_SSH_PORT || '22' }}
-          ssh -p "$PORT" -o BatchMode=yes "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" "mkdir -p '${{ secrets.CPANEL_APP_DIR }}'"
-          ssh -p "$PORT" -o BatchMode=yes "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" "find '${{ secrets.CPANEL_APP_DIR }}' -mindepth 1 -maxdepth 1 ! -name '.env' ! -name 'tmp' -exec rm -rf {} +"
-          tar -C cpanel-package -czf - . | ssh -p "$PORT" -o BatchMode=yes "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" "tar -xzf - -C '${{ secrets.CPANEL_APP_DIR }}'"
-          ssh -p "$PORT" -o BatchMode=yes "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" "mkdir -p '${{ secrets.CPANEL_APP_DIR }}/tmp' && touch '${{ secrets.CPANEL_APP_DIR }}/tmp/restart.txt'"
-          echo "Deploy success."
+
+          echo "================================="
+          echo "=== Test SSH ==="
+          echo "================================="
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "echo 'SSH connection OK'"
+
+      # ============================================================
+      # DEPLOY TO CPANEL
+      # ============================================================
+
+      - name: Deploy latest package to cPanel
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== DEPLOY TO CPANEL ==="
+          echo "================================="
+
+          echo ""
+          echo "Host:"
+          echo "$CPANEL_HOST"
+
+          echo ""
+          echo "User:"
+          echo "$CPANEL_USER"
+
+          echo ""
+          echo "Application:"
+          echo "$CPANEL_APP_DIR"
+
+          # --------------------------------------------------------
+          # CREATE APPLICATION DIRECTORY
+          # --------------------------------------------------------
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "mkdir -p '$CPANEL_APP_DIR'"
+
+          # --------------------------------------------------------
+          # REMOVE OLD DEPLOYMENT
+          #
+          # .env = production configuration
+          # tmp  = Passenger directory
+          #
+          # Keduanya dipertahankan.
+          # --------------------------------------------------------
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "
+              find '$CPANEL_APP_DIR' \
+                -mindepth 1 \
+                -maxdepth 1 \
+                ! -name '.env' \
+                ! -name 'tmp' \
+                -exec rm -rf {} +
+            "
+
+          # --------------------------------------------------------
+          # UPLOAD PACKAGE
+          #
+          # Artifact dan cPanel menggunakan folder build yang sama:
+          #
+          # cpanel-package/
+          #
+          # Tidak melakukan npm install di cPanel.
+          # --------------------------------------------------------
+
+          tar \
+            -C cpanel-package \
+            -czf - . \
+          | ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "tar -xzf - -C '$CPANEL_APP_DIR'"
+
+          # --------------------------------------------------------
+          # PASSENGER TMP
+          # --------------------------------------------------------
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "
+              mkdir -p '$CPANEL_APP_DIR/tmp'
+            "
+
+          # --------------------------------------------------------
+          # RESTART PASSENGER
+          # --------------------------------------------------------
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "
+              touch '$CPANEL_APP_DIR/tmp/restart.txt'
+            "
+
+          echo ""
+          echo "================================="
+          echo "DEPLOY SUCCESS"
+          echo "================================="
+
+      # ============================================================
+      # VERIFY REMOTE CPANEL
+      # ============================================================
+
+      - name: Verify deployment on cPanel
+        run: |
+          set -e
+
+          echo "================================="
+          echo "=== VERIFY CPANEL ==="
+          echo "================================="
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "
+              set -e
+
+              echo '=== server.js ==='
+
+              test -f \
+                '$CPANEL_APP_DIR/server.js'
+
+              ls -lh \
+                '$CPANEL_APP_DIR/server.js'
+
+              echo ''
+              echo '=== package.json ==='
+
+              test -f \
+                '$CPANEL_APP_DIR/package.json'
+
+              echo ''
+              echo '=== .next ==='
+
+              test -d \
+                '$CPANEL_APP_DIR/.next'
+
+              echo ''
+              echo '=== Prisma Client ==='
+
+              test -f \
+                '$CPANEL_APP_DIR/node_modules/@prisma/client/index.js'
+
+              test -d \
+                '$CPANEL_APP_DIR/node_modules/.prisma/client'
+
+              echo ''
+              echo '=== Prisma Engines ==='
+
+              find \
+                '$CPANEL_APP_DIR/node_modules/.prisma/client' \
+                -maxdepth 1 \
+                -type f \
+                \\( \
+                  -name '*query_engine*' \
+                  -o \
+                  -name '*libquery_engine*' \
+                \\) \
+                -print
+
+              echo ''
+              echo '=== bcryptjs ==='
+
+              test -d \
+                '$CPANEL_APP_DIR/node_modules/bcryptjs'
+
+              echo ''
+              echo '=== seed ==='
+
+              test -f \
+                '$CPANEL_APP_DIR/scripts/seed.mjs'
+
+              echo ''
+              echo '=== restart.txt ==='
+
+              test -f \
+                '$CPANEL_APP_DIR/tmp/restart.txt'
+
+              echo ''
+              echo '================================='
+              echo 'REMOTE DEPLOYMENT VERIFIED'
+              echo '================================='
+            "
