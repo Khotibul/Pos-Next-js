@@ -1,4 +1,4 @@
-﻿name: Build Next.js for cPanel
+name: Build Next.js for cPanel
 
 on:
   workflow_dispatch:
