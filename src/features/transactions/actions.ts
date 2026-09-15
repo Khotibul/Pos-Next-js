@@ -37,13 +37,16 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       checkIdempotencyKey(ctx.tenantId, idempotencyKey),
       getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId }),
     ]);
-    if (!allowed) return actionFail("Transaksi sedang diproses. Harap tunggu.");
+    // Kunci aktif: bila usecase gagal, catch di bawah melepas kunci agar retry user tidak terblokir 60s
+    idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
+    if (!allowed) {
+      await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
+      return actionFail("Transaksi sedang diproses. Harap tunggu.");
+    }
     if (!openShift) {
       await releaseIdempotencyKey(ctx.tenantId, idempotencyKey);
       return actionFail("Shift belum dibuka. Silakan buka shift terlebih dahulu.");
     }
-    // Kunci aktif: bila usecase gagal, catch di bawah melepas kunci agar retry user tidak terblokir 60s
-    idempotencyRelease = { tenantId: ctx.tenantId, key: idempotencyKey };
     endIdempotency();
 
     const created = await createSaleUseCase({

@@ -15,6 +15,7 @@ export function MobileCartSheet({
   onClose,
   inc, dec, setError, setNotice, setMethod, setCashPaid, setDiscount, setTaxRate, setCart,
   onPay,
+  onOpenShift,
 }: {
   lines: CartLine[];
   productMap: Map<string, Product>;
@@ -29,6 +30,7 @@ export function MobileCartSheet({
   setDiscount: (v: number) => void; setTaxRate: (v: number) => void;
   setCart: (v: Record<string, number>) => void;
   onPay: () => void;
+  onOpenShift: () => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -104,7 +106,7 @@ export function MobileCartSheet({
         </div>
 
         <div className="shrink-0 border-t bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
-          <CartActions isPending={isPending} lines={lines} shiftCheckDone={shiftCheckDone} openShiftId={openShiftId} method={method} cashPaid={cashPaid} total={total} onPay={onPay} onCancel={() => { setCart({}); setError(null); setNotice(null); onClose(); }} />
+          <CartActions isPending={isPending} lines={lines} shiftCheckDone={shiftCheckDone} openShiftId={openShiftId} method={method} cashPaid={cashPaid} total={total} onPay={onPay} onOpenShift={onOpenShift} onCancel={() => { setCart({}); setError(null); setNotice(null); onClose(); }} />
         </div>
       </div>
     </>

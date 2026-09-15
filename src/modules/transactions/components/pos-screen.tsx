@@ -166,6 +166,10 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
     setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
   }, []);
 
+  const handleOpenShift = useCallback(() => {
+    setForceOpenShift(true);
+  }, []);
+
   const handlePay = useCallback(() => {
     setError(null);
     startTransition(async () => {
@@ -441,6 +445,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             setTaxRate={setTaxRate}
             setCart={setCart}
             onPay={handlePay}
+            onOpenShift={handleOpenShift}
           />
         </div>
 
@@ -491,6 +496,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             setTaxRate={setTaxRate}
             setCart={setCart}
             onPay={handlePay}
+            onOpenShift={handleOpenShift}
           />
         ) : null}
 

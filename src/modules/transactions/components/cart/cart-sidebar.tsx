@@ -15,6 +15,7 @@ export function CartSidebar({
   cashPaid, cashChange, method, settings, isPending, shiftCheckDone, openShiftId,
   inc, dec, setError, setNotice, setMethod, setCashPaid, setDiscount, setTaxRate, setCart,
   onPay,
+  onOpenShift,
 }: {
   lines: CartLine[];
   productMap: Map<string, Product>;
@@ -28,6 +29,7 @@ export function CartSidebar({
   setDiscount: (v: number) => void; setTaxRate: (v: number) => void;
   setCart: (v: Record<string, number>) => void;
   onPay: () => void;
+  onOpenShift: () => void;
 }) {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +100,7 @@ export function CartSidebar({
         </div>
 
         <div className="shrink-0 border-t bg-background p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
-          <CartActions isPending={isPending} lines={lines} shiftCheckDone={shiftCheckDone} openShiftId={openShiftId} method={method} cashPaid={cashPaid} total={total} onPay={onPay} onCancel={() => { setCart({}); setError(null); setNotice(null); }} />
+          <CartActions isPending={isPending} lines={lines} shiftCheckDone={shiftCheckDone} openShiftId={openShiftId} method={method} cashPaid={cashPaid} total={total} onPay={onPay} onOpenShift={onOpenShift} onCancel={() => { setCart({}); setError(null); setNotice(null); }} />
         </div>
       </CardContent>
     </Card>
