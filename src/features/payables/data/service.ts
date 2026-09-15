@@ -6,23 +6,27 @@ import type { PayableOverview } from "@/features/payables/domain/entity";
 import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export async function getPayableOverview(params: { tenantId: string }): Promise<PayableOverview> {
-  const all = await prisma.payable.findMany({
-    where: { tenantId: params.tenantId },
-    select: { status: true, totalAmount: true, paidAmount: true, remainingAmount: true },
-  });
-  const total = all.length;
-  let unpaid = 0, partial = 0, paid = 0, overdue = 0;
-  let totalPayable = 0, totalPaid = 0, totalRemaining = 0;
-  for (const r of all) {
-    if (r.status === "UNPAID") unpaid++;
-    else if (r.status === "PARTIAL") partial++;
-    else if (r.status === "PAID") paid++;
-    else if (r.status === "OVERDUE") overdue++;
-    totalPayable += Number(r.totalAmount);
-    totalPaid += Number(r.paidAmount);
-    totalRemaining += Number(r.remainingAmount);
+  try {
+    const all = await prisma.payable.findMany({
+      where: { tenantId: params.tenantId },
+      select: { status: true, totalAmount: true, paidAmount: true, remainingAmount: true },
+    });
+    const total = all.length;
+    let unpaid = 0, partial = 0, paid = 0, overdue = 0;
+    let totalPayable = 0, totalPaid = 0, totalRemaining = 0;
+    for (const r of all) {
+      if (r.status === "UNPAID") unpaid++;
+      else if (r.status === "PARTIAL") partial++;
+      else if (r.status === "PAID") paid++;
+      else if (r.status === "OVERDUE") overdue++;
+      totalPayable += Number(r.totalAmount);
+      totalPaid += Number(r.paidAmount);
+      totalRemaining += Number(r.remainingAmount);
+    }
+    return { total, unpaid, partial, paid, overdue, totalPayable, totalPaid, totalRemaining };
+  } catch {
+    return { total: 0, unpaid: 0, partial: 0, paid: 0, overdue: 0, totalPayable: 0, totalPaid: 0, totalRemaining: 0 };
   }
-  return { total, unpaid, partial, paid, overdue, totalPayable, totalPaid, totalRemaining };
 }
 
 export async function listPayables(params: { tenantId: string; q?: string | null; status?: string | null; page?: number; pageSize?: number }) {
@@ -31,45 +35,49 @@ export async function listPayables(params: { tenantId: string; q?: string | null
   const q = params.q?.trim() || null;
   const status = params.status?.trim() || null;
 
-  const where: Record<string, unknown> = { tenantId: params.tenantId };
-  if (q) {
-    (where as Record<string, unknown>).OR = [
-      { invoiceNo: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-      { notes: { contains: q, mode: "insensitive" } },
-      { supplier: { name: { contains: q, mode: "insensitive" } } },
-    ];
+  try {
+    const where: Record<string, unknown> = { tenantId: params.tenantId };
+    if (q) {
+      (where as Record<string, unknown>).OR = [
+        { invoiceNo: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { notes: { contains: q, mode: "insensitive" } },
+        { supplier: { name: { contains: q, mode: "insensitive" } } },
+      ];
+    }
+    if (status) (where as Record<string, unknown>).status = status;
+
+    const [total, items] = await Promise.all([
+      prisma.payable.count({ where: where as never }),
+      prisma.payable.findMany({
+        where: where as never,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { supplier: { select: { name: true } } },
+      }),
+    ]);
+
+    const mapped = items.map((r) => ({
+      id: r.id,
+      invoiceNo: r.invoiceNo,
+      description: r.description,
+      supplierId: r.supplierId,
+      supplierName: r.supplier?.name ?? null,
+      purchaseOrderId: r.purchaseOrderId,
+      totalAmount: Number(r.totalAmount),
+      paidAmount: Number(r.paidAmount),
+      remainingAmount: Number(r.remainingAmount),
+      dueDate: r.dueDate,
+      status: r.status,
+      notes: r.notes,
+      createdAt: r.createdAt,
+    }));
+
+    return { items: mapped, total, page, pageSize, q, status };
+  } catch {
+    return { items: [], total: 0, page, pageSize, q, status };
   }
-  if (status) (where as Record<string, unknown>).status = status;
-
-  const [total, items] = await Promise.all([
-    prisma.payable.count({ where: where as never }),
-    prisma.payable.findMany({
-      where: where as never,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: { supplier: { select: { name: true } } },
-    }),
-  ]);
-
-  const mapped = items.map((r) => ({
-    id: r.id,
-    invoiceNo: r.invoiceNo,
-    description: r.description,
-    supplierId: r.supplierId,
-    supplierName: r.supplier?.name ?? null,
-    purchaseOrderId: r.purchaseOrderId,
-    totalAmount: Number(r.totalAmount),
-    paidAmount: Number(r.paidAmount),
-    remainingAmount: Number(r.remainingAmount),
-    dueDate: r.dueDate,
-    status: r.status,
-    notes: r.notes,
-    createdAt: r.createdAt,
-  }));
-
-  return { items: mapped, total, page, pageSize, q, status };
 }
 
 export async function getPayableById(params: { tenantId: string; id: string }) {

@@ -12,7 +12,12 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function ReceivableDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requirePermission(PERMISSIONS.receivables_read);
+  let ctx;
+  try {
+    ctx = await requirePermission(PERMISSIONS.receivables_read);
+  } catch {
+    notFound();
+  }
   const { id } = await params;
   let data: Awaited<ReturnType<typeof getReceivableById>>;
   try {

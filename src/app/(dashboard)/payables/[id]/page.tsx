@@ -12,7 +12,12 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function PayableDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requirePermission(PERMISSIONS.payables_read);
+  let ctx;
+  try {
+    ctx = await requirePermission(PERMISSIONS.payables_read);
+  } catch {
+    notFound();
+  }
   const { id } = await params;
   let data: Awaited<ReturnType<typeof getPayableById>>;
   try {

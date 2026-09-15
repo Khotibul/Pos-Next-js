@@ -13,16 +13,37 @@ import { prisma } from "@/shared/server/db/prisma";
 export const dynamic = "force-dynamic";
 
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
-  const ctx = await requirePermission(PERMISSIONS.payables_read);
+  let ctx;
+  try {
+    ctx = await requirePermission(PERMISSIONS.payables_read);
+  } catch {
+    return (
+      <div className="grid gap-4">
+        <PageHeader title="Utang" description="Kelola utang ke supplier — catat, cicil, dan pantau jatuh tempo." />
+        <Card className="rounded-2xl">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <p>Anda tidak punya izin untuk mengakses halaman ini.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const sp = await searchParams;
   const q = sp.q ?? null;
   const status = sp.status ?? null;
   const page = sp.page ? Number(sp.page) : 1;
 
-  const [overview, result, suppliers] = await Promise.all([
+  let suppliers: { id: string; name: string }[] = [];
+  try {
+    suppliers = await prisma.supplier.findMany({ where: { tenantId: ctx.tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 200 });
+  } catch {
+    suppliers = [];
+  }
+
+  const [overview, result] = await Promise.all([
     getPayableOverview({ tenantId: ctx.tenantId }),
     listPayables({ tenantId: ctx.tenantId, q, status, page: Number.isFinite(page) ? page : 1, pageSize: 10 }),
-    prisma.supplier.findMany({ where: { tenantId: ctx.tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 200 }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
