@@ -225,15 +225,6 @@ jobs:
 
       # ==========================================================
       # PREPARE CPANEL PACKAGE
-      #
-      # TIDAK membawa node_modules.
-      #
-      # Server menggunakan CloudLinux venv:
-      #
-      # cpanel-runtime/node_modules
-      #       ↓
-      # nodevenv/.../22/lib/node_modules
-      #
       # ==========================================================
 
       - name: Prepare cPanel package
@@ -276,10 +267,10 @@ jobs:
               cpanel-package/.next/
           fi
 
-          # Jangan membawa node_modules.
+          # Server memakai CloudLinux node_modules.
           rm -rf cpanel-package/node_modules
 
-          # Jangan membawa environment files.
+          # Jangan upload environment production.
           rm -f cpanel-package/.env
           rm -f cpanel-package/.env.production
           rm -f cpanel-package/.env.local
@@ -344,41 +335,41 @@ jobs:
           retention-days: 7
 
       # ==========================================================
-      # VALIDATE SSH SECRETS
+      # VALIDATE SECRETS
       # ==========================================================
 
       - name: Validate deployment secrets
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.CPANEL_SSH_KEY_B64 }}
         run: |
           set -e
 
           echo "Checking deployment configuration..."
 
-          if [ -z "$CPANEL_HOST" ]; then
+          test -n "$CPANEL_HOST" || {
             echo "ERROR: CPANEL_HOST kosong."
             exit 1
-          fi
+          }
 
-          if [ -z "$CPANEL_USER" ]; then
+          test -n "$CPANEL_USER" || {
             echo "ERROR: CPANEL_USER kosong."
             exit 1
-          fi
+          }
 
-          if [ -z "$CPANEL_PORT" ]; then
+          test -n "$CPANEL_PORT" || {
             echo "ERROR: CPANEL_SSH_PORT kosong."
             exit 1
-          fi
+          }
 
-          if [ -z "$CPANEL_APP_DIR" ]; then
+          test -n "$CPANEL_APP_DIR" || {
             echo "ERROR: CPANEL_APP_DIR kosong."
             exit 1
-          fi
+          }
 
-          if [ -z "$SSH_PRIVATE_KEY" ]; then
-            echo "ERROR: CPANEL_SSH_KEY kosong."
+          test -n "$SSH_PRIVATE_KEY_B64" || {
+            echo "ERROR: CPANEL_SSH_KEY_B64 kosong."
             exit 1
-          fi
+          }
 
           if ! echo "$CPANEL_PORT" | grep -Eq '^[0-9]+$'; then
             echo "ERROR: CPANEL_SSH_PORT harus berupa angka."
@@ -402,6 +393,7 @@ jobs:
           echo "User: $CPANEL_USER"
           echo "Port: $CPANEL_PORT"
           echo "App:  $CPANEL_APP_DIR"
+          echo "SSH key: configured"
 
       # ==========================================================
       # SSH SETUP
@@ -409,17 +401,29 @@ jobs:
 
       - name: Setup SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          SSH_PRIVATE_KEY_B64: ${{ secrets.CPANEL_SSH_KEY_B64 }}
         run: |
           set -e
+
+          echo "Preparing SSH..."
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s\n' "$SSH_PRIVATE_KEY" \
+          printf '%s' "$SSH_PRIVATE_KEY_B64" \
+            | base64 --decode \
             > ~/.ssh/id_ed25519
 
           chmod 600 ~/.ssh/id_ed25519
+
+          echo "Checking SSH private key..."
+
+          ssh-keygen \
+            -y \
+            -f ~/.ssh/id_ed25519 \
+            > ~/.ssh/id_ed25519.pub
+
+          echo "SSH private key is valid."
 
           ssh-keyscan \
             -p "$CPANEL_PORT" \
@@ -438,9 +442,14 @@ jobs:
         run: |
           set -e
 
+          echo "Testing SSH connection..."
+
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "echo SSH_OK"
 
@@ -455,6 +464,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -485,12 +496,6 @@ jobs:
 
       # ==========================================================
       # DEPLOY FILES
-      #
-      # PENTING:
-      # .env TIDAK DIHAPUS
-      # node_modules TIDAK DIHAPUS
-      # tmp TIDAK DIHAPUS
-      #
       # ==========================================================
 
       - name: Deploy application files
@@ -503,6 +508,8 @@ jobs:
           | ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -528,6 +535,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -588,6 +597,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -614,6 +625,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -623,10 +636,7 @@ jobs:
 
               mkdir -p \"\$APP/tmp\"
 
-              # --------------------------------------------------
               # Stop process lama menggunakan PID file.
-              # --------------------------------------------------
-
               if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
 
                 PID=\$(cat \
@@ -645,31 +655,17 @@ jobs:
 
               sleep 3
 
-              # --------------------------------------------------
-              # Pastikan node_modules benar.
-              # --------------------------------------------------
-
+              # Pastikan runtime tersedia.
+              test -f \"\$APP/server.js\"
               test -L \"\$APP/node_modules\"
-
-              # --------------------------------------------------
-              # Pastikan .env tersedia.
-              # --------------------------------------------------
-
               test -f \"\$APP/.env\"
 
-              # --------------------------------------------------
               # Load production environment.
-              # --------------------------------------------------
-
               cd \"\$APP\"
 
               set -a
               . ./.env
               set +a
-
-              # --------------------------------------------------
-              # Start Next.js.
-              # --------------------------------------------------
 
               echo 'Starting Next.js on port 3210...'
 
@@ -705,6 +701,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
@@ -736,6 +734,8 @@ jobs:
           ssh \
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
               set -e
