@@ -11,6 +11,7 @@ class Product extends Equatable {
   final String? categoryId;
   final String? categoryName;
   final String? brandId;
+  final String? brandName;
   final String? supplierId;
   final String? supplierName;
   final String? unitId;
@@ -48,6 +49,7 @@ class Product extends Equatable {
     this.categoryId,
     this.categoryName,
     this.brandId,
+    this.brandName,
     this.supplierId,
     this.supplierName,
     this.unitId,
@@ -161,6 +163,7 @@ class Product extends Equatable {
         categoryId,
         categoryName,
         brandId,
+        brandName,
         supplierId,
         supplierName,
         unitId,

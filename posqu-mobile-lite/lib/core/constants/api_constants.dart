@@ -16,6 +16,7 @@ class ApiConstants {
   static const String refreshToken = '/auth/refresh';
   static const String products = '/mobile/products';
   static const String categories = '/mobile/categories';
+  static const String brands = '/mobile/brands';
   static const String suppliers = '/mobile/suppliers';
   static const String customers = '/mobile/customers';
   static const String units = '/mobile/units';

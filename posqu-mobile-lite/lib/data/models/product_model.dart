@@ -16,6 +16,7 @@ class ProductModel {
   final String? categoryId;
   final String? categoryName;
   final String? brandId;
+  final String? brandName;
   final String? supplierId;
   final String? supplierName;
   final String? unitId;
@@ -53,6 +54,7 @@ class ProductModel {
     this.categoryId,
     this.categoryName,
     this.brandId,
+    this.brandName,
     this.supplierId,
     this.supplierName,
     this.unitId,
@@ -95,6 +97,7 @@ class ProductModel {
       categoryId: categoryId,
       categoryName: categoryName,
       brandId: brandId,
+      brandName: brandName,
       supplierId: supplierId,
       supplierName: supplierName,
       unitId: unitId,

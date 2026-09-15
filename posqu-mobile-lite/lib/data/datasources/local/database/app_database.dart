@@ -22,6 +22,8 @@ import 'tables/cashier_shifts_table.dart';
 import 'tables/sync_queue_table.dart';
 import 'tables/receivables_table.dart';
 import 'tables/payables_table.dart';
+import 'tables/brands_table.dart';
+import 'tables/units_table.dart';
 import 'daos/user_dao.dart';
 import 'daos/category_dao.dart';
 import 'daos/product_dao.dart';
@@ -60,6 +62,8 @@ part 'app_database.g.dart';
     ReceivablePaymentsTable,
     PayablesTable,
     PayablePaymentsTable,
+    BrandsTable,
+    UnitsTable,
   ],
   daos: [
     UserDao,
@@ -82,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -122,6 +126,11 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(receivablePaymentsTable);
           await m.createTable(payablesTable);
           await m.createTable(payablePaymentsTable);
+        }
+        if (from < 6) {
+          await m.createTable(brandsTable);
+          await m.createTable(unitsTable);
+          await m.addColumn(productsTable, productsTable.brandName);
         }
       },
       beforeOpen: (details) async {

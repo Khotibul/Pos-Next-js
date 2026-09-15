@@ -12,6 +12,7 @@ class ProductsTable extends Table {
   TextColumn get qrCode => text().nullable()();
   TextColumn get categoryId => text().nullable()();
   TextColumn get brandId => text().nullable()();
+  TextColumn get brandName => text().nullable()();
   TextColumn get supplierId => text().nullable()();
   TextColumn get unitId => text().nullable()();
 

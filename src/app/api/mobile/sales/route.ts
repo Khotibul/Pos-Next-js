@@ -39,7 +39,7 @@ export const GET = withApiHandler(async (req: Request) => {
         changeAmount: payment ? Number(payment.changeAmount) : 0,
         paymentMethod: payment ? payment.method.toLowerCase() : "cash",
         paymentReference: payment?.reference ?? null,
-        notes: null,
+        notes: s.notes,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         items: s.items.map((i) => ({
@@ -79,7 +79,7 @@ const createSaleSchema = z.object({
   notes: z.string().nullish(),
   paidAmount: z.number().nonnegative().default(0),
   changeAmount: z.number().nonnegative().default(0),
-  paymentMethod: z.enum(["CASH", "CREDIT", "QRIS", "TRANSFER", "EWALLET", "CARD"]).default("CASH"),
+  paymentMethod: z.string().transform(v => v.toUpperCase()).default("CASH"),
   paymentReference: z.string().nullish(),
   dueDate: z.string().nullish(),
   items: z.array(saleItemSchema).min(1),
@@ -157,6 +157,7 @@ export const POST = withApiHandler(async (req: Request) => {
         discount: input.discount,
         tax: input.tax,
         total: input.total,
+        notes: input.notes ?? null,
         items: {
           create: validItems.map((item) => ({
             tenantId: ctx.tenantId,

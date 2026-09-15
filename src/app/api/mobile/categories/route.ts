@@ -17,6 +17,11 @@ export const GET = withApiHandler(async (req: Request) => {
     categories.map((c) => ({
       id: c.id,
       name: c.name,
+      description: c.description,
+      icon: c.icon,
+      color: c.color,
+      isActive: c.isActive,
+      productCount: c.productCount,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     })),
@@ -27,6 +32,11 @@ export const GET = withApiHandler(async (req: Request) => {
 const categoryUpsertSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  description: z.string().nullish(),
+  icon: z.string().nullish(),
+  color: z.string().nullish(),
+  isActive: z.boolean().default(true),
+  productCount: z.number().int().default(0),
 });
 
 export const POST = withApiHandler(async (req: Request) => {
@@ -47,10 +57,26 @@ export const POST = withApiHandler(async (req: Request) => {
   const category = existing
     ? await prisma.productCategory.update({
         where: { id: existing.id },
-        data: { name: d.name },
+        data: {
+          name: d.name,
+          description: d.description ?? null,
+          icon: d.icon ?? null,
+          color: d.color ?? null,
+          isActive: d.isActive,
+          productCount: d.productCount,
+        },
       })
     : await prisma.productCategory.create({
-        data: { tenantId: ctx.tenantId, id: d.id, name: d.name },
+        data: {
+          tenantId: ctx.tenantId,
+          id: d.id,
+          name: d.name,
+          description: d.description ?? null,
+          icon: d.icon ?? null,
+          color: d.color ?? null,
+          isActive: d.isActive,
+          productCount: d.productCount,
+        },
       });
   return apiOk({ id: category.id, name: category.name });
 });

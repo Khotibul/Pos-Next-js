@@ -8,22 +8,22 @@ export const runtime = "nodejs";
 export const GET = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
 
-  const units = await prisma.productUnit.findMany({
+  const brands = await prisma.productBrand.findMany({
     where: { tenantId: ctx.tenantId },
     orderBy: { name: "asc" },
   });
 
   return apiOk(
-    units.map((u) => ({
-      id: u.id,
-      name: u.name,
-      createdAt: u.createdAt,
-      updatedAt: u.updatedAt,
+    brands.map((b) => ({
+      id: b.id,
+      name: b.name,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
     })),
   );
 });
 
-const unitUpsertSchema = z.object({
+const brandUpsertSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
 });
@@ -31,25 +31,25 @@ const unitUpsertSchema = z.object({
 export const POST = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
   const body = await req.json().catch(() => null);
-  const parsed = unitUpsertSchema.safeParse(body);
+  const parsed = brandUpsertSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json(
-      { ok: false, code: "VALIDATION_ERROR", message: "Data satuan tidak valid." },
+      { ok: false, code: "VALIDATION_ERROR", message: "Data merek tidak valid." },
       { status: 400 },
     );
   }
   const d = parsed.data;
-  const existing = await prisma.productUnit.findFirst({
+  const existing = await prisma.productBrand.findFirst({
     where: { tenantId: ctx.tenantId, OR: [{ id: d.id }, { name: d.name }] },
     select: { id: true },
   });
-  const unit = existing
-    ? await prisma.productUnit.update({
+  const brand = existing
+    ? await prisma.productBrand.update({
         where: { id: existing.id },
         data: { name: d.name },
       })
-    : await prisma.productUnit.create({
+    : await prisma.productBrand.create({
         data: { tenantId: ctx.tenantId, id: d.id, name: d.name },
       });
-  return apiOk({ id: unit.id, name: unit.name });
+  return apiOk({ id: brand.id, name: brand.name });
 });
