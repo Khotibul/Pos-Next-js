@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: posqupro-production
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -49,7 +53,10 @@ jobs:
         run: |
           set -e
 
+          echo "=== Node ==="
           node -v
+
+          echo "=== npm ==="
           npm -v
 
       # ==========================================================
@@ -81,7 +88,9 @@ jobs:
 
           echo ""
           echo "=== output / distDir ==="
-          grep -nE "output|distDir|DESKTOP_BUILD" \
+
+          grep -nE \
+            "output|distDir|DESKTOP_BUILD" \
             next.config.mjs || true
 
       # ==========================================================
@@ -100,13 +109,16 @@ jobs:
 
           echo ""
 
-          grep -q 'debian-openssl-1.0.x' \
+          grep -q \
+            'debian-openssl-1.0.x' \
             src/prisma/schema.prisma
 
-          grep -q 'debian-openssl-1.1.x' \
+          grep -q \
+            'debian-openssl-1.1.x' \
             src/prisma/schema.prisma
 
-          grep -q 'debian-openssl-3.0.x' \
+          grep -q \
+            'debian-openssl-3.0.x' \
             src/prisma/schema.prisma
 
           echo "Prisma binary targets OK."
@@ -214,7 +226,6 @@ jobs:
       # ==========================================================
       # PREPARE CPANEL PACKAGE
       #
-      # PENTING:
       # TIDAK membawa node_modules.
       #
       # Server menggunakan CloudLinux venv:
@@ -230,7 +241,6 @@ jobs:
           set -e
 
           rm -rf cpanel-package
-
           mkdir -p cpanel-package
 
           SERVER_JS=$(find .next/standalone \
@@ -266,13 +276,10 @@ jobs:
               cpanel-package/.next/
           fi
 
-          # Remove node_modules from deployment package.
-          #
-          # Server sudah mempunyai CloudLinux node_modules
-          # yang sudah terbukti bekerja.
+          # Jangan membawa node_modules.
           rm -rf cpanel-package/node_modules
 
-          # Remove environment files
+          # Jangan membawa environment files.
           rm -f cpanel-package/.env
           rm -f cpanel-package/.env.production
           rm -f cpanel-package/.env.local
@@ -312,7 +319,6 @@ jobs:
           test -d cpanel-package/.next
           test -f cpanel-package/scripts/seed.mjs
 
-          # Pastikan node_modules TIDAK ada.
           if [ -e cpanel-package/node_modules ]; then
             echo "ERROR: node_modules masih ada."
             exit 1
@@ -336,6 +342,66 @@ jobs:
           path: cpanel-package/
           include-hidden-files: true
           retention-days: 7
+
+      # ==========================================================
+      # VALIDATE SSH SECRETS
+      # ==========================================================
+
+      - name: Validate deployment secrets
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+        run: |
+          set -e
+
+          echo "Checking deployment configuration..."
+
+          if [ -z "$CPANEL_HOST" ]; then
+            echo "ERROR: CPANEL_HOST kosong."
+            exit 1
+          fi
+
+          if [ -z "$CPANEL_USER" ]; then
+            echo "ERROR: CPANEL_USER kosong."
+            exit 1
+          fi
+
+          if [ -z "$CPANEL_PORT" ]; then
+            echo "ERROR: CPANEL_SSH_PORT kosong."
+            exit 1
+          fi
+
+          if [ -z "$CPANEL_APP_DIR" ]; then
+            echo "ERROR: CPANEL_APP_DIR kosong."
+            exit 1
+          fi
+
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "ERROR: CPANEL_SSH_KEY kosong."
+            exit 1
+          fi
+
+          if ! echo "$CPANEL_PORT" | grep -Eq '^[0-9]+$'; then
+            echo "ERROR: CPANEL_SSH_PORT harus berupa angka."
+            exit 1
+          fi
+
+          if [ "$CPANEL_APP_DIR" != \
+            "/home/ucv04la6/Pos-Next-Js/cpanel-runtime" ]; then
+
+            echo "ERROR: CPANEL_APP_DIR tidak sesuai."
+            echo "Expected:"
+            echo "/home/ucv04la6/Pos-Next-Js/cpanel-runtime"
+            echo "Actual:"
+            echo "$CPANEL_APP_DIR"
+            exit 1
+          fi
+
+          echo ""
+          echo "SSH configuration OK."
+          echo "Host: $CPANEL_HOST"
+          echo "User: $CPANEL_USER"
+          echo "Port: $CPANEL_PORT"
+          echo "App:  $CPANEL_APP_DIR"
 
       # ==========================================================
       # SSH SETUP
@@ -414,17 +480,17 @@ jobs:
                 cp -a \"\$APP/package.json\" \"\$BACKUP/\"
               fi
 
-              echo \"Backup: \$BACKUP\"
+              echo \"Backup created: \$BACKUP\"
             "
 
       # ==========================================================
       # DEPLOY FILES
       #
-      # JANGAN menghapus seluruh application directory.
+      # PENTING:
+      # .env TIDAK DIHAPUS
+      # node_modules TIDAK DIHAPUS
+      # tmp TIDAK DIHAPUS
       #
-      # .env tetap
-      # node_modules tetap
-      # tmp tetap
       # ==========================================================
 
       - name: Deploy application files
@@ -452,7 +518,7 @@ jobs:
             "
 
       # ==========================================================
-      # REPAIR / VERIFY NODE_MODULES SYMLINK
+      # VERIFY / REPAIR NODE_MODULES SYMLINK
       # ==========================================================
 
       - name: Verify CloudLinux node_modules
@@ -502,7 +568,6 @@ jobs:
               echo 'node_modules OK.'
 
               test -d \"\$APP/node_modules/@prisma/client\"
-
               test -d \"\$APP/node_modules/.prisma/client\"
 
               test -f \
@@ -525,6 +590,8 @@ jobs:
             -o BatchMode=yes \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
+              set -e
+
               APP='$CPANEL_APP_DIR'
 
               test -f \"\$APP/.env\"
@@ -537,7 +604,7 @@ jobs:
             "
 
       # ==========================================================
-      # STOP OLD NEXT.JS
+      # RESTART NEXT.JS 3210
       # ==========================================================
 
       - name: Restart Next.js 3210
@@ -556,31 +623,55 @@ jobs:
 
               mkdir -p \"\$APP/tmp\"
 
-              # Stop old process if PID exists.
+              # --------------------------------------------------
+              # Stop process lama menggunakan PID file.
+              # --------------------------------------------------
+
               if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
-                PID=\$(cat \"\$APP/tmp/next-3210.pid\" 2>/dev/null || true)
+
+                PID=\$(cat \
+                  \"\$APP/tmp/next-3210.pid\" \
+                  2>/dev/null || true)
 
                 if [ -n \"\$PID\" ]; then
-                  kill \"\$PID\" 2>/dev/null || true
+
+                  echo \"Stopping PID \$PID...\"
+
+                  kill \"\$PID\" \
+                    2>/dev/null || true
+
                 fi
               fi
 
-              sleep 2
+              sleep 3
 
-              # Bersihkan proses lama yang masih memakai 3210.
-              OLD_PID=\$(lsof -ti:3210 2>/dev/null || true)
+              # --------------------------------------------------
+              # Pastikan node_modules benar.
+              # --------------------------------------------------
 
-              if [ -n \"\$OLD_PID\" ]; then
-                kill \$OLD_PID 2>/dev/null || true
-                sleep 2
-              fi
+              test -L \"\$APP/node_modules\"
+
+              # --------------------------------------------------
+              # Pastikan .env tersedia.
+              # --------------------------------------------------
+
+              test -f \"\$APP/.env\"
+
+              # --------------------------------------------------
+              # Load production environment.
+              # --------------------------------------------------
 
               cd \"\$APP\"
 
-              # Load production .env.
               set -a
               . ./.env
               set +a
+
+              # --------------------------------------------------
+              # Start Next.js.
+              # --------------------------------------------------
+
+              echo 'Starting Next.js on port 3210...'
 
               nohup env \
                 NODE_ENV=production \
@@ -595,8 +686,11 @@ jobs:
               sleep 5
 
               echo ''
-              echo '=== Next.js log ==='
+              echo '=== PID ==='
+              cat tmp/next-3210.pid
 
+              echo ''
+              echo '=== Next.js log ==='
               tail -80 tmp/next-3210.log
             "
 
@@ -632,7 +726,7 @@ jobs:
             "
 
       # ==========================================================
-      # VERIFY REMOTE FILES
+      # VERIFY REMOTE DEPLOYMENT
       # ==========================================================
 
       - name: Verify remote deployment
