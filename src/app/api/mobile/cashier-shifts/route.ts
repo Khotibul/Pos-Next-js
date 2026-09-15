@@ -133,5 +133,28 @@ export const GET = withApiHandler(async (req: Request) => {
     take: limit,
   });
 
-  return apiOk(shifts);
+  return apiOk(shifts.map((s) => ({
+    id: s.id,
+    branchId: s.branchId,
+    cashierId: s.cashierId,
+    openedAt: s.openedAt,
+    closedAt: s.closedAt,
+    status: s.status,
+    openingCash: Number(s.openingCash),
+    cashSystem: Number(s.cashSystem),
+    cashCounted: s.cashCounted != null ? Number(s.cashCounted) : null,
+    cashDifference: Number(s.cashDifference),
+    totalSales: Number(s.totalSales),
+    totalCash: Number(s.totalCash),
+    totalQris: Number(s.totalQris),
+    totalTransfer: Number(s.totalTransfer),
+    totalEwallet: Number(s.totalEwallet),
+    transactionCount: s.transactionCount,
+    openNote: s.openNote,
+    closeNote: s.closeNote,
+    approvedById: s.approvedById,
+    approvedAt: s.approvedAt,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+  })));
 });

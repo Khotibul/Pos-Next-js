@@ -32,7 +32,6 @@ export const GET = withApiHandler(async (req: Request) => {
   return apiOk(
     items.map((r) => ({
       id: r.id,
-      tenantId: r.tenantId,
       supplierId: r.supplierId,
       purchaseOrderId: r.purchaseOrderId,
       invoiceNo: r.invoiceNo,

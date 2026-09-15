@@ -96,9 +96,31 @@ export const GET = withApiHandler(async (req: Request) => {
   const limit = Math.min(Number(url.searchParams.get("limit") ?? "100"), 200);
   const orders = await prisma.purchaseOrder.findMany({
     where: { tenantId: ctx.tenantId },
-    include: { items: true },
+    include: { items: true, supplier: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
-  return apiOk(orders);
+  return apiOk(orders.map((o) => ({
+    id: o.id,
+    orderNo: o.orderNo,
+    supplierId: o.supplierId,
+    supplierName: o.supplier?.name ?? null,
+    status: o.status,
+    notes: o.notes,
+    subtotal: Number(o.subtotal),
+    tax: Number(o.tax),
+    total: Number(o.total),
+    createdAt: o.createdAt,
+    updatedAt: o.updatedAt,
+    items: o.items.map((it) => ({
+      id: it.id,
+      purchaseOrderId: it.purchaseOrderId,
+      productId: it.productId,
+      name: it.name,
+      sku: it.sku,
+      costPrice: Number(it.costPrice),
+      qty: it.qty,
+      lineTotal: Number(it.lineTotal),
+    })),
+  })));
 });

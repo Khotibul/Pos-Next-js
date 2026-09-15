@@ -16,7 +16,7 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const sales = await prisma.sale.findMany({
     where: { tenantId: ctx.tenantId },
-    include: { items: true, payments: true },
+    include: { items: true, payments: true, customer: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
@@ -30,6 +30,7 @@ export const GET = withApiHandler(async (req: Request) => {
         cashierId: s.cashierId,
         shiftId: s.shiftId,
         customerId: s.customerId,
+        customerName: s.customer?.name ?? null,
         status: s.status,
         subtotal: Number(s.subtotal),
         discount: Number(s.discount),
