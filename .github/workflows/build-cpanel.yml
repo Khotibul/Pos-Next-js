@@ -465,6 +465,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -509,6 +510,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -536,6 +538,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -598,6 +601,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -626,6 +630,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -636,7 +641,9 @@ jobs:
 
               mkdir -p \"\$APP/tmp\"
 
-              # Stop process lama menggunakan PID file.
+              echo '=== Stop existing Next.js ==='
+
+              # Stop menggunakan PID file.
               if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
 
                 PID=\$(cat \
@@ -653,12 +660,29 @@ jobs:
                 fi
               fi
 
-              sleep 3
+              sleep 2
+
+              # Pastikan port 3210 tidak masih digunakan.
+              echo '=== Check port 3210 ==='
+
+              PIDS=\$(fuser -n tcp 3210 2>/dev/null || true)
+
+              if [ -n \"\$PIDS\" ]; then
+                echo \"Processes still using port 3210: \$PIDS\"
+
+                kill \$PIDS \
+                  2>/dev/null || true
+
+                sleep 2
+              fi
 
               # Pastikan runtime tersedia.
+              echo '=== Verify runtime ==='
+
               test -f \"\$APP/server.js\"
               test -L \"\$APP/node_modules\"
               test -f \"\$APP/.env\"
+              test -x \"\$NODE\"
 
               # Load production environment.
               cd \"\$APP\"
@@ -667,7 +691,7 @@ jobs:
               . ./.env
               set +a
 
-              echo 'Starting Next.js on port 3210...'
+              echo '=== Start Next.js ==='
 
               nohup env \
                 NODE_ENV=production \
@@ -677,17 +701,42 @@ jobs:
                 server.js \
                 > tmp/next-3210.log 2>&1 &
 
-              echo \$! > tmp/next-3210.pid
+              NEW_PID=\$!
 
-              sleep 5
+              echo \"\$NEW_PID\" > tmp/next-3210.pid
+
+              echo \"Started PID: \$NEW_PID\"
+
+              sleep 8
 
               echo ''
-              echo '=== PID ==='
-              cat tmp/next-3210.pid
+              echo '=== Process check ==='
+
+              if ! kill -0 \"\$NEW_PID\" 2>/dev/null; then
+
+                echo 'ERROR: Next.js process mati setelah start.'
+
+                echo ''
+                echo '=== next-3210.log ==='
+
+                cat tmp/next-3210.log || true
+
+                exit 1
+              fi
+
+              echo 'Next.js process masih berjalan.'
+
+              echo ''
+              echo '=== Port 3210 ==='
+
+              ss -lntp 2>/dev/null \
+                | grep ':3210' \
+                || true
 
               echo ''
               echo '=== Next.js log ==='
-              tail -80 tmp/next-3210.log
+
+              tail -80 tmp/next-3210.log || true
             "
 
       # ==========================================================
@@ -702,6 +751,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
@@ -735,6 +785,7 @@ jobs:
             -p "$CPANEL_PORT" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             -i ~/.ssh/id_ed25519 \
             "$CPANEL_USER@$CPANEL_HOST" \
             "
