@@ -21,7 +21,6 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
 import '../../../core/widgets/product_image.dart';
-import '../../../domain/entities/product.dart';
 import '../../../domain/entities/cashier_shift.dart';
 
 class KasirScreen extends ConsumerStatefulWidget {

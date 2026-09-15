@@ -2,10 +2,8 @@ import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:dio/dio.dart' show DioException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
-import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/payable.dart';
 import '../../domain/repositories/payable_repository.dart';
@@ -67,7 +65,7 @@ class PayableRepositoryImpl implements PayableRepository {
       final payable = await database.payableDao.getById(payment.payableId);
       if (payable != null) {
         final newPaid = payable.paidAmount + payment.amount;
-        final newRemaining = (payable.totalAmount - newPaid).clamp(0, double.infinity);
+        final newRemaining = (payable.totalAmount - newPaid).clamp(0, double.infinity).toDouble();
         final newStatus = newPaid >= payable.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
         await database.payableDao.upsertPayable(
           PayablesTableCompanion(

@@ -2,10 +2,8 @@ import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:dio/dio.dart' show DioException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/errors/failures.dart';
-import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/receivable.dart';
 import '../../domain/repositories/receivable_repository.dart';
@@ -68,7 +66,7 @@ class ReceivableRepositoryImpl implements ReceivableRepository {
       final receivable = await database.receivableDao.getById(payment.receivableId);
       if (receivable != null) {
         final newPaid = receivable.paidAmount + payment.amount;
-        final newRemaining = (receivable.totalAmount - newPaid).clamp(0, double.infinity);
+        final newRemaining = (receivable.totalAmount - newPaid).clamp(0, double.infinity).toDouble();
         final newStatus = newPaid >= receivable.totalAmount ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
         await database.receivableDao.upsertReceivable(
           ReceivablesTableCompanion(
