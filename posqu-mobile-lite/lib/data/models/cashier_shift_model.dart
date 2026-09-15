@@ -24,6 +24,8 @@ class CashierShiftModel {
   final int transactionCount;
   final String? openNote;
   final String? closeNote;
+  final String? approvedById;
+  final DateTime? approvedAt;
 
   final double closingBalance;
   final double expectedBalance;
@@ -50,6 +52,8 @@ class CashierShiftModel {
     this.transactionCount = 0,
     this.openNote,
     this.closeNote,
+    this.approvedById,
+    this.approvedAt,
     this.closingBalance = 0,
     this.expectedBalance = 0,
     this.totalExpenses = 0,
@@ -82,6 +86,8 @@ class CashierShiftModel {
       transactionCount: transactionCount,
       openNote: openNote,
       closeNote: closeNote,
+      approvedById: approvedById,
+      approvedAt: approvedAt,
       closingBalance: closingBalance,
       expectedBalance: expectedBalance,
       totalExpenses: totalExpenses,
@@ -110,6 +116,8 @@ class CashierShiftModel {
       transactionCount: shift.transactionCount,
       openNote: shift.openNote,
       closeNote: shift.closeNote,
+      approvedById: shift.approvedById,
+      approvedAt: shift.approvedAt,
       closingBalance: shift.closingBalance,
       expectedBalance: shift.expectedBalance,
       totalExpenses: shift.totalExpenses,

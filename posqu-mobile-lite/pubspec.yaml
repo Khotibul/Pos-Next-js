@@ -101,6 +101,10 @@ dev_dependencies:
   riverpod_generator: ^2.4.0
   riverpod_lint: ^2.3.10
 
+  # Pin analyzer to avoid analyzer_plugin incompatibility
+  analyzer: ">=6.0.0 <7.0.0"
+  analyzer_plugin: ^0.11.3
+
   # Testing
   mocktail: ^1.0.3
 

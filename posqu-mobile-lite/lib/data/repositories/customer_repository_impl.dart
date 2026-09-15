@@ -42,7 +42,13 @@ class CustomerRepositoryImpl implements CustomerRepository {
           'email': row.email,
           'phone': row.phone,
           'address': row.address,
+          'city': row.city,
+          'totalPurchase': row.totalPurchase,
+          'purchaseCount': row.purchaseCount,
+          'points': row.points,
           'isActive': row.isActive,
+          'isWholesale': row.isWholesale,
+          'customerType': row.customerType,
         });
         await database.customerDao.markSynced([row.id]);
       } on DioException catch (e) {
@@ -76,7 +82,15 @@ class CustomerRepositoryImpl implements CustomerRepository {
             email: Value(model.email),
             phone: Value(model.phone),
             address: Value(model.address),
+            city: Value(model.city),
+            totalPurchase: Value(model.totalPurchase),
+            purchaseCount: Value(model.purchaseCount),
+            points: Value(model.points),
             isActive: Value(model.isActive),
+            isWholesale: Value(model.isWholesale),
+            customerType: Value(model.customerType),
+            createdAt: Value(model.createdAt),
+            updatedAt: Value(model.updatedAt),
             isSynced: const Value(true),
           ),
         );

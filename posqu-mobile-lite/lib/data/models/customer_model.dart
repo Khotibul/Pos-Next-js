@@ -16,6 +16,8 @@ class CustomerModel {
   final int purchaseCount;
   final double points;
   final bool isActive;
+  final bool isWholesale;
+  final String customerType;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -30,6 +32,8 @@ class CustomerModel {
     this.purchaseCount = 0,
     this.points = 0,
     this.isActive = true,
+    this.isWholesale = false,
+    this.customerType = 'RETAIL',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -51,6 +55,8 @@ class CustomerModel {
       purchaseCount: purchaseCount,
       points: points,
       isActive: isActive,
+      isWholesale: isWholesale,
+      customerType: customerType,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -68,6 +74,8 @@ class CustomerModel {
       purchaseCount: customer.purchaseCount,
       points: customer.points,
       isActive: customer.isActive,
+      isWholesale: customer.isWholesale,
+      customerType: customer.customerType,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
     );

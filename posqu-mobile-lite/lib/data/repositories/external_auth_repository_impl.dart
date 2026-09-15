@@ -1,9 +1,9 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/errors/failures.dart';
-import '../../../../domain/entities/user.dart';
-import '../../../../domain/repositories/external_auth_repository.dart';
+import '../../core/errors/failures.dart';
+import '../../domain/entities/user.dart';
+import '../../domain/repositories/external_auth_repository.dart';
 import '../datasources/external/google_auth_datasource.dart';
 
 final externalAuthRepositoryProvider = Provider<ExternalAuthRepositoryImpl>((ref) {

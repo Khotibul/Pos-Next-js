@@ -42,6 +42,9 @@ class SupplierRepositoryImpl implements SupplierRepository {
           'email': row.email,
           'phone': row.phone,
           'address': row.address,
+          'city': row.city,
+          'contactPerson': row.contactPerson,
+          'npwp': row.npwp,
           'isActive': row.isActive,
         });
         await database.supplierDao.markSynced([row.id]);
@@ -76,7 +79,12 @@ class SupplierRepositoryImpl implements SupplierRepository {
             email: Value(model.email),
             phone: Value(model.phone),
             address: Value(model.address),
+            city: Value(model.city),
+            contactPerson: Value(model.contactPerson),
+            npwp: Value(model.npwp),
             isActive: Value(model.isActive),
+            createdAt: Value(model.createdAt),
+            updatedAt: Value(model.updatedAt),
             isSynced: const Value(true),
           ),
         );
