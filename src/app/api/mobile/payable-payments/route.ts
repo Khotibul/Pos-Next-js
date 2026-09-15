@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
+import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,7 @@ export const POST = withApiHandler(async (req: Request) => {
   if (d.amount > remaining) return Response.json({ ok: false, code: "VALIDATION_ERROR", message: `Melebihi sisa utang ${remaining}` }, { status: 400 });
 
   const paidAt = d.paidAt ? new Date(d.paidAt) : new Date();
+  if (isNaN(paidAt.getTime())) return Response.json({ ok: false, code: "VALIDATION_ERROR", message: "Tanggal bayar tidak valid." }, { status: 400 });
 
   if (d.id) {
     const existing = await prisma.payablePayment.findFirst({ where: { tenantId: ctx.tenantId, id: d.id }, select: { id: true } });
@@ -63,11 +65,8 @@ export const POST = withApiHandler(async (req: Request) => {
     });
     const newPaid = paid + d.amount;
     const newRemaining = Math.max(0, total - newPaid);
-    let newStatus: string = "UNPAID";
-    if (newPaid >= total && total > 0) newStatus = "PAID";
-    else if (newPaid > 0) newStatus = payable.dueDate && payable.dueDate < new Date() ? "OVERDUE" : "PARTIAL";
-    else newStatus = payable.dueDate && payable.dueDate < new Date() ? "OVERDUE" : "UNPAID";
-    await tx.payable.update({ where: { id: d.payableId }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus as never } });
+    const newStatus = computeDebtStatus(total, newPaid, payable.dueDate);
+    await tx.payable.update({ where: { id: d.payableId }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus } });
     return payment;
   });
 

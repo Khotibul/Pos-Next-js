@@ -3,19 +3,7 @@ import { prisma } from "@/shared/server/db/prisma";
 import { Errors } from "@/shared/server/errors/app-error";
 import type { UpsertReceivableInput, CreateReceivablePaymentInput } from "@/features/receivables/validators";
 import type { ReceivableOverview } from "@/features/receivables/domain/entity";
-
-function computeStatus(total: number, paid: number, dueDate: Date | null): "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE" {
-  if (paid >= total && total > 0) return "PAID";
-  if (paid > 0 && paid < total) {
-    if (dueDate && dueDate < new Date()) return "OVERDUE";
-    return "PARTIAL";
-  }
-  if (paid === 0) {
-    if (dueDate && dueDate < new Date()) return "OVERDUE";
-    return "UNPAID";
-  }
-  return "UNPAID";
-}
+import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export async function getReceivableOverview(params: { tenantId: string }): Promise<ReceivableOverview> {
   const all = await prisma.receivable.findMany({
@@ -46,10 +34,10 @@ export async function listReceivables(params: { tenantId: string; q?: string | n
   const where: Record<string, unknown> = { tenantId: params.tenantId };
   if (q) {
     (where as Record<string, unknown>).OR = [
-      { invoiceNo: { contains: q } },
-      { description: { contains: q } },
-      { notes: { contains: q } },
-      { customer: { name: { contains: q } } },
+      { invoiceNo: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+      { notes: { contains: q, mode: "insensitive" } },
+      { customer: { name: { contains: q, mode: "insensitive" } } },
     ];
   }
   if (status) (where as Record<string, unknown>).status = status;
@@ -76,7 +64,7 @@ export async function listReceivables(params: { tenantId: string; q?: string | n
     paidAmount: Number(r.paidAmount),
     remainingAmount: Number(r.remainingAmount),
     dueDate: r.dueDate,
-    status: r.status as ReceivableOverview extends never ? never : string,
+    status: r.status,
     notes: r.notes,
     createdAt: r.createdAt,
   }));
@@ -136,7 +124,7 @@ export async function upsertReceivable(params: { tenantId: string; input: Upsert
     if (!exists) throw Errors.notFound("Piutang tidak ditemukan.");
     const paidAmount = Number(exists.paidAmount);
     const remaining = Math.max(0, totalAmount - paidAmount);
-    const status = computeStatus(totalAmount, paidAmount, dueDate);
+    const status = computeDebtStatus(totalAmount, paidAmount, dueDate);
     return prisma.receivable.update({
       where: { id: params.input.id },
       data: {
@@ -158,7 +146,7 @@ export async function upsertReceivable(params: { tenantId: string; input: Upsert
   const dup = await prisma.receivable.findFirst({ where: { tenantId: params.tenantId, invoiceNo: params.input.invoiceNo }, select: { id: true } });
   if (dup) throw Errors.badRequest("Invoice piutang sudah ada.");
 
-  const status = computeStatus(totalAmount, 0, dueDate);
+  const status = computeDebtStatus(totalAmount, 0, dueDate);
   return prisma.receivable.create({
     data: {
       tenantId: params.tenantId,
@@ -211,7 +199,7 @@ export async function createReceivablePayment(params: { tenantId: string; input:
 
     const newPaid = paid + params.input.amount;
     const newRemaining = Math.max(0, total - newPaid);
-    const newStatus = computeStatus(total, newPaid, receivable.dueDate);
+    const newStatus = computeDebtStatus(total, newPaid, receivable.dueDate);
 
     await tx.receivable.update({
       where: { id: params.input.receivableId },
@@ -234,7 +222,7 @@ export async function deleteReceivablePayment(params: { tenantId: string; paymen
     const newPaid = Math.max(0, Number(receivable.paidAmount) - Number(payment.amount));
     const total = Number(receivable.totalAmount);
     const newRemaining = Math.max(0, total - newPaid);
-    const newStatus = computeStatus(total, newPaid, receivable.dueDate);
+    const newStatus = computeDebtStatus(total, newPaid, receivable.dueDate);
     await tx.receivable.update({ where: { id: receivable.id }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus } });
   });
 }

@@ -3,19 +3,7 @@ import { prisma } from "@/shared/server/db/prisma";
 import { Errors } from "@/shared/server/errors/app-error";
 import type { UpsertPayableInput, CreatePayablePaymentInput } from "@/features/payables/validators";
 import type { PayableOverview } from "@/features/payables/domain/entity";
-
-function computeStatus(total: number, paid: number, dueDate: Date | null): "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE" {
-  if (paid >= total && total > 0) return "PAID";
-  if (paid > 0 && paid < total) {
-    if (dueDate && dueDate < new Date()) return "OVERDUE";
-    return "PARTIAL";
-  }
-  if (paid === 0) {
-    if (dueDate && dueDate < new Date()) return "OVERDUE";
-    return "UNPAID";
-  }
-  return "UNPAID";
-}
+import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export async function getPayableOverview(params: { tenantId: string }): Promise<PayableOverview> {
   const all = await prisma.payable.findMany({
@@ -46,10 +34,10 @@ export async function listPayables(params: { tenantId: string; q?: string | null
   const where: Record<string, unknown> = { tenantId: params.tenantId };
   if (q) {
     (where as Record<string, unknown>).OR = [
-      { invoiceNo: { contains: q } },
-      { description: { contains: q } },
-      { notes: { contains: q } },
-      { supplier: { name: { contains: q } } },
+      { invoiceNo: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+      { notes: { contains: q, mode: "insensitive" } },
+      { supplier: { name: { contains: q, mode: "insensitive" } } },
     ];
   }
   if (status) (where as Record<string, unknown>).status = status;
@@ -136,7 +124,7 @@ export async function upsertPayable(params: { tenantId: string; input: UpsertPay
     if (!exists) throw Errors.notFound("Utang tidak ditemukan.");
     const paidAmount = Number(exists.paidAmount);
     const remaining = Math.max(0, totalAmount - paidAmount);
-    const status = computeStatus(totalAmount, paidAmount, dueDate);
+    const status = computeDebtStatus(totalAmount, paidAmount, dueDate);
     return prisma.payable.update({
       where: { id: params.input.id },
       data: {
@@ -157,7 +145,7 @@ export async function upsertPayable(params: { tenantId: string; input: UpsertPay
   const dup = await prisma.payable.findFirst({ where: { tenantId: params.tenantId, invoiceNo: params.input.invoiceNo }, select: { id: true } });
   if (dup) throw Errors.badRequest("Invoice utang sudah ada.");
 
-  const status = computeStatus(totalAmount, 0, dueDate);
+  const status = computeDebtStatus(totalAmount, 0, dueDate);
   return prisma.payable.create({
     data: {
       tenantId: params.tenantId,
@@ -210,7 +198,7 @@ export async function createPayablePayment(params: { tenantId: string; input: Cr
 
     const newPaid = paid + params.input.amount;
     const newRemaining = Math.max(0, total - newPaid);
-    const newStatus = computeStatus(total, newPaid, payable.dueDate);
+    const newStatus = computeDebtStatus(total, newPaid, payable.dueDate);
 
     await tx.payable.update({
       where: { id: params.input.payableId },
@@ -233,7 +221,7 @@ export async function deletePayablePayment(params: { tenantId: string; paymentId
     const newPaid = Math.max(0, Number(payable.paidAmount) - Number(payment.amount));
     const total = Number(payable.totalAmount);
     const newRemaining = Math.max(0, total - newPaid);
-    const newStatus = computeStatus(total, newPaid, payable.dueDate);
+    const newStatus = computeDebtStatus(total, newPaid, payable.dueDate);
     await tx.payable.update({ where: { id: payable.id }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus } });
   });
 }

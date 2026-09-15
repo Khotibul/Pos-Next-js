@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
+import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export const runtime = "nodejs";
 
@@ -69,7 +70,6 @@ const payableSchema = z.object({
   paidAmount: z.number().nonnegative().default(0),
   dueDate: z.string().nullish(),
   notes: z.string().nullish(),
-  status: z.string().optional(),
 });
 
 export const POST = withApiHandler(async (req: Request) => {
@@ -96,11 +96,7 @@ export const POST = withApiHandler(async (req: Request) => {
   const totalAmount = d.totalAmount;
   const paidAmount = d.paidAmount ?? 0;
   const remainingAmount = Math.max(0, totalAmount - paidAmount);
-  let status: string = d.status ?? "UNPAID";
-  if (paidAmount >= totalAmount && totalAmount > 0) status = "PAID";
-  else if (paidAmount > 0) status = "PARTIAL";
-  else status = "UNPAID";
-  if (dueDate && dueDate < new Date() && status !== "PAID") status = status === "UNPAID" ? "OVERDUE" : status === "PARTIAL" ? "OVERDUE" : status;
+  const status = computeDebtStatus(totalAmount, paidAmount, dueDate);
 
   const existing = await prisma.payable.findFirst({ where: { tenantId: ctx.tenantId, OR: [{ id: d.id }, { invoiceNo: d.invoiceNo }] }, select: { id: true } });
 
@@ -113,7 +109,7 @@ export const POST = withApiHandler(async (req: Request) => {
     paidAmount,
     remainingAmount,
     dueDate,
-    status: status as never,
+    status,
     notes: d.notes ?? null,
   };
 

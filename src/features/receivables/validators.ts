@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-export const debtStatusSchema = z.enum(["UNPAID", "PARTIAL", "PAID", "OVERDUE"]);
-
 export const upsertReceivableSchema = z.object({
   id: z.string().min(1).optional(),
   customerId: z.string().min(1).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
