@@ -26,6 +26,12 @@ export const GET = withApiHandler(async (req: Request) => {
       email: c.email,
       phone: c.phone,
       address: c.address,
+      city: c.city,
+      totalPurchase: Number(c.totalPurchase),
+      purchaseCount: c.purchaseCount,
+      points: Number(c.points),
+      isWholesale: c.isWholesale,
+      customerType: c.customerType,
       isActive: c.isActive,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
@@ -40,6 +46,12 @@ const customerUpsertSchema = z.object({
   email: z.string().nullish(),
   phone: z.string().nullish(),
   address: z.string().nullish(),
+  city: z.string().nullish(),
+  totalPurchase: z.number().default(0),
+  purchaseCount: z.number().int().default(0),
+  points: z.number().default(0),
+  isWholesale: z.boolean().default(false),
+  customerType: z.string().default("RETAIL"),
   isActive: z.boolean().default(true),
 });
 
@@ -59,6 +71,12 @@ export const POST = withApiHandler(async (req: Request) => {
     email: d.email ?? null,
     phone: d.phone ?? null,
     address: d.address ?? null,
+    city: d.city ?? null,
+    totalPurchase: d.totalPurchase,
+    purchaseCount: d.purchaseCount,
+    points: d.points,
+    isWholesale: d.isWholesale,
+    customerType: d.customerType,
     isActive: d.isActive,
   };
   const existing = await prisma.customer.findFirst({

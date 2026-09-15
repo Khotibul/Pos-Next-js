@@ -45,11 +45,15 @@ class ProductRepositoryImpl implements ProductRepository {
           barcode: row.barcode,
           qrCode: row.qrCode,
           categoryId: row.categoryId,
+          brandId: row.brandId,
           supplierId: row.supplierId,
+          unitId: row.unitId,
           costPrice: row.costPrice,
           sellingPrice: row.sellingPrice,
           marginPct: row.marginPct,
           taxRate: row.taxRate,
+          weight: row.weight,
+          volume: row.volume,
           minStock: row.minStock,
           reorderPoint: row.reorderPoint,
           wholesalePrice: row.wholesalePrice,
@@ -108,6 +112,8 @@ class ProductRepositoryImpl implements ProductRepository {
             sellingPrice: Value(model.sellingPrice),
             marginPct: Value(model.marginPct),
             taxRate: Value(model.taxRate),
+            weight: Value(model.weight),
+            volume: Value(model.volume),
             minStock: Value(model.minStock),
             reorderPoint: Value(model.reorderPoint),
             wholesalePrice: Value(model.wholesalePrice),
@@ -172,6 +178,8 @@ class ProductRepositoryImpl implements ProductRepository {
         sellingPrice: Value(p.sellingPrice),
         marginPct: Value(p.marginPct),
         taxRate: Value(p.taxRate),
+        weight: Value(p.weight),
+        volume: Value(p.volume),
         minStock: Value(p.minStock),
         reorderPoint: Value(p.reorderPoint),
         wholesalePrice: Value(p.wholesalePrice),
@@ -292,6 +300,8 @@ class ProductRepositoryImpl implements ProductRepository {
           sellingPrice: Value(product.sellingPrice),
           marginPct: Value(product.marginPct),
           taxRate: Value(product.taxRate),
+          weight: Value(product.weight),
+          volume: Value(product.volume),
           minStock: Value(product.minStock),
           reorderPoint: Value(product.reorderPoint),
           wholesalePrice: Value(product.wholesalePrice),
@@ -344,6 +354,11 @@ class ProductRepositoryImpl implements ProductRepository {
       final category = await database.categoryDao.getById(p.categoryId!);
       categoryName = category?.name;
     }
+    String? supplierName;
+    if (p.supplierId != null) {
+      final supplier = await database.supplierDao.getById(p.supplierId!);
+      supplierName = supplier?.name;
+    }
     return Product(
       id: p.id,
       sku: p.sku,
@@ -356,7 +371,7 @@ class ProductRepositoryImpl implements ProductRepository {
       categoryName: categoryName,
       brandId: p.brandId,
       supplierId: p.supplierId,
-      supplierName: null,
+      supplierName: supplierName,
       unitId: p.unitId,
       costPrice: p.costPrice,
       sellingPrice: p.sellingPrice,

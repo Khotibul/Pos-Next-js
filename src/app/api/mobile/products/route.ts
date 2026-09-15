@@ -15,10 +15,15 @@ const productUpsertSchema = z.object({
   barcode: z.string().nullish(),
   qrCode: z.string().nullish(),
   categoryId: z.string().nullish(),
+  brandId: z.string().nullish(),
+  supplierId: z.string().nullish(),
+  unitId: z.string().nullish(),
   costPrice: z.number().default(0),
   sellingPrice: z.number().default(0),
   marginPct: z.number().default(0),
   taxRate: z.number().default(0),
+  weight: z.number().default(0),
+  volume: z.number().default(0),
   minStock: z.number().default(0),
   reorderPoint: z.number().default(0),
   wholesalePrice: z.number().default(0),
@@ -57,14 +62,26 @@ export const POST = withApiHandler(async (req: Request) => {
     select: { id: true },
   });
 
-  // Validasi FK kategori: jika id tidak milik tenant, abaikan agar tidak gagal FK.
+  // Validasi FK: jika id tidak milik tenant, abaikan agar tidak gagal FK.
   let resolvedCategoryId: string | null = null;
   if (d.categoryId) {
-    const cat = await prisma.productCategory.findFirst({
-      where: { id: d.categoryId, tenantId: ctx.tenantId },
-      select: { id: true },
-    });
+    const cat = await prisma.productCategory.findFirst({ where: { id: d.categoryId, tenantId: ctx.tenantId }, select: { id: true } });
     resolvedCategoryId = cat?.id ?? null;
+  }
+  let resolvedBrandId: string | null = null;
+  if (d.brandId) {
+    const brand = await prisma.productBrand.findFirst({ where: { id: d.brandId, tenantId: ctx.tenantId }, select: { id: true } });
+    resolvedBrandId = brand?.id ?? null;
+  }
+  let resolvedSupplierId: string | null = null;
+  if (d.supplierId) {
+    const sup = await prisma.supplier.findFirst({ where: { id: d.supplierId, tenantId: ctx.tenantId }, select: { id: true } });
+    resolvedSupplierId = sup?.id ?? null;
+  }
+  let resolvedUnitId: string | null = null;
+  if (d.unitId) {
+    const unit = await prisma.productUnit.findFirst({ where: { id: d.unitId, tenantId: ctx.tenantId }, select: { id: true } });
+    resolvedUnitId = unit?.id ?? null;
   }
 
   const data = {
@@ -75,10 +92,15 @@ export const POST = withApiHandler(async (req: Request) => {
     barcode: d.barcode ?? null,
     qrCode: d.qrCode ?? null,
     categoryId: resolvedCategoryId,
+    brandId: resolvedBrandId,
+    supplierId: resolvedSupplierId,
+    unitId: resolvedUnitId,
     costPrice: d.costPrice,
     sellingPrice: d.sellingPrice,
     marginPct: d.marginPct,
     taxRate: d.taxRate,
+    weight: d.weight,
+    volume: d.volume,
     minStock: d.minStock,
     reorderPoint: d.reorderPoint,
     wholesalePrice: d.wholesalePrice,
@@ -121,6 +143,9 @@ export const GET = withApiHandler(async (req: Request) => {
     },
     include: {
       category: { select: { name: true } },
+      brand: { select: { name: true } },
+      supplier: { select: { name: true } },
+      unit: { select: { name: true } },
       images: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }], select: { url: true } },
     },
     orderBy: { name: "asc" },
@@ -139,8 +164,11 @@ export const GET = withApiHandler(async (req: Request) => {
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
       brandId: p.brandId,
+      brandName: p.brand?.name ?? null,
       supplierId: p.supplierId,
+      supplierName: p.supplier?.name ?? null,
       unitId: p.unitId,
+      unit: p.unit?.name ?? null,
       costPrice: Number(p.costPrice),
       sellingPrice: Number(p.sellingPrice),
       marginPct: Number(p.marginPct),

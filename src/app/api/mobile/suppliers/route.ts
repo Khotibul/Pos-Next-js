@@ -26,6 +26,9 @@ export const GET = withApiHandler(async (req: Request) => {
       email: s.email,
       phone: s.phone,
       address: s.address,
+      city: s.city,
+      contactPerson: s.contactPerson,
+      npwp: s.npwp,
       isActive: s.isActive,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
@@ -40,6 +43,9 @@ const supplierUpsertSchema = z.object({
   email: z.string().nullish(),
   phone: z.string().nullish(),
   address: z.string().nullish(),
+  city: z.string().nullish(),
+  contactPerson: z.string().nullish(),
+  npwp: z.string().nullish(),
   isActive: z.boolean().default(true),
 });
 
@@ -59,6 +65,9 @@ export const POST = withApiHandler(async (req: Request) => {
     email: d.email ?? null,
     phone: d.phone ?? null,
     address: d.address ?? null,
+    city: d.city ?? null,
+    contactPerson: d.contactPerson ?? null,
+    npwp: d.npwp ?? null,
     isActive: d.isActive,
   };
   const existing = await prisma.supplier.findFirst({
