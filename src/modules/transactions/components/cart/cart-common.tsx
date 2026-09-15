@@ -4,7 +4,9 @@ import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
-export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
+export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD" | "CREDIT";
+
+export type Customer = { id: string; name: string; phone?: string | null };
 
 export type CartLine = {
   productId: string;
@@ -78,10 +80,12 @@ export function CartSummary({
   subtotal, discount, effectiveTaxRate, tax, total, settings,
   cashPaid, cashChange, cashShortage, method,
   setDiscount, setTaxRate, setMethod, setCashPaid,
+  customers, customerId, setCustomerId, dueDate, setDueDate,
 }: {
   subtotal: number; discount: number; effectiveTaxRate: number; tax: number; total: number;
   settings: PrinterSettings; cashPaid: number; cashChange: number; cashShortage: number; method: PaymentMethod;
   setDiscount: (v: number) => void; setTaxRate: (v: number) => void; setMethod: (v: PaymentMethod) => void; setCashPaid: (v: number) => void;
+  customers?: Customer[]; customerId: string; setCustomerId: (v: string) => void; dueDate: string; setDueDate: (v: string) => void;
 }) {
   return (
     <>
@@ -136,6 +140,7 @@ export function CartSummary({
             { k: "CARD" as PaymentMethod, label: "Kartu" },
             { k: "TRANSFER" as PaymentMethod, label: "Transfer" },
             { k: "EWALLET" as PaymentMethod, label: "E-Wallet" },
+            { k: "CREDIT" as PaymentMethod, label: "Hutang" },
           ].map((m) => (
             <button
               key={m.k}
@@ -176,6 +181,33 @@ export function CartSummary({
           </div>
         </div>
       ) : null}
+
+      {method === "CREDIT" ? (
+        <div className="shrink-0 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 shadow-sm dark:border-amber-700 dark:bg-amber-950/30">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-amber-800 dark:text-amber-200">Pelanggan (Wajib)</label>
+            <select
+              className="h-10 w-full rounded-lg border-2 border-amber-200 bg-white px-3 text-sm dark:border-amber-700 dark:bg-amber-950/50"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+            >
+              <option value="">-- Pilih Pelanggan --</option>
+              {(customers ?? []).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-2 flex flex-col gap-2">
+            <label className="text-sm font-semibold text-amber-800 dark:text-amber-200">Jatuh Tempo</label>
+            <input
+              type="date"
+              className="h-10 w-full rounded-lg border-2 border-amber-200 bg-white px-3 text-sm dark:border-amber-700 dark:bg-amber-950/50"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -191,6 +223,7 @@ export function CartActions({
   onPay: () => void; onOpenShift: () => void; onCancel: () => void;
 }) {
   const needsShift = shiftCheckDone && !openShiftId;
+  const canPay = method === "CREDIT" ? true : (method === "CASH" ? !needsShift && cashPaid >= total : !needsShift);
   return (
     <div className="grid grid-cols-2 gap-2 sm:gap-3">
       <Button type="button" variant="outline" className="h-12 rounded-xl border-2 text-sm font-semibold sm:h-11" disabled={isPending} onClick={onCancel}>
@@ -199,12 +232,12 @@ export function CartActions({
       <Button
         type="button"
         className="h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 sm:h-11"
-        disabled={isPending || lines.length === 0 || (method === "CASH" && !needsShift && cashPaid < total)}
+        disabled={isPending || lines.length === 0 || (!needsShift && !canPay)}
         onClick={needsShift ? onOpenShift : onPay}
       >
         {isPending ? (
           <span className="flex items-center gap-2"><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Memproses</span>
-        ) : needsShift ? "Buka Shift" : `Bayar • ${rupiah(total)}`}
+        ) : needsShift ? "Buka Shift" : method === "CREDIT" ? `Simpan Hutang • ${rupiah(total)}` : `Bayar • ${rupiah(total)}`}
       </Button>
     </div>
   );

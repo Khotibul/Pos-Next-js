@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
 import { SavedCartsPanel } from "./saved-carts-panel";
-import type { CartLine, Product, PaymentMethod } from "./cart-common";
+import type { CartLine, Product, PaymentMethod, Customer } from "./cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 export function MobileCartSheet({
@@ -16,6 +16,7 @@ export function MobileCartSheet({
   inc, dec, setError, setNotice, setMethod, setCashPaid, setDiscount, setTaxRate, setCart,
   onPay,
   onOpenShift,
+  customers, customerId, setCustomerId, dueDate, setDueDate,
 }: {
   lines: CartLine[];
   productMap: Map<string, Product>;
@@ -31,6 +32,7 @@ export function MobileCartSheet({
   setCart: (v: Record<string, number>) => void;
   onPay: () => void;
   onOpenShift: () => void;
+  customers?: Customer[]; customerId: string; setCustomerId: (v: string) => void; dueDate: string; setDueDate: (v: string) => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -101,7 +103,7 @@ export function MobileCartSheet({
 
           <div className="mt-3 grid gap-3">
             <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.productId]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={(v) => { setCart(v); onClose(); }} setNotice={setNotice} />
-            <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} />
+            <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} customers={customers} customerId={customerId} setCustomerId={setCustomerId} dueDate={dueDate} setDueDate={setDueDate} />
           </div>
         </div>
 

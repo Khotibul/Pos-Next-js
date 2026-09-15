@@ -86,8 +86,10 @@ async function executeCreateSale(
   const total = Math.max(0, subtotal - discount + tax);
   const receivedAmount = input.payment.receivedAmount ?? input.payment.amount;
   const changeAmount = Math.max(0, input.payment.changeAmount ?? receivedAmount - total);
+  const isCredit = input.payment.method === "CREDIT";
 
-  if (input.payment.amount < total || receivedAmount < total) throw Errors.badRequest("Nominal pembayaran kurang.");
+  if (!isCredit && (input.payment.amount < total || receivedAmount < total)) throw Errors.badRequest("Nominal pembayaran kurang.");
+  if (isCredit && !input.customerId) throw Errors.badRequest("Transaksi hutang wajib memilih pelanggan.");
   endCalc();
 
   const requestedQtyByProduct = new Map<string, number>();
@@ -142,19 +144,38 @@ async function executeCreateSale(
       invoiceNo,
       cashierId,
       shiftId,
+      customerId: input.customerId,
       subtotal,
       discount,
       tax,
       total,
+      status: isCredit ? "CREDIT" : "PAID",
       lines,
       payment: {
         method: input.payment.method,
-        amount: total,
-        receivedAmount,
-        changeAmount,
+        amount: isCredit ? 0 : total,
+        receivedAmount: isCredit ? 0 : receivedAmount,
+        changeAmount: isCredit ? 0 : changeAmount,
         reference: input.payment.reference || null,
       },
     });
+
+    if (isCredit) {
+      await tx.receivable.create({
+        data: {
+          tenantId,
+          customerId: input.customerId!,
+          saleId: sale.id,
+          invoiceNo,
+          description: `Hutang dari penjualan ${invoiceNo}`,
+          totalAmount: total,
+          paidAmount: 0,
+          remainingAmount: total,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          status: "UNPAID",
+        },
+      });
+    }
 
     const cashTotal = input.payment.method === "CASH" ? total : 0;
     const qrisTotal = input.payment.method === "QRIS" ? total : 0;
@@ -187,7 +208,7 @@ async function executeCreateSale(
     sale: {
       id: created.id,
       invoiceNo: created.invoiceNo,
-      status: created.status,
+      status: isCredit ? "CREDIT" : created.status,
       createdAt: created.createdAt.toISOString(),
       subtotal: Number(created.subtotal),
       discount: Number(created.discount),
@@ -205,9 +226,9 @@ async function executeCreateSale(
         {
           id: `${created.id}-payment-0`,
           method: input.payment.method,
-          amount: total,
-          receivedAmount,
-          changeAmount,
+          amount: isCredit ? 0 : total,
+          receivedAmount: isCredit ? 0 : receivedAmount,
+          changeAmount: isCredit ? 0 : changeAmount,
           reference: input.payment.reference || null,
         },
       ],

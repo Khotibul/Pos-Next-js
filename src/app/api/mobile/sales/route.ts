@@ -29,7 +29,7 @@ export const GET = withApiHandler(async (req: Request) => {
         invoiceNo: s.invoiceNo,
         cashierId: s.cashierId,
         shiftId: s.shiftId,
-        customerId: null,
+        customerId: s.customerId,
         status: s.status,
         subtotal: Number(s.subtotal),
         discount: Number(s.discount),
@@ -79,8 +79,9 @@ const createSaleSchema = z.object({
   notes: z.string().nullish(),
   paidAmount: z.number().nonnegative().default(0),
   changeAmount: z.number().nonnegative().default(0),
-  paymentMethod: z.string().default("cash"),
+  paymentMethod: z.enum(["CASH", "CREDIT", "QRIS", "TRANSFER", "EWALLET", "CARD"]).default("CASH"),
   paymentReference: z.string().nullish(),
+  dueDate: z.string().nullish(),
   items: z.array(saleItemSchema).min(1),
 });
 
@@ -141,6 +142,8 @@ export const POST = withApiHandler(async (req: Request) => {
     if (!shift) resolvedShiftId = null;
   }
 
+  const isCredit = input.paymentMethod === "CREDIT";
+
   const created = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
@@ -148,7 +151,8 @@ export const POST = withApiHandler(async (req: Request) => {
         invoiceNo: input.invoiceNo,
         cashierId: input.cashierId ?? null,
         shiftId: resolvedShiftId,
-        status: input.status,
+        customerId: input.customerId ?? null,
+        status: isCredit ? "CREDIT" : input.status,
         subtotal: input.subtotal,
         discount: input.discount,
         tax: input.tax,
@@ -167,16 +171,33 @@ export const POST = withApiHandler(async (req: Request) => {
         payments: {
           create: {
             tenantId: ctx.tenantId,
-            method: input.paymentMethod.toUpperCase(),
-            amount: input.total,
-            receivedAmount: input.paidAmount || input.total,
-            changeAmount: input.changeAmount,
+            method: input.paymentMethod,
+            amount: isCredit ? 0 : input.total,
+            receivedAmount: isCredit ? 0 : (input.paidAmount || input.total),
+            changeAmount: isCredit ? 0 : input.changeAmount,
             reference: input.paymentReference ?? null,
           },
         },
       },
       include: { items: true, payments: true },
     });
+
+    if (isCredit) {
+      await tx.receivable.create({
+        data: {
+          tenantId: ctx.tenantId,
+          customerId: input.customerId ?? null,
+          saleId: sale.id,
+          invoiceNo: input.invoiceNo,
+          description: `Hutang dari penjualan ${input.invoiceNo}`,
+          totalAmount: input.total,
+          paidAmount: 0,
+          remainingAmount: input.total,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          status: "UNPAID",
+        },
+      });
+    }
 
     const warehouse = await tx.warehouse.findFirst({
       where: { tenantId: ctx.tenantId, isActive: true },
@@ -213,7 +234,7 @@ export const POST = withApiHandler(async (req: Request) => {
     invoiceNo: created.invoiceNo,
     cashierId: created.cashierId,
     shiftId: created.shiftId,
-    customerId: input.customerId ?? null,
+    customerId: created.customerId,
     status: created.status,
     subtotal: Number(created.subtotal),
     discount: Number(created.discount),
@@ -221,7 +242,7 @@ export const POST = withApiHandler(async (req: Request) => {
     total: Number(created.total),
     paidAmount: payment ? Number(payment.receivedAmount) : input.paidAmount,
     changeAmount: payment ? Number(payment.changeAmount) : input.changeAmount,
-    paymentMethod: payment?.method.toLowerCase() ?? input.paymentMethod,
+    paymentMethod: payment?.method ?? input.paymentMethod,
     paymentReference: payment?.reference ?? null,
     notes: input.notes ?? null,
     createdAt: created.createdAt,

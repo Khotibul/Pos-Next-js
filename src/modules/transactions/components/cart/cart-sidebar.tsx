@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CartLineItem, CartSummary, CartActions } from "./cart-common";
 import { SavedCartsPanel } from "./saved-carts-panel";
-import type { CartLine, Product, PaymentMethod } from "./cart-common";
+import type { CartLine, Product, PaymentMethod, Customer } from "./cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 export function CartSidebar({
@@ -16,6 +16,7 @@ export function CartSidebar({
   inc, dec, setError, setNotice, setMethod, setCashPaid, setDiscount, setTaxRate, setCart,
   onPay,
   onOpenShift,
+  customers, customerId, setCustomerId, dueDate, setDueDate,
 }: {
   lines: CartLine[];
   productMap: Map<string, Product>;
@@ -30,6 +31,7 @@ export function CartSidebar({
   setCart: (v: Record<string, number>) => void;
   onPay: () => void;
   onOpenShift: () => void;
+  customers?: Customer[]; customerId: string; setCustomerId: (v: string) => void; dueDate: string; setDueDate: (v: string) => void;
 }) {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +98,7 @@ export function CartSidebar({
 
           <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.productId]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={setCart} setNotice={setNotice} />
 
-          <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} />
+          <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} customers={customers} customerId={customerId} setCustomerId={setCustomerId} dueDate={dueDate} setDueDate={setDueDate} />
         </div>
 
         <div className="shrink-0 border-t bg-background p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">

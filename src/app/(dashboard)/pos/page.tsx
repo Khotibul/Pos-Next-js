@@ -20,7 +20,7 @@ export default async function PosPage() {
   endAuth();
 
   const endData = createDevTimer("posPage.data");
-  const [products, printerSettings, branchWarehouses, openShift] = await Promise.all([
+  const [products, printerSettings, branchWarehouses, openShift, customers] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: ctx.tenantId, isActive: true },
       orderBy: { updatedAt: "desc" },
@@ -33,6 +33,11 @@ export default async function PosPage() {
       select: { id: true },
     }),
     getOpenShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId }),
+    prisma.customer.findMany({
+      where: { tenantId: ctx.tenantId, isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, phone: true },
+    }),
   ]);
 
   const warehouseIds = branchWarehouses.map((w) => w.id);
@@ -93,6 +98,7 @@ export default async function PosPage() {
         <PosScreen
           initialSettings={printerSettings}
           initialOpenShiftId={openShift?.id ?? null}
+          customers={customers}
           products={products.map((p) => ({
             id: p.id,
             name: p.name,

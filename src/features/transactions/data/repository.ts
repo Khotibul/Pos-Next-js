@@ -116,10 +116,12 @@ export async function createSaleInTransaction(
     invoiceNo: string;
     cashierId: string | null;
     shiftId: string;
+    customerId?: string | null;
     subtotal: number;
     discount: number;
     tax: number;
     total: number;
+    status?: string;
     lines: Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
     payment: { method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null };
   },
@@ -130,11 +132,12 @@ export async function createSaleInTransaction(
       invoiceNo: data.invoiceNo,
       cashierId: data.cashierId,
       shiftId: data.shiftId,
+      customerId: data.customerId || null,
       subtotal: data.subtotal,
       discount: data.discount,
       tax: data.tax,
       total: data.total,
-      status: "PAID",
+      status: data.status ?? "PAID",
       items: { create: data.lines.map((l) => ({ tenantId: data.tenantId, ...l })) },
       payments: { create: { tenantId: data.tenantId, ...data.payment } },
     },

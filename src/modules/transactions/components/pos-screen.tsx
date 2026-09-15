@@ -24,7 +24,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
 
-export function PosScreen({ products, initialSettings, initialOpenShiftId }: { products: Product[]; initialSettings: PrinterSettings; initialOpenShiftId?: string | null }) {
+export function PosScreen({ products, initialSettings, initialOpenShiftId, customers }: { products: Product[]; initialSettings: PrinterSettings; initialOpenShiftId?: string | null; customers?: Array<{ id: string; name: string; phone?: string | null }> }) {
   const router = useRouter();
   const pathname = usePathname();
   const isPosRoute = pathname === "/pos" || pathname.startsWith("/pos/");
@@ -59,6 +59,8 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
   } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<ReceiptSale | null>(null);
+  const [customerId, setCustomerId] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
   const lastCodeRef = useRef<{ code: string; at: number } | null>(null);
 
   useEffect(() => {
@@ -177,17 +179,23 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
         setError("Uang tunai kurang dari total transaksi.");
         return;
       }
+      if (method === "CREDIT" && !customerId) {
+        setError("Pilih pelanggan untuk transaksi hutang.");
+        return;
+      }
       const payload = {
         items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
         discount: effectiveDiscount,
         taxRate: effectiveTaxRate,
         payment: {
           method,
-          amount: total,
-          receivedAmount: method === "CASH" ? cashPaid : total,
+          amount: method === "CREDIT" ? 0 : total,
+          receivedAmount: method === "CASH" ? cashPaid : method === "CREDIT" ? 0 : total,
           changeAmount: method === "CASH" ? cashChange : 0,
           reference: "",
         },
+        customerId: method === "CREDIT" ? customerId : undefined,
+        dueDate: method === "CREDIT" && dueDate ? dueDate : undefined,
       };
       const res = await createSaleAction(payload);
       if (!res.ok) {
@@ -198,6 +206,8 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
       setInvoice(res.data.invoiceNo);
       setCart({});
       setCashPaid(0);
+      setCustomerId("");
+      setDueDate("");
       setCartOpen(false);
       setLastReceipt({
         id: res.data.id,
@@ -223,7 +233,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
         items: lines.map((l) => ({ name: l.name, price: l.price, qty: l.qty, lineTotal: l.lineTotal })),
       });
     });
-  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, startTransition, setError, setForceOpenShift, setInvoice, setCart, setCashPaid, setSuccessDialog]);
+  }, [method, cashPaid, total, subtotal, tax, lines, effectiveDiscount, effectiveTaxRate, cashChange, customerId, dueDate, startTransition, setError, setForceOpenShift, setInvoice, setCart, setCashPaid, setCustomerId, setDueDate, setSuccessDialog]);
 
   const handleVoiceProduct = useCallback(async (productName: string, qty: number): Promise<boolean> => {
     const lower = productName.toLowerCase();
@@ -446,6 +456,11 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             setCart={setCart}
             onPay={handlePay}
             onOpenShift={handleOpenShift}
+            customers={customers}
+            customerId={customerId}
+            setCustomerId={setCustomerId}
+            dueDate={dueDate}
+            setDueDate={setDueDate}
           />
         </div>
 
@@ -497,6 +512,11 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId }: { p
             setCart={setCart}
             onPay={handlePay}
             onOpenShift={handleOpenShift}
+            customers={customers}
+            customerId={customerId}
+            setCustomerId={setCustomerId}
+            dueDate={dueDate}
+            setDueDate={setDueDate}
           />
         ) : null}
 

@@ -24,6 +24,8 @@ class ApiConstants {
   static const String returns = '/mobile/returns';
   static const String cashierShifts = '/mobile/cashier-shifts';
   static const String cashTransactions = '/mobile/cash-transactions';
+  static const String receivables = '/mobile/receivables';
+  static const String payables = '/mobile/payables';
   static const String reports = '/reports';
   static const String dashboard = '/dashboard';
   static const String sync = '/sync';

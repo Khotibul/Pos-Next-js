@@ -1,4 +1,4 @@
-export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD";
+export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD" | "CREDIT";
 
 export type CartItem = {
   productId: string;
@@ -41,6 +41,8 @@ export type CreateSaleInput = {
   discount: number;
   taxRate: number;
   payment: PaymentInput;
+  customerId?: string;
+  dueDate?: string;
 };
 
 export type SaleResult = {

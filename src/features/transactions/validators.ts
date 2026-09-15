@@ -8,7 +8,7 @@ export const cartItemSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  method: z.enum(["CASH", "QRIS", "TRANSFER", "EWALLET", "CARD"]),
+  method: z.enum(["CASH", "QRIS", "TRANSFER", "EWALLET", "CARD", "CREDIT"]),
   amount: z.coerce.number().min(0),
   receivedAmount: z.coerce.number().min(0).optional(),
   changeAmount: z.coerce.number().min(0).optional(),
@@ -20,6 +20,8 @@ export const createSaleSchema = z.object({
   discount: z.coerce.number().min(0).default(0),
   taxRate: z.coerce.number().min(0).max(100).default(0),
   payment: paymentSchema,
+  customerId: z.string().optional().or(z.literal("")),
+  dueDate: z.string().optional().or(z.literal("")),
 });
 
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;

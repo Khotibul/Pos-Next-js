@@ -15,6 +15,8 @@ import '../../../data/repositories/customer_repository_impl.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/supplier_repository_impl.dart';
+import '../../../data/repositories/receivable_repository_impl.dart';
+import '../../../data/repositories/payable_repository_impl.dart';
 import '../plan/plan_provider.dart';
 import '../unit/unit_provider.dart';
 
@@ -28,6 +30,8 @@ class SyncStatusInfo {
   final int pendingPurchases;
   final int pendingReturns;
   final int pendingCashTransactions;
+  final int pendingReceivables;
+  final int pendingPayables;
   final DateTime? lastSync;
 
   const SyncStatusInfo({
@@ -40,6 +44,8 @@ class SyncStatusInfo {
     this.pendingPurchases = 0,
     this.pendingReturns = 0,
     this.pendingCashTransactions = 0,
+    this.pendingReceivables = 0,
+    this.pendingPayables = 0,
     this.lastSync,
   });
 
@@ -52,7 +58,9 @@ class SyncStatusInfo {
       pendingShifts +
       pendingPurchases +
       pendingReturns +
-      pendingCashTransactions;
+      pendingCashTransactions +
+      pendingReceivables +
+      pendingPayables;
 }
 
 /// Status sinkronisasi nyata: hitungan data lokal yang belum terkirim
@@ -80,6 +88,8 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
   final purchases = await db.purchaseDao.getUnsynced();
   final returns = await db.returnDao.getUnsynced();
   final cashTx = await db.cashTransactionDao.getUnsynced();
+  final receivables = await db.receivableDao.getUnsynced();
+  final payables = await db.payableDao.getUnsynced();
 
   final box = Hive.isBoxOpen('cache') ? Hive.box('cache') : await Hive.openBox('cache');
   final lastMs = box.get('last_sync_at') as int?;
@@ -94,6 +104,8 @@ final syncStatusProvider = FutureProvider<SyncStatusInfo>((ref) async {
     pendingPurchases: purchases.length,
     pendingReturns: returns.length,
     pendingCashTransactions: cashTx.length,
+    pendingReceivables: receivables.length,
+    pendingPayables: payables.length,
     lastSync:
         lastMs != null ? DateTime.fromMillisecondsSinceEpoch(lastMs) : null,
   );
@@ -125,6 +137,8 @@ class SyncActions {
       await _pushPendingPurchases();
       await _pushPendingReturns();
       await _pushPendingCashTransactions();
+      await _ref.read(receivableRepositoryProvider).getReceivables();
+      await _ref.read(payableRepositoryProvider).getPayables();
 
       // Segarkan daftar satuan dari server (tombol/sumber dropdown produk).
       _ref.invalidate(unitsProvider);
