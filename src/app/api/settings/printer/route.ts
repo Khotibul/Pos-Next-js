@@ -4,6 +4,8 @@ import { Errors } from "@/lib/errors";
 import { apiOk, withApiHandler } from "@/lib/api-response";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
 
+export const runtime = "nodejs";
+
 export const GET = withApiHandler(async () => {
   const ctx = await getTenantContext();
   if (!ctx.isSuperAdmin) {

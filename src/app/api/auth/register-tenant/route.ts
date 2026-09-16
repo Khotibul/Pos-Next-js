@@ -8,6 +8,8 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSION_MATRIX, DEFAULT_ROLES } from "@/modules/rbac/defaults";
 import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
 
+export const runtime = "nodejs";
+
 const registerSchema = z.object({
   tenantName: z.string().min(2).max(120),
   ownerName: z.string().min(2).max(120),

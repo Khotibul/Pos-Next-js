@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { SalesReportQuerySchema } from "@/modules/reports/validators";
 import { resolvePresetRange, type ReportPreset } from "@/modules/reports/service";
 
+export const runtime = "nodejs";
+
 function parseDateInput(v?: string | null) {
   if (!v) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {

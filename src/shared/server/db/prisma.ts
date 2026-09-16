@@ -32,8 +32,8 @@ export const prisma =
         ? ["error", "warn"]
         : ["error"],
     transactionOptions: {
-      maxWait: envPositiveInt("PRISMA_TRANSACTION_MAX_WAIT_MS", 5_000),
-      timeout: envPositiveInt("PRISMA_TRANSACTION_TIMEOUT_MS", 15_000),
+      maxWait: envPositiveInt("PRISMA_TRANSACTION_MAX_WAIT_MS", 10_000),
+      timeout: envPositiveInt("PRISMA_TRANSACTION_TIMEOUT_MS", 30_000),
     },
   });
 

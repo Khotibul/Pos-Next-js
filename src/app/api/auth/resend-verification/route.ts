@@ -5,6 +5,8 @@ import { withApiHandler, apiOk } from "@/lib/api-response";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { createEmailVerificationToken } from "@/modules/auth/email-verification/service";
 
+export const runtime = "nodejs";
+
 const schema = z.object({
   email: z.string().email(),
 });

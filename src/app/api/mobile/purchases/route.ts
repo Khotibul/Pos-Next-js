@@ -62,30 +62,33 @@ export const POST = withApiHandler(async (req: Request) => {
     total: d.total,
   };
 
-  const purchase = existing
-    ? await prisma.purchaseOrder.update({ where: { id: existing.id }, data })
-    : await prisma.purchaseOrder.create({ data: { tenantId: ctx.tenantId, id: d.id, ...data } });
+  const purchase = await prisma.$transaction(async (tx) => {
+    const order = existing
+      ? await tx.purchaseOrder.update({ where: { id: existing.id }, data })
+      : await tx.purchaseOrder.create({ data: { tenantId: ctx.tenantId, id: d.id, ...data } });
 
-  // Upsert items (hapus lalu buat ulang untuk sync sederhana)
-  if (d.items.length > 0) {
-    await prisma.purchaseOrderItem.deleteMany({ where: { purchaseOrderId: purchase.id, tenantId: ctx.tenantId } });
-    for (const it of d.items) {
-      const prod = await prisma.product.findFirst({ where: { id: it.productId, tenantId: ctx.tenantId }, select: { id: true, name: true, sku: true } });
-      if (!prod) continue;
-      await prisma.purchaseOrderItem.create({
-        data: {
-          tenantId: ctx.tenantId,
-          purchaseOrderId: purchase.id,
-          productId: prod.id,
-          name: prod.name,
-          sku: prod.sku,
-          costPrice: it.price,
-          qty: Math.round(it.qty),
-          lineTotal: it.qty * it.price,
-        },
-      });
+    if (d.items.length > 0) {
+      await tx.purchaseOrderItem.deleteMany({ where: { purchaseOrderId: order.id, tenantId: ctx.tenantId } });
+      for (const it of d.items) {
+        const prod = await tx.product.findFirst({ where: { id: it.productId, tenantId: ctx.tenantId }, select: { id: true, name: true, sku: true } });
+        if (!prod) continue;
+        await tx.purchaseOrderItem.create({
+          data: {
+            tenantId: ctx.tenantId,
+            purchaseOrderId: order.id,
+            productId: prod.id,
+            name: prod.name,
+            sku: prod.sku,
+            costPrice: it.price,
+            qty: Math.round(it.qty),
+            lineTotal: it.qty * it.price,
+          },
+        });
+      }
     }
-  }
+
+    return order;
+  });
 
   return apiOk({ id: purchase.id, orderNo: purchase.orderNo });
 });

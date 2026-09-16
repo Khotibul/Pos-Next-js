@@ -595,6 +595,17 @@ jobs:
               echo ''
               echo 'node_modules OK.'
 
+              echo ''
+              echo '=== Install production dependencies ==='
+
+              cd \"\$APP\"
+              \"\$APP/../22/bin/npm\" install --omit=dev --no-audit --no-fund 2>&1 || {
+                echo 'npm install failed, trying with npx...'
+                npx npm install --omit=dev --no-audit --no-fund 2>&1 || echo 'WARNING: npm install failed'
+              }
+
+              cd \"\$APP\"
+
               test -d \"\$APP/node_modules/@prisma/client\"
               test -d \"\$APP/node_modules/.prisma/client\"
 

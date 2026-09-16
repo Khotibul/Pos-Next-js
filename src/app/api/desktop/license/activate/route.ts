@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { normalizeSerial } from "@/lib/licenses";
 import { checkRateLimit } from "@/lib/rate-limit";
 
+export const runtime = "nodejs";
+
 const bodySchema = z.object({
   serial: z.string().min(6),
   deviceId: z.string().min(6),

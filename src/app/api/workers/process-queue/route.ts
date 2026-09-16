@@ -5,6 +5,7 @@ import { dequeueJob, markJobDone, markJobFailed, type QueueName } from "@/lib/qu
 import { sendEmail } from "@/lib/email/smtp";
 import { writeSyncLog } from "@/lib/monitoring/log-service";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const schema = z.object({

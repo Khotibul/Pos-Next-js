@@ -4,6 +4,8 @@ import { createOauthRegistration } from "@/modules/auth/oauth-registration/servi
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { writeErrorLog } from "@/shared/server/monitoring/log-service";
 
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
   const limit = await checkRateLimit("register", getClientIp(req)).catch(() => ({ success: true }));
   if (!limit.success) {

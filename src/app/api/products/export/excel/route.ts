@@ -6,6 +6,8 @@ import { requireActiveTenant } from "@/lib/tenant-guards";
 import { getProductsForExport } from "@/modules/products/export-service";
 import { isAppError } from "@/lib/errors";
 
+export const runtime = "nodejs";
+
 const querySchema = z.object({
   categoryId: z.string().optional(),
   brandId: z.string().optional(),

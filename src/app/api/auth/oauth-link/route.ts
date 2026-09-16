@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 // Starts an explicit OAuth linking flow for Google login.
 // This cookie is read by Auth.js `callbacks.signIn` to decide whether
 // it may safely link a Google account to an existing credentials user.

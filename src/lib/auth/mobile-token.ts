@@ -51,12 +51,19 @@ export async function getMobileContext(req: Request): Promise<MobileAuthContext>
 
   const membership = await prisma.tenantUser.findFirst({
     where: { userId: auth.userId },
-    select: { tenantId: true },
+    select: {
+      tenantId: true,
+      tenant: { select: { status: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
   if (!membership) {
     throw Errors.forbidden("Akun ini belum terhubung ke tenant manapun.");
+  }
+
+  if (membership.tenant.status === "SUSPENDED" || membership.tenant.status === "EXPIRED") {
+    throw Errors.forbidden("Tenant ini telah ditangguhkan atau kedaluwarsa.");
   }
 
   return { userId: auth.userId, email: auth.email, tenantId: membership.tenantId };

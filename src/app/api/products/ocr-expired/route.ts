@@ -5,6 +5,8 @@ import { requirePermission } from "@/lib/permissions";
 import { withApiHandler, apiOk } from "@/lib/api-response";
 import { parseExpiredFromText } from "@/modules/products/date-parser";
 
+export const runtime = "nodejs";
+
 const payloadSchema = z.object({
   text: z.string().min(1).max(20000),
 });

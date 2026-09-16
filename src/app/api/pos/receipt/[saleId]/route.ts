@@ -6,6 +6,8 @@ import { withApiHandler } from "@/lib/api-response";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
 import { getCachedReceiptData, cacheReceiptData } from "@/lib/transaction-cache";
 
+export const runtime = "nodejs";
+
 function toNumber(value: unknown) {
   const num = typeof value === "number" ? value : Number(value);
   return Number.isFinite(num) ? num : 0;

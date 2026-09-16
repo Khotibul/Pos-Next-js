@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Errors } from "@/lib/errors";
 import { apiMessage, withApiHandler } from "@/lib/api-response";
 
+export const runtime = "nodejs";
+
 const schema = z.object({ tenantId: z.string().min(1) });
 
 export const POST = withApiHandler(async (req: Request) => {
