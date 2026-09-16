@@ -757,20 +757,56 @@ jobs:
             "
               set -e
 
+              APP='$CPANEL_APP_DIR'
+
               echo '=== Local HTTP 3210 ==='
 
-              curl \
+              if curl \
                 --fail \
                 --silent \
                 --show-error \
                 --max-time 20 \
                 http://127.0.0.1:3210/ \
-                -o /tmp/next-health.html
+                -o /tmp/next-health.html; then
 
-              grep -q 'POSQU' \
-                /tmp/next-health.html
+                grep -q 'POSQU' \
+                  /tmp/next-health.html
 
-              echo 'NEXT_HEALTH_OK'
+                echo 'NEXT_HEALTH_OK'
+
+              else
+                echo 'HEALTH_CHECK_FAILED'
+                echo ''
+
+                echo '=== Process status ==='
+
+                if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
+                  PID=\$(cat \"\$APP/tmp/next-3210.pid\" 2>/dev/null || true)
+                  if [ -n \"\$PID\" ] && kill -0 \"\$PID\" 2>/dev/null; then
+                    echo \"Process \$PID is alive\"
+                  else
+                    echo 'Process is DEAD'
+                  fi
+                else
+                  echo 'No PID file found'
+                fi
+
+                echo ''
+
+                if [ -f \"\$APP/tmp/next-3210.log\" ]; then
+                  echo '=== Last 150 lines of next-3210.log ==='
+                  tail -150 \"\$APP/tmp/next-3210.log\"
+                else
+                  echo 'next-3210.log not found'
+                fi
+
+                echo ''
+
+                echo '=== Port 3210 ==='
+                ss -lntp 2>/dev/null | grep ':3210' || echo 'Port 3210 not in use'
+
+                exit 1
+              fi
             "
 
       # ==========================================================
