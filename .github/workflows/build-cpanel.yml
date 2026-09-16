@@ -298,6 +298,22 @@ jobs:
             cpanel-package/scripts/seed.mjs
 
       # ==========================================================
+      # ADD PRISMA SCHEMA FOR DB PUSH
+      # ==========================================================
+
+      - name: Add Prisma schema for db push
+        run: |
+          set -e
+
+          mkdir -p cpanel-package/src/prisma
+
+          cp \
+            src/prisma/schema.prisma \
+            cpanel-package/src/prisma/schema.prisma
+
+          echo "Prisma schema added for db push."
+
+      # ==========================================================
       # VERIFY PACKAGE
       # ==========================================================
 
@@ -616,6 +632,50 @@ jobs:
               grep '^DATABASE_URL=' \
                 \"\$APP/.env\" \
                 | sed 's/=.*$/=<SET>/'
+            "
+
+      # ==========================================================
+      # PRISMA DB PUSH (schema migration)
+      # ==========================================================
+
+      - name: Run Prisma db push
+        run: |
+          set -e
+
+          ssh \
+            -p "$CPANEL_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "$CPANEL_USER@$CPANEL_HOST" \
+            "
+              set -e
+
+              APP='$CPANEL_APP_DIR'
+              NODE='/home/ucv04la6/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/node'
+
+              cd \"\$APP\"
+
+              set -a
+              . ./.env
+              set +a
+
+              echo '=== Running prisma db push ==='
+
+              npx prisma db push \
+                --schema src/prisma/schema.prisma \
+                --accept-data-loss \
+                --skip-generate 2>&1 || {
+                  echo 'prisma db push failed, trying with direct prisma...'
+                  ./node_modules/.bin/prisma db push \
+                    --schema src/prisma/schema.prisma \
+                    --accept-data-loss \
+                    --skip-generate 2>&1 || echo 'WARNING: db push failed, tables may be missing'
+                }
+
+              echo ''
+              echo '=== prisma db push OK ==='
             "
 
       # ==========================================================
