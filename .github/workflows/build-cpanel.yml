@@ -643,40 +643,25 @@ jobs:
 
               echo '=== Stop existing Next.js ==='
 
-              # Stop menggunakan PID file.
               if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
-
-                PID=\$(cat \
-                  \"\$APP/tmp/next-3210.pid\" \
-                  2>/dev/null || true)
-
+                PID=\$(cat \"\$APP/tmp/next-3210.pid\" 2>/dev/null || true)
                 if [ -n \"\$PID\" ]; then
-
                   echo \"Stopping PID \$PID...\"
-
-                  kill \"\$PID\" \
-                    2>/dev/null || true
-
+                  kill \"\$PID\" 2>/dev/null || true
                 fi
               fi
 
               sleep 2
 
-              # Pastikan port 3210 tidak masih digunakan.
               echo '=== Check port 3210 ==='
 
               PIDS=\$(fuser -n tcp 3210 2>/dev/null || true)
-
               if [ -n \"\$PIDS\" ]; then
                 echo \"Processes still using port 3210: \$PIDS\"
-
-                kill \$PIDS \
-                  2>/dev/null || true
-
+                kill \$PIDS 2>/dev/null || true
                 sleep 2
               fi
 
-              # Pastikan runtime tersedia.
               echo '=== Verify runtime ==='
 
               test -f \"\$APP/server.js\"
@@ -684,7 +669,6 @@ jobs:
               test -f \"\$APP/.env\"
               test -x \"\$NODE\"
 
-              # Load production environment.
               cd \"\$APP\"
 
               set -a
@@ -702,41 +686,58 @@ jobs:
                 > tmp/next-3210.log 2>&1 &
 
               NEW_PID=\$!
-
               echo \"\$NEW_PID\" > tmp/next-3210.pid
-
               echo \"Started PID: \$NEW_PID\"
 
-              sleep 8
-
               echo ''
-              echo '=== Process check ==='
+              echo '=== Waiting for Next.js to be ready ==='
 
-              if ! kill -0 \"\$NEW_PID\" 2>/dev/null; then
+              READY=0
+              for i in \$(seq 1 30); do
+                sleep 2
 
-                echo 'ERROR: Next.js process mati setelah start.'
+                if ! kill -0 \"\$NEW_PID\" 2>/dev/null; then
+                  echo \"ERROR: Process died at attempt \$i.\"
+                  echo ''
+                  echo '=== next-3210.log ==='
+                  cat tmp/next-3210.log || true
+                  exit 1
+                fi
 
+                if curl --fail --silent --max-time 5 http://127.0.0.1:3210/ -o /dev/null 2>/dev/null; then
+                  READY=1
+                  echo \"Server ready after \$((i * 2)) seconds.\"
+                  break
+                fi
+
+                echo \"  attempt \$i/30 (waited \$((i * 2))s)...\"
+              done
+
+              if [ \"\$READY\" != \"1\" ]; then
+                echo 'ERROR: Server not ready after 60 seconds.'
                 echo ''
-                echo '=== next-3210.log ==='
-
-                cat tmp/next-3210.log || true
-
+                echo '=== Process status ==='
+                if kill -0 \"\$NEW_PID\" 2>/dev/null; then
+                  echo 'Process is alive but not responding.'
+                else
+                  echo 'Process is DEAD.'
+                fi
+                echo ''
+                echo '=== Port 3210 ==='
+                ss -lntp 2>/dev/null | grep ':3210' || echo 'Port 3210 not in use'
+                echo ''
+                echo '=== Last 150 lines of next-3210.log ==='
+                tail -150 tmp/next-3210.log || true
                 exit 1
               fi
 
-              echo 'Next.js process masih berjalan.'
-
               echo ''
               echo '=== Port 3210 ==='
-
-              ss -lntp 2>/dev/null \
-                | grep ':3210' \
-                || true
+              ss -lntp 2>/dev/null | grep ':3210' || true
 
               echo ''
-              echo '=== Next.js log ==='
-
-              tail -80 tmp/next-3210.log || true
+              echo '=== Last 40 lines of next-3210.log ==='
+              tail -40 tmp/next-3210.log || true
             "
 
       # ==========================================================
@@ -761,25 +762,34 @@ jobs:
 
               echo '=== Local HTTP 3210 ==='
 
-              if curl \
-                --fail \
-                --silent \
-                --show-error \
-                --max-time 20 \
-                http://127.0.0.1:3210/ \
-                -o /tmp/next-health.html; then
+              HEALTHY=0
+              for i in 1 2 3; do
+                if curl \
+                  --fail \
+                  --silent \
+                  --show-error \
+                  --max-time 20 \
+                  http://127.0.0.1:3210/ \
+                  -o /tmp/next-health.html; then
 
-                grep -q 'POSQU' \
-                  /tmp/next-health.html
+                  if grep -q 'POSQU' /tmp/next-health.html; then
+                    HEALTHY=1
+                    echo 'NEXT_HEALTH_OK'
+                    break
+                  else
+                    echo \"Health check attempt \$i: response received but content mismatch.\"
+                  fi
+                else
+                  echo \"Health check attempt \$i: curl failed.\"
+                fi
+                sleep 3
+              done
 
-                echo 'NEXT_HEALTH_OK'
-
-              else
+              if [ \"\$HEALTHY\" != \"1\" ]; then
                 echo 'HEALTH_CHECK_FAILED'
                 echo ''
 
                 echo '=== Process status ==='
-
                 if [ -f \"\$APP/tmp/next-3210.pid\" ]; then
                   PID=\$(cat \"\$APP/tmp/next-3210.pid\" 2>/dev/null || true)
                   if [ -n \"\$PID\" ] && kill -0 \"\$PID\" 2>/dev/null; then
@@ -792,18 +802,20 @@ jobs:
                 fi
 
                 echo ''
-
-                if [ -f \"\$APP/tmp/next-3210.log\" ]; then
-                  echo '=== Last 150 lines of next-3210.log ==='
-                  tail -150 \"\$APP/tmp/next-3210.log\"
-                else
-                  echo 'next-3210.log not found'
-                fi
-
-                echo ''
-
                 echo '=== Port 3210 ==='
                 ss -lntp 2>/dev/null | grep ':3210' || echo 'Port 3210 not in use'
+
+                echo ''
+                echo '=== Last 200 lines of next-3210.log ==='
+                tail -200 \"\$APP/tmp/next-3210.log\" || true
+
+                echo ''
+                echo '=== Disk space ==='
+                df -h \"\$APP\" || true
+
+                echo ''
+                echo '=== Memory ==='
+                free -h || true
 
                 exit 1
               fi
