@@ -29,6 +29,7 @@ export async function upsertBranchAction(_prev: unknown, formData: FormData): Pr
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: isUpdate ? "UPDATE" : "CREATE", entity: "Branch", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:branches]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:branches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan cabang.");
@@ -43,6 +44,7 @@ export async function deleteBranchAction(id: string): Promise<ActionResult<{ id:
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Branch", entityId: id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:branches]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:branches", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus cabang.");

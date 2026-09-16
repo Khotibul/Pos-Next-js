@@ -37,6 +37,7 @@ export async function createProductAction(_prev: unknown, formData: FormData): P
 
     return actionOk({ id: created.id });
   } catch (err) {
+    console.error("[action:products]", err);
     if (isAppError(err)) return actionFail(err.message);
     const unique = isPrismaUniqueError(err);
     if (unique) {
@@ -63,6 +64,7 @@ export async function updateProductAction(_prev: unknown, formData: FormData): P
 
     return actionOk({ id: updated.id });
   } catch (err) {
+    console.error("[action:products]", err);
     if (isAppError(err)) return actionFail(err.message);
     const unique = isPrismaUniqueError(err);
     if (unique) {
@@ -86,6 +88,7 @@ export async function deleteProductAction(id: string): Promise<ActionResult<{ id
 
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:products]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus produk.");
@@ -102,6 +105,7 @@ export async function deleteManyProductsAction(ids: string[]): Promise<ActionRes
 
     return actionOk({ deletedCount: result.count });
   } catch (err) {
+    console.error("[action:products]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:products", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus produk.");

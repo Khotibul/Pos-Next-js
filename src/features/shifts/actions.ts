@@ -33,6 +33,7 @@ export async function openShiftAction(_prev: unknown, formData: FormData): Promi
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "OPEN", entity: "CashierShift", entityId: res.id, metadata: { openingCash: parsed.data.openingCash } });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:shifts]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat buka shift.");
@@ -50,6 +51,7 @@ export async function closeShiftAction(_prev: unknown, formData: FormData): Prom
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "CLOSE", entity: "CashierShift", entityId: res.id, metadata: { cashCounted: parsed.data.cashCounted } });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:shifts]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat tutup shift.");
@@ -66,6 +68,7 @@ export async function approveShiftAction(_prev: unknown, formData: FormData): Pr
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "APPROVE", entity: "CashierShift", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:shifts]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:shifts", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat approve shift.");

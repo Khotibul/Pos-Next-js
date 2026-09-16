@@ -28,6 +28,7 @@ export async function upsertPayableAction(_prev: unknown, formData: FormData): P
     revalidatePath("/payables");
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:payables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:payables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan utang.");
@@ -43,6 +44,7 @@ export async function deletePayableAction(id: string): Promise<ActionResult<{ id
     revalidatePath("/payables");
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:payables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:payables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus utang.");
@@ -61,6 +63,7 @@ export async function createPayablePaymentAction(_prev: unknown, formData: FormD
     revalidatePath(`/payables/${parsed.data.payableId}`);
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:payables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:payables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan pembayaran.");
@@ -76,6 +79,7 @@ export async function deletePayablePaymentAction(paymentId: string): Promise<Act
     revalidatePath("/payables");
     return actionOk({ id: paymentId });
   } catch (err) {
+    console.error("[action:payables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:payables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus pembayaran.");

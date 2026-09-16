@@ -28,6 +28,7 @@ export async function upsertReceivableAction(_prev: unknown, formData: FormData)
     revalidatePath("/receivables");
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:receivables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:receivables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan piutang.");
@@ -43,6 +44,7 @@ export async function deleteReceivableAction(id: string): Promise<ActionResult<{
     revalidatePath("/receivables");
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:receivables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:receivables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus piutang.");
@@ -61,6 +63,7 @@ export async function createReceivablePaymentAction(_prev: unknown, formData: Fo
     revalidatePath(`/receivables/${parsed.data.receivableId}`);
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:receivables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:receivables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan pembayaran.");
@@ -76,6 +79,7 @@ export async function deleteReceivablePaymentAction(paymentId: string): Promise<
     revalidatePath("/receivables");
     return actionOk({ id: paymentId });
   } catch (err) {
+    console.error("[action:receivables]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:receivables", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus pembayaran.");

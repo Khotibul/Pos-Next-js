@@ -32,6 +32,7 @@ export async function upsertProductUnitAction(_prev: unknown, formData: FormData
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: isUpdate ? "UPDATE" : "CREATE", entity: "ProductUnit", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:units]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:product-units", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan satuan.");
@@ -46,6 +47,7 @@ export async function deleteProductUnitAction(id: string): Promise<ActionResult<
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductUnit", entityId: id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:units]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:product-units", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus satuan.");

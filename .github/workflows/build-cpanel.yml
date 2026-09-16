@@ -606,6 +606,20 @@ jobs:
 
               cd \"\$APP\"
 
+              echo ''
+              echo '=== Generate Prisma client ==='
+
+              set -a
+              . ./.env
+              set +a
+
+              \"\$APP/../22/bin/npx\" prisma generate --schema src/prisma/schema.prisma 2>&1 || {
+                echo 'npx prisma generate failed, trying direct...'
+                ./node_modules/.bin/prisma generate --schema src/prisma/schema.prisma 2>&1 || echo 'WARNING: prisma generate failed'
+              }
+
+              cd \"\$APP\"
+
               test -d \"\$APP/node_modules/@prisma/client\"
               test -d \"\$APP/node_modules/.prisma/client\"
 

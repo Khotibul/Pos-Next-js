@@ -38,6 +38,7 @@ export async function completeOnboardingAction(_prev: unknown, formData: FormDat
     if (activationFailed) redirect("/billing?activation=failed");
     redirect("/dashboard");
   } catch (err) {
+    console.error("[action:tenants]", err);
     if (isAppError(err)) return { ok: false, message: err.message };
     const e = err as { code?: string };
     if (e && typeof e === "object" && e.code === "P2028") return { ok: false, message: "Koneksi database sedang sibuk. Silakan coba lagi dalam beberapa detik." };

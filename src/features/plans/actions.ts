@@ -22,6 +22,7 @@ export async function upsertPlanAction(_prev: unknown, formData: FormData): Prom
     const res = await upsertPlan(parsed.data);
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:plans]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:plans", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan paket.");
@@ -34,6 +35,7 @@ export async function deletePlanAction(id: string): Promise<ActionResult<{ id: s
     await deletePlan(id);
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:plans]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:plans", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus paket.");

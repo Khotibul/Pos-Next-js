@@ -72,6 +72,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
 
     return actionOk({ id: created.id, invoiceNo: created.invoiceNo });
   } catch (err) {
+    console.error("[action:transactions]", err);
     if (idempotencyRelease) {
       await releaseIdempotencyKey(idempotencyRelease.tenantId, idempotencyRelease.key).catch(() => {});
     }
@@ -106,6 +107,7 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
 
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:transactions]", err);
     if (isAppError(err)) return actionFail(err.message);
     return actionFail("Gagal menghapus transaksi.");
   }

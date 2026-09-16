@@ -26,6 +26,7 @@ export async function redeemLicenseAction(_prev: unknown, formData: FormData): P
     await redeemLicense({ tenantId: ctx.tenantId, serial: parsed.data.serial });
     return actionOk({ ok: true as const });
   } catch (err) {
+    console.error("[action:licenses]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Gagal mengaktifkan tenant.");
@@ -42,6 +43,7 @@ export async function generateLicenseKeysAction(_prev: unknown, formData: FormDa
     const created = await generateLicenses({ planSlug: parsed.data.planSlug, qty: parsed.data.qty, expiresAt });
     return actionOk({ serials: created.map((c) => c.serial) });
   } catch (err) {
+    console.error("[action:licenses]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Gagal membuat license key.");
@@ -54,6 +56,7 @@ export async function revokeLicenseKeyAction(id: string): Promise<ActionResult<{
     await revokeLicense({ id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:licenses]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:licenses", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Gagal revoke lisensi.");

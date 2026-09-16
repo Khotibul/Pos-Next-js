@@ -29,6 +29,7 @@ export async function upsertCustomerAction(_prev: unknown, formData: FormData): 
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: isUpdate ? "UPDATE" : "CREATE", entity: "Customer", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:customers]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:customers", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan pelanggan.");
@@ -43,6 +44,7 @@ export async function deleteCustomerAction(id: string): Promise<ActionResult<{ i
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "Customer", entityId: id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:customers]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:customers", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus pelanggan.");

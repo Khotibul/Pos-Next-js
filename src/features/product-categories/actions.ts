@@ -32,6 +32,7 @@ export async function upsertProductCategoryAction(_prev: unknown, formData: Form
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: isUpdate ? "UPDATE" : "CREATE", entity: "ProductCategory", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:categories]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:product-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan kategori.");
@@ -46,6 +47,7 @@ export async function deleteProductCategoryAction(id: string): Promise<ActionRes
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "ProductCategory", entityId: id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:categories]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:product-categories", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus kategori.");

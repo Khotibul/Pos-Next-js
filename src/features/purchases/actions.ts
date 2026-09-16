@@ -33,6 +33,7 @@ export async function upsertPurchaseOrderAction(_prev: unknown, formData: FormDa
 
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:purchases]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:purchases", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan PO.");
@@ -47,6 +48,7 @@ export async function deletePurchaseOrderAction(id: string): Promise<ActionResul
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "PurchaseOrder", entityId: id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:purchases]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:purchases", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus PO.");

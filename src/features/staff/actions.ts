@@ -27,6 +27,7 @@ export async function upsertStaffAction(_prev: unknown, formData: FormData): Pro
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: parsed.data.id ? "UPDATE" : "CREATE", entity: "TenantUser", entityId: res.id });
     return actionOk({ id: res.id });
   } catch (err) {
+    console.error("[action:staff]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:staff", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menyimpan pegawai.");
@@ -41,6 +42,7 @@ export async function deleteStaffAction(id: string): Promise<ActionResult<{ id: 
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "DELETE", entity: "TenantUser", entityId: id });
     return actionOk({ id });
   } catch (err) {
+    console.error("[action:staff]", err);
     if (isAppError(err)) return actionFail(err.message);
     await writeErrorLog({ source: "feature:staff", message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : null });
     return actionFail("Terjadi kesalahan saat menghapus pegawai.");
