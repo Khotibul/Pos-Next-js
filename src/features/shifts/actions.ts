@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { PERMISSIONS } from "@/shared/constants/permissions";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -27,7 +27,7 @@ export async function openShiftAction(_prev: unknown, formData: FormData): Promi
   try {
     const ctx = await requirePermission(PERMISSIONS.transactions_shift_open) as unknown as PermissionContext;
     const parsed = openShiftSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const res = await openShift({ tenantId: ctx.tenantId, branchId: ctx.branchId, cashierId: ctx.userId, input: parsed.data });
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "OPEN", entity: "CashierShift", entityId: res.id, metadata: { openingCash: parsed.data.openingCash } });
@@ -43,7 +43,7 @@ export async function closeShiftAction(_prev: unknown, formData: FormData): Prom
   try {
     const ctx = await requirePermission(PERMISSIONS.transactions_shift_close) as unknown as PermissionContext;
     const parsed = closeShiftSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const canCloseAnyCashier = ctx.isSuperAdmin || ["OWNER", "ADMIN", "BRANCH_MANAGER"].includes(ctx.roleName ?? "");
     const res = await closeShift({ tenantId: ctx.tenantId, cashierId: ctx.userId, input: parsed.data, allowAnyCashier: canCloseAnyCashier });
@@ -60,7 +60,7 @@ export async function approveShiftAction(_prev: unknown, formData: FormData): Pr
   try {
     const ctx = await requirePermission(PERMISSIONS.transactions_shift_approve) as unknown as PermissionContext;
     const parsed = approveShiftSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const res = await approveShift({ tenantId: ctx.tenantId, approvedById: ctx.userId, input: parsed.data });
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: "APPROVE", entity: "CashierShift", entityId: res.id });

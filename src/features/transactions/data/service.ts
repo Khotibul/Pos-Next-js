@@ -34,7 +34,7 @@ export async function getSaleById(params: { tenantId: string; id: string }): Pro
   return toSaleDetail(record);
 }
 
-export async function deleteSaleById(id: string) {
+export async function deleteSaleById(tenantId: string, id: string) {
   const { deleteSaleById: del } = await import("@/features/transactions/data/repository");
-  await del(id);
+  await del(tenantId, id);
 }

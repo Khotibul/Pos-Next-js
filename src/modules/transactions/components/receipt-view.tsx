@@ -315,7 +315,7 @@ export const ReceiptView = memo(function ReceiptView({
             </div>
             <div className="receipt-row">
               <span className="receipt-muted">Status</span>
-              <span>{sale.status}</span>
+              <span>{sale.status === "CREDIT" ? "BELUM LUNAS" : sale.status === "VOID" ? "DIBATALKAN" : "LUNAS"}</span>
             </div>
           </div>
 

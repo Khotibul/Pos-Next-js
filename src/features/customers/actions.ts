@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { PERMISSIONS } from "@/shared/constants/permissions";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -22,7 +22,7 @@ export async function upsertCustomerAction(_prev: unknown, formData: FormData): 
     const ctx = await requireActiveTenant();
 
     const parsed = upsertCustomerSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertCustomer({ tenantId: ctx.tenantId, input: parsed.data });

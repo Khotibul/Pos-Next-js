@@ -166,6 +166,70 @@ export async function updateShiftTotals(tx: Prisma.TransactionClient, shiftId: s
   });
 }
 
-export async function deleteSaleById(id: string) {
-  await prisma.sale.delete({ where: { id } });
+export async function deleteSaleById(tenantId: string, id: string) {
+  await prisma.$transaction(async (tx) => {
+    const sale = await tx.sale.findFirst({
+      where: { tenantId, id },
+      select: {
+        id: true, shiftId: true, status: true, total: true,
+        items: { select: { productId: true, qty: true } },
+      },
+    });
+    if (!sale) return;
+
+    for (const item of sale.items) {
+      const warehouses = await tx.warehouse.findMany({
+        where: { tenantId, isActive: true },
+        select: { id: true },
+      });
+      const warehouseIds = warehouses.map((w) => w.id);
+      if (warehouseIds.length === 0) continue;
+
+      const stockRows = await tx.productWarehouseStock.findMany({
+        where: { tenantId, productId: item.productId, warehouseId: { in: warehouseIds } },
+        orderBy: { updatedAt: "asc" },
+        select: { id: true, qty: true },
+      });
+
+      let remaining = item.qty;
+      for (const row of stockRows) {
+        if (remaining <= 0) break;
+        const addQty = Math.min(remaining, Number.MAX_SAFE_INTEGER);
+        await tx.productWarehouseStock.update({
+          where: { id: row.id },
+          data: { qty: { increment: addQty } },
+        });
+        remaining -= addQty;
+      }
+    }
+
+    if (sale.status === "CREDIT") {
+      await tx.receivable.deleteMany({ where: { saleId: sale.id } });
+    }
+
+    if (sale.shiftId) {
+      const payment = await tx.payment.findFirst({ where: { saleId: sale.id }, select: { method: true, amount: true } });
+      const method = payment?.method ?? "CASH";
+      const amount = Number(payment?.amount ?? sale.total);
+      const cashTotal = method === "CASH" ? amount : 0;
+      const qrisTotal = method === "QRIS" ? amount : 0;
+      const transferTotal = method === "TRANSFER" ? amount : 0;
+      const ewalletTotal = method === "EWALLET" ? amount : 0;
+      const cardTotal = method === "CARD" ? amount : 0;
+      await tx.cashierShift.updateMany({
+        where: { id: sale.shiftId, status: "OPEN" },
+        data: {
+          totalSales: { decrement: Number(sale.total) },
+          transactionCount: { decrement: 1 },
+          cashSystem: { decrement: cashTotal },
+          totalCash: { decrement: cashTotal },
+          totalQris: { decrement: qrisTotal },
+          totalTransfer: { decrement: transferTotal + cardTotal },
+          totalEwallet: { decrement: ewalletTotal },
+        },
+      });
+    }
+
+    await tx.sale.delete({ where: { id: sale.id } });
+  });
 }

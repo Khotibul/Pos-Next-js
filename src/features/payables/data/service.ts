@@ -141,7 +141,7 @@ export async function upsertPayable(params: { tenantId: string; input: UpsertPay
     const remaining = Math.max(0, totalAmount - paidAmount);
     const status = computeDebtStatus(totalAmount, paidAmount, dueDate);
     return prisma.payable.update({
-      where: { id: params.input.id },
+      where: { id: params.input.id, tenantId: params.tenantId },
       data: {
         supplierId: params.input.supplierId ?? null,
         purchaseOrderId: params.input.purchaseOrderId ?? null,
@@ -182,7 +182,7 @@ export async function upsertPayable(params: { tenantId: string; input: UpsertPay
 export async function deletePayable(params: { tenantId: string; id: string }) {
   const exists = await prisma.payable.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Utang tidak ditemukan.");
-  await prisma.payable.delete({ where: { id: params.id } });
+  await prisma.payable.delete({ where: { id: params.id, tenantId: params.tenantId } });
 }
 
 export async function createPayablePayment(params: { tenantId: string; input: CreatePayablePaymentInput }) {
@@ -216,7 +216,7 @@ export async function createPayablePayment(params: { tenantId: string; input: Cr
     const newStatus = computeDebtStatus(total, newPaid, payable.dueDate);
 
     await tx.payable.update({
-      where: { id: params.input.payableId },
+      where: { id: params.input.payableId, tenantId: params.tenantId },
       data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus },
     });
 
@@ -232,11 +232,11 @@ export async function deletePayablePayment(params: { tenantId: string; paymentId
   if (!payable) throw Errors.notFound("Utang tidak ditemukan.");
 
   return prisma.$transaction(async (tx) => {
-    await tx.payablePayment.delete({ where: { id: payment.id } });
+    await tx.payablePayment.delete({ where: { id: payment.id, tenantId: params.tenantId } });
     const newPaid = Math.max(0, Number(payable.paidAmount) - Number(payment.amount));
     const total = Number(payable.totalAmount);
     const newRemaining = Math.max(0, total - newPaid);
     const newStatus = computeDebtStatus(total, newPaid, payable.dueDate);
-    await tx.payable.update({ where: { id: payable.id }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus } });
+    await tx.payable.update({ where: { id: payable.id, tenantId: params.tenantId }, data: { paidAmount: newPaid, remainingAmount: newRemaining, status: newStatus } });
   });
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { requirePermission } from "@/shared/server/auth/permissions";
 import { PERMISSIONS } from "@/shared/constants/permissions";
@@ -21,7 +21,7 @@ export async function redeemLicenseAction(_prev: unknown, formData: FormData): P
     await requirePermission(PERMISSIONS.billing_read);
     const ctx = await requireTenant();
     const parsed = redeemLicenseSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     await redeemLicense({ tenantId: ctx.tenantId, serial: parsed.data.serial });
     return actionOk({ ok: true as const });
@@ -36,7 +36,7 @@ export async function generateLicenseKeysAction(_prev: unknown, formData: FormDa
   try {
     await requireSuperAdmin();
     const parsed = generateLicenseSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null;
     const created = await generateLicenses({ planSlug: parsed.data.planSlug, qty: parsed.data.qty, expiresAt });

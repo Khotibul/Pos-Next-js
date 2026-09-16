@@ -22,7 +22,10 @@ export async function upsertProductUnitAction(_prev: unknown, formData: FormData
     const ctx = await requireActiveTenant();
 
     const parsed = upsertProductUnitSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      return actionFail(Object.entries(fieldErrors).map(([k, v]) => `${k}: ${v?.join(", ")}`).join("; ") || "Validasi gagal.");
+    }
 
     const isUpdate = Boolean(parsed.data.id);
     const res = await upsertProductUnit({ tenantId: ctx.tenantId, input: parsed.data });

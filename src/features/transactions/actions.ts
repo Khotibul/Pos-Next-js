@@ -1,6 +1,5 @@
 "use server";
 
-import crypto from "node:crypto";
 import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -30,8 +29,7 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
     endValidate();
 
     const endIdempotency = createDevTimer("pos.createSaleAction.idempotency");
-    const idempotencyRaw = parsed.data.payment.reference?.trim() || crypto.randomUUID();
-    const idempotencyKey = `create:${ctx.tenantId}:${idempotencyRaw}`;
+    const idempotencyKey = `create:${ctx.tenantId}:${ctx.userId}:${Date.now()}`;
     // Cepat: idempotency (Redis) & cek shift (DB) berjalan paralel, bukan berurutan
     const [allowed, openShift] = await Promise.all([
       checkIdempotencyKey(ctx.tenantId, idempotencyKey),
@@ -96,7 +94,7 @@ export async function deleteSaleAction(id: string): Promise<ActionResult<{ id: s
     const { deleteSaleById, findSale } = await import("@/features/transactions/data/repository");
     const exists = await findSale(ctx.tenantId, id);
     if (!exists) return actionFail("Transaksi tidak ditemukan.");
-    await deleteSaleById(id);
+    await deleteSaleById(ctx.tenantId, id);
 
     void writeAuditLog({
       tenantId: ctx.tenantId,

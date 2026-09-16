@@ -42,7 +42,7 @@ export async function listProducts(params: {
     tenantId: params.tenantId,
     ...(categoryId ? { categoryId } : {}),
     ...(status === "active" ? { isActive: true } : status === "inactive" ? { isActive: false } : {}),
-    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { sku: { contains: q, mode: "insensitive" as const } }, { barcode: { contains: q, mode: "insensitive" as const } }] } : {}),
+    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { sku: { contains: q, mode: "insensitive" as const } }, { barcode: { contains: q, mode: "insensitive" as const } }, { qrCode: { contains: q, mode: "insensitive" as const } }] } : {}),
   };
 
   const [total, items] = await Promise.all([
@@ -213,6 +213,9 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
 
   try {
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const costPrice = typeof params.input.costPrice === "number" ? params.input.costPrice : Number(exists.costPrice);
+      const sellingPrice = typeof params.input.sellingPrice === "number" ? params.input.sellingPrice : Number(exists.sellingPrice);
+      const marginPct = typeof params.input.marginPct === "number" ? params.input.marginPct : computeMarginPct(costPrice, sellingPrice);
       const product = await tx.product.update({
         where: { id: params.id },
         data: {
@@ -228,7 +231,7 @@ export async function updateProduct(params: { tenantId: string; id: string; inpu
           unitId: params.input.unitId === "" ? null : params.input.unitId,
           costPrice: params.input.costPrice,
           sellingPrice: params.input.sellingPrice,
-          marginPct: typeof params.input.marginPct === "number" ? params.input.marginPct : undefined,
+          marginPct,
           taxRate: typeof params.input.taxRate === "number" ? params.input.taxRate : undefined,
           weight: typeof params.input.weight === "number" ? params.input.weight : undefined,
           volume: typeof params.input.volume === "number" ? params.input.volume : undefined,

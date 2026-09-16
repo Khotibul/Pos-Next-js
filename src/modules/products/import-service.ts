@@ -188,14 +188,20 @@ export async function importProducts(params: {
           updated += 1;
         }
 
-        // ImageUrl (external URL only)
+        // ImageUrl (external URL only) — skip if product already has this URL
         if (r.imageUrl) {
-          await prisma.productImage
-            .create({
-              data: { tenantId: params.tenantId, productId, url: r.imageUrl, alt: r.name, sortOrder: 0 },
-              select: { id: true },
-            })
-            .catch(() => {});
+          const existingImage = await prisma.productImage.findFirst({
+            where: { tenantId: params.tenantId, productId, url: r.imageUrl },
+            select: { id: true },
+          });
+          if (!existingImage) {
+            await prisma.productImage
+              .create({
+                data: { tenantId: params.tenantId, productId, url: r.imageUrl, alt: r.name, sortOrder: 0 },
+                select: { id: true },
+              })
+              .catch(() => {});
+          }
         }
 
         // Batch/expired

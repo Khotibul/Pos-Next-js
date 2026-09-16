@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { PERMISSIONS } from "@/shared/constants/permissions";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -21,7 +21,7 @@ export async function upsertStaffAction(_prev: unknown, formData: FormData): Pro
     await requirePermission(PERMISSIONS.staff_write);
     const ctx = await requireActiveTenant();
     const parsed = upsertStaffSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const res = await upsertStaff({ tenantId: ctx.tenantId, input: parsed.data });
     void writeAuditLog({ tenantId: ctx.tenantId, userId: ctx.userId, action: parsed.data.id ? "UPDATE" : "CREATE", entity: "TenantUser", entityId: res.id });

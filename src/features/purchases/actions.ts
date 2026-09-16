@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { PERMISSIONS } from "@/shared/constants/permissions";
 import { requirePermission } from "@/shared/server/auth/permissions";
@@ -19,7 +19,7 @@ export async function upsertPurchaseOrderAction(_prev: unknown, formData: FormDa
   try {
     const ctx = await requirePermission(PERMISSIONS.inventory_write);
     const parsed = upsertPurchaseOrderSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const res = await upsertPurchaseOrder({ tenantId: ctx.tenantId, input: parsed.data });
     void writeAuditLog({

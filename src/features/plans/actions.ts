@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionResult, actionFail, actionOk } from "@/shared/server/errors/result";
+import { ActionResult, actionFail, actionOk, fieldErrorsFromZod } from "@/shared/server/errors/result";
 import { isAppError } from "@/shared/server/errors/app-error";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { writeErrorLog } from "@/shared/server/monitoring/log-service";
@@ -17,7 +17,7 @@ export async function upsertPlanAction(_prev: unknown, formData: FormData): Prom
   try {
     await requireSuperAdmin();
     const parsed = upsertPlanSchema.safeParse(formDataToObject(formData));
-    if (!parsed.success) return actionFail("Validasi gagal.");
+    if (!parsed.success) return actionFail("Validasi gagal.", fieldErrorsFromZod(parsed.error));
 
     const res = await upsertPlan(parsed.data);
     return actionOk({ id: res.id });

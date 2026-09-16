@@ -75,7 +75,7 @@ export function generateReceiptText(sale: ReceiptSale, printer: PrinterSettings)
   text += "\x1B\x61\x00";
   text += `${padRight("No:", 8)}${sale.invoiceNo}\n`;
   text += `${padRight("Tgl:", 8)}${new Date(sale.createdAt).toLocaleString("id-ID")}\n`;
-  text += `${padRight("Status:", 8)}${sale.status}\n`;
+  text += `${padRight("Status:", 8)}${sale.status === "CREDIT" ? "BELUM LUNAS" : sale.status === "VOID" ? "DIBATALKAN" : "LUNAS"}\n`;
   text += sepFull + "\n";
 
   const priceColWidth = width >= 48 ? 16 : 12;

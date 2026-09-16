@@ -26,7 +26,7 @@ export async function upsertProductUnit(params: { tenantId: string; input: Upser
   if (params.input.id) {
     const exists = await prisma.productUnit.findFirst({ where: { tenantId: params.tenantId, id: params.input.id }, select: { id: true } });
     if (!exists) throw Errors.notFound("Satuan tidak ditemukan.");
-    return prisma.productUnit.update({ where: { id: params.input.id }, data, select: { id: true } });
+    return prisma.productUnit.update({ where: { id: params.input.id, tenantId: params.tenantId }, data, select: { id: true } });
   }
 
   return prisma.productUnit.create({ data, select: { id: true } });
@@ -35,5 +35,7 @@ export async function upsertProductUnit(params: { tenantId: string; input: Upser
 export async function deleteProductUnit(params: { tenantId: string; id: string }) {
   const exists = await prisma.productUnit.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Satuan tidak ditemukan.");
-  await prisma.productUnit.delete({ where: { id: params.id } });
+  const productCount = await prisma.product.count({ where: { tenantId: params.tenantId, unitId: params.id } });
+  if (productCount > 0) throw Errors.badRequest(`Tidak dapat menghapus: ${productCount} produk masih menggunakan satuan ini.`);
+  await prisma.productUnit.delete({ where: { id: params.id, tenantId: params.tenantId } });
 }

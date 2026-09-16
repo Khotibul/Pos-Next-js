@@ -55,7 +55,7 @@ export async function upsertSupplier(params: { tenantId: string; input: UpsertSu
   if (params.input.id) {
     const exists = await prisma.supplier.findFirst({ where: { tenantId: params.tenantId, id: params.input.id }, select: { id: true } });
     if (!exists) throw Errors.notFound("Supplier tidak ditemukan.");
-    return prisma.supplier.update({ where: { id: params.input.id }, data, select: { id: true } });
+    return prisma.supplier.update({ where: { id: params.input.id, tenantId: params.tenantId }, data, select: { id: true } });
   }
 
   return prisma.supplier.create({ data, select: { id: true } });
@@ -64,5 +64,5 @@ export async function upsertSupplier(params: { tenantId: string; input: UpsertSu
 export async function deleteSupplier(params: { tenantId: string; id: string }) {
   const exists = await prisma.supplier.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Supplier tidak ditemukan.");
-  await prisma.supplier.delete({ where: { id: params.id } });
+  await prisma.supplier.delete({ where: { id: params.id, tenantId: params.tenantId } });
 }

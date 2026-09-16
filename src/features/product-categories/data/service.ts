@@ -33,7 +33,7 @@ export async function upsertProductCategory(params: { tenantId: string; input: U
   if (params.input.id) {
     const exists = await prisma.productCategory.findFirst({ where: { tenantId: params.tenantId, id: params.input.id }, select: { id: true } });
     if (!exists) throw Errors.notFound("Kategori tidak ditemukan.");
-    return prisma.productCategory.update({ where: { id: params.input.id }, data, select: { id: true } });
+    return prisma.productCategory.update({ where: { id: params.input.id, tenantId: params.tenantId }, data, select: { id: true } });
   }
 
   return prisma.productCategory.create({ data, select: { id: true } });
@@ -42,5 +42,7 @@ export async function upsertProductCategory(params: { tenantId: string; input: U
 export async function deleteProductCategory(params: { tenantId: string; id: string }) {
   const exists = await prisma.productCategory.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Kategori tidak ditemukan.");
-  await prisma.productCategory.delete({ where: { id: params.id } });
+  const productCount = await prisma.product.count({ where: { tenantId: params.tenantId, categoryId: params.id } });
+  if (productCount > 0) throw Errors.badRequest(`Tidak dapat menghapus: ${productCount} produk masih menggunakan kategori ini.`);
+  await prisma.productCategory.delete({ where: { id: params.id, tenantId: params.tenantId } });
 }

@@ -53,7 +53,7 @@ export async function upsertCustomer(params: { tenantId: string; input: UpsertCu
   if (params.input.id) {
     const exists = await prisma.customer.findFirst({ where: { tenantId: params.tenantId, id: params.input.id }, select: { id: true } });
     if (!exists) throw Errors.notFound("Pelanggan tidak ditemukan.");
-    return prisma.customer.update({ where: { id: params.input.id }, data, select: { id: true } });
+    return prisma.customer.update({ where: { id: params.input.id, tenantId: params.tenantId }, data, select: { id: true } });
   }
 
   return prisma.customer.create({ data, select: { id: true } });
@@ -62,5 +62,5 @@ export async function upsertCustomer(params: { tenantId: string; input: UpsertCu
 export async function deleteCustomer(params: { tenantId: string; id: string }) {
   const exists = await prisma.customer.findFirst({ where: { tenantId: params.tenantId, id: params.id }, select: { id: true } });
   if (!exists) throw Errors.notFound("Pelanggan tidak ditemukan.");
-  await prisma.customer.delete({ where: { id: params.id } });
+  await prisma.customer.delete({ where: { id: params.id, tenantId: params.tenantId } });
 }

@@ -181,6 +181,7 @@ async function executeCreateSale(
     const qrisTotal = input.payment.method === "QRIS" ? total : 0;
     const transferTotal = input.payment.method === "TRANSFER" ? total : 0;
     const ewalletTotal = input.payment.method === "EWALLET" ? total : 0;
+    const cardTotal = input.payment.method === "CARD" ? total : 0;
 
     const updatedShift = await tx.cashierShift.updateMany({
       where: { id: shiftId, status: "OPEN" },
@@ -190,7 +191,7 @@ async function executeCreateSale(
         cashSystem: { increment: cashTotal },
         totalCash: { increment: cashTotal },
         totalQris: { increment: qrisTotal },
-        totalTransfer: { increment: transferTotal },
+        totalTransfer: { increment: transferTotal + cardTotal },
         totalEwallet: { increment: ewalletTotal },
       },
     });
