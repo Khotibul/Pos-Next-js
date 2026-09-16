@@ -24,10 +24,22 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const items = await prisma.payable.findMany({
     where: where as never,
-    include: { payments: true, supplier: { select: { name: true } } },
+    include: { payments: true },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
+
+  const supplierIds = [...new Set(items.map((r) => r.supplierId).filter(Boolean))] as string[];
+  const supplierMap = new Map<string, string>();
+  if (supplierIds.length > 0) {
+    try {
+      const suppliers = await prisma.supplier.findMany({
+        where: { id: { in: supplierIds } },
+        select: { id: true, name: true },
+      });
+      for (const s of suppliers) supplierMap.set(s.id, s.name);
+    } catch {}
+  }
 
   return apiOk(
     items.map((r) => ({
@@ -44,7 +56,7 @@ export const GET = withApiHandler(async (req: Request) => {
       notes: r.notes,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
-      supplierName: r.supplier?.name ?? null,
+      supplierName: r.supplierId ? supplierMap.get(r.supplierId) ?? null : null,
       payments: r.payments.map((p) => ({
         id: p.id,
         payableId: p.payableId,

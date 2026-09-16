@@ -24,10 +24,22 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const items = await prisma.receivable.findMany({
     where: where as never,
-    include: { payments: true, customer: { select: { name: true } } },
+    include: { payments: true },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
+
+  const customerIds = [...new Set(items.map((r) => r.customerId).filter(Boolean))] as string[];
+  const customerMap = new Map<string, string>();
+  if (customerIds.length > 0) {
+    try {
+      const customers = await prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true, name: true },
+      });
+      for (const c of customers) customerMap.set(c.id, c.name);
+    } catch {}
+  }
 
   return apiOk(
     items.map((r) => ({
@@ -44,7 +56,7 @@ export const GET = withApiHandler(async (req: Request) => {
       notes: r.notes,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
-      customerName: r.customer?.name ?? null,
+      customerName: r.customerId ? customerMap.get(r.customerId) ?? null : null,
       payments: r.payments.map((p) => ({
         id: p.id,
         receivableId: p.receivableId,

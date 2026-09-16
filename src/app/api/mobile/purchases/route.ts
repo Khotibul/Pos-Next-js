@@ -96,15 +96,30 @@ export const GET = withApiHandler(async (req: Request) => {
   const limit = Math.min(Number(url.searchParams.get("limit") ?? "100"), 200);
   const orders = await prisma.purchaseOrder.findMany({
     where: { tenantId: ctx.tenantId },
-    include: { items: true, supplier: { select: { name: true } } },
+    include: { items: true },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
+
+  const supplierIds = [...new Set(orders.map((o) => o.supplierId).filter(Boolean))] as string[];
+  const supplierMap = new Map<string, string>();
+  if (supplierIds.length > 0) {
+    try {
+      const suppliers = await prisma.supplier.findMany({
+        where: { id: { in: supplierIds } },
+        select: { id: true, name: true },
+      });
+      for (const s of suppliers) supplierMap.set(s.id, s.name);
+    } catch {
+      // supplier table might not exist yet
+    }
+  }
+
   return apiOk(orders.map((o) => ({
     id: o.id,
     orderNo: o.orderNo,
     supplierId: o.supplierId,
-    supplierName: o.supplier?.name ?? null,
+    supplierName: o.supplierId ? supplierMap.get(o.supplierId) ?? null : null,
     status: o.status,
     notes: o.notes,
     subtotal: Number(o.subtotal),

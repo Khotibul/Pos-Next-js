@@ -1,8 +1,8 @@
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getMobileContext } from "@/lib/auth/mobile-token";
 import { withApiHandler, apiOk } from "@/lib/api-response";
 import { requireCanUseDatabase } from "@/lib/plan-guard";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
@@ -16,10 +16,24 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const sales = await prisma.sale.findMany({
     where: { tenantId: ctx.tenantId },
-    include: { items: true, payments: true, customer: { select: { name: true } } },
+    include: { items: true, payments: true },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
+
+  const customerIds = [...new Set(sales.map((s) => s.customerId).filter(Boolean))] as string[];
+  const customerMap = new Map<string, string>();
+  if (customerIds.length > 0) {
+    try {
+      const customers = await prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true, name: true },
+      });
+      for (const c of customers) customerMap.set(c.id, c.name);
+    } catch {
+      // customer table might not exist on older schema
+    }
+  }
 
   return apiOk(
     sales.map((s) => {
@@ -30,7 +44,7 @@ export const GET = withApiHandler(async (req: Request) => {
         cashierId: s.cashierId,
         shiftId: s.shiftId,
         customerId: s.customerId,
-        customerName: s.customer?.name ?? null,
+        customerName: s.customerId ? customerMap.get(s.customerId) ?? null : null,
         status: s.status,
         subtotal: Number(s.subtotal),
         discount: Number(s.discount),
@@ -115,7 +129,6 @@ export const POST = withApiHandler(async (req: Request) => {
     return apiOk({ duplicate: true, id: existing.id });
   }
 
-  // Filter item yang produknya masih ada di tenant (hindari FK violation yang bikin 500)
   const validItems: typeof input.items = [];
   for (const item of input.items) {
     const prod = await prisma.product.findFirst({
@@ -124,7 +137,6 @@ export const POST = withApiHandler(async (req: Request) => {
     });
     if (prod) validItems.push(item);
     else {
-      // Fallback: cari by sku jika id tidak cocok (produk mobile mungkin pakai id lokal)
       const bySku = await prisma.product.findFirst({
         where: { tenantId: ctx.tenantId, sku: item.sku },
         select: { id: true },
@@ -136,7 +148,6 @@ export const POST = withApiHandler(async (req: Request) => {
     return Response.json({ ok: false, code: "VALIDATION_ERROR", message: "Produk tidak ditemukan untuk tenant ini." }, { status: 400 });
   }
 
-  // Shift validasi: jika shiftId tidak ditemukan di tenant, set null agar tidak FK error
   let resolvedShiftId: string | null = input.shiftId ?? null;
   if (resolvedShiftId) {
     const shift = await prisma.cashierShift.findFirst({ where: { id: resolvedShiftId, tenantId: ctx.tenantId }, select: { id: true } });
