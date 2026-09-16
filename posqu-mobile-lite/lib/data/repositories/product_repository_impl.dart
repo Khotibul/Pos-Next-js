@@ -49,6 +49,7 @@ class ProductRepositoryImpl implements ProductRepository {
           brandName: row.brandName,
           supplierId: row.supplierId,
           unitId: row.unitId,
+          costPrice: row.costPrice,
           sellingPrice: row.sellingPrice,
           marginPct: row.marginPct,
           taxRate: row.taxRate,

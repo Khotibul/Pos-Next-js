@@ -6,6 +6,9 @@ export const upsertSupplierSchema = z.object({
   email: z.string().trim().email("Email tidak valid.").max(160).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   phone: z.string().trim().min(6, "Nomor telepon terlalu pendek.").max(40).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   address: z.string().trim().max(240).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  city: z.string().trim().max(100).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  contactPerson: z.string().trim().max(120).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  npwp: z.string().trim().max(30).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   isActive: z.union([z.boolean(), z.string()]).optional().transform((v) => (typeof v === "boolean" ? v : v === "on" ? true : v === "true" ? true : false)),
 });
 

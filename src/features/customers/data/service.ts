@@ -46,6 +46,7 @@ export async function upsertCustomer(params: { tenantId: string; input: UpsertCu
     email: params.input.email ?? null,
     phone: params.input.phone ?? null,
     address: params.input.address ?? null,
+    city: params.input.city ?? null,
     isActive: params.input.isActive ?? true,
   };
 

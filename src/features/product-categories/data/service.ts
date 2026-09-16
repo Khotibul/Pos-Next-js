@@ -21,7 +21,14 @@ export async function listProductCategories(params: { tenantId: string; q?: stri
 }
 
 export async function upsertProductCategory(params: { tenantId: string; input: UpsertProductCategoryInput }) {
-  const data = { tenantId: params.tenantId, name: params.input.name };
+  const data = {
+    tenantId: params.tenantId,
+    name: params.input.name,
+    description: params.input.description ?? null,
+    icon: params.input.icon ?? null,
+    color: params.input.color ?? null,
+    isActive: params.input.isActive ?? true,
+  };
 
   if (params.input.id) {
     const exists = await prisma.productCategory.findFirst({ where: { tenantId: params.tenantId, id: params.input.id }, select: { id: true } });

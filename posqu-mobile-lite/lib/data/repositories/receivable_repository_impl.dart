@@ -94,7 +94,21 @@ class ReceivableRepositoryImpl implements ReceivableRepository {
     await _syncFromServer();
     try {
       final rows = await database.receivableDao.getAll(search: search, status: status);
-      final entities = rows.map(_toEntity).toList();
+      final entities = <Receivable>[];
+      for (final row in rows) {
+        final paymentRows = await database.receivableDao.getPayments(row.id);
+        final payments = paymentRows.map((p) => ReceivablePayment(
+              id: p.id,
+              receivableId: p.receivableId,
+              amount: p.amount,
+              method: p.method,
+              reference: p.reference,
+              notes: p.notes,
+              paidAt: p.paidAt,
+              createdAt: p.createdAt,
+            )).toList();
+        entities.add(_toEntity(row, payments: payments));
+      }
       final start = (page - 1) * limit;
       final paged = entities.skip(start).take(limit).toList();
       return Right(paged);
@@ -108,7 +122,18 @@ class ReceivableRepositoryImpl implements ReceivableRepository {
     try {
       final row = await database.receivableDao.getById(id);
       if (row == null) return Left(DatabaseFailure(message: 'Piutang tidak ditemukan'));
-      return Right(_toEntity(row));
+      final paymentRows = await database.receivableDao.getPayments(id);
+      final payments = paymentRows.map((p) => ReceivablePayment(
+            id: p.id,
+            receivableId: p.receivableId,
+            amount: p.amount,
+            method: p.method,
+            reference: p.reference,
+            notes: p.notes,
+            paidAt: p.paidAt,
+            createdAt: p.createdAt,
+          )).toList();
+      return Right(_toEntity(row, payments: payments));
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal mengambil data piutang: $e'));
     }
@@ -204,7 +229,7 @@ class ReceivableRepositoryImpl implements ReceivableRepository {
     } catch (_) {}
   }
 
-  Receivable _toEntity(ReceivablesTableData row) {
+  Receivable _toEntity(ReceivablesTableData row, {List<ReceivablePayment>? payments}) {
     return Receivable(
       id: row.id,
       customerId: row.customerId,
@@ -217,6 +242,7 @@ class ReceivableRepositoryImpl implements ReceivableRepository {
       dueDate: row.dueDate,
       status: row.status,
       notes: row.notes,
+      payments: payments ?? const [],
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );

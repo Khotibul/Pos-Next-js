@@ -93,7 +93,21 @@ class PayableRepositoryImpl implements PayableRepository {
     await _syncFromServer();
     try {
       final rows = await database.payableDao.getAll(search: search, status: status);
-      final entities = rows.map(_toEntity).toList();
+      final entities = <Payable>[];
+      for (final row in rows) {
+        final paymentRows = await database.payableDao.getPayments(row.id);
+        final payments = paymentRows.map((p) => PayablePayment(
+              id: p.id,
+              payableId: p.payableId,
+              amount: p.amount,
+              method: p.method,
+              reference: p.reference,
+              notes: p.notes,
+              paidAt: p.paidAt,
+              createdAt: p.createdAt,
+            )).toList();
+        entities.add(_toEntity(row, payments: payments));
+      }
       final start = (page - 1) * limit;
       final paged = entities.skip(start).take(limit).toList();
       return Right(paged);
@@ -107,7 +121,18 @@ class PayableRepositoryImpl implements PayableRepository {
     try {
       final row = await database.payableDao.getById(id);
       if (row == null) return Left(DatabaseFailure(message: 'Utang tidak ditemukan'));
-      return Right(_toEntity(row));
+      final paymentRows = await database.payableDao.getPayments(id);
+      final payments = paymentRows.map((p) => PayablePayment(
+            id: p.id,
+            payableId: p.payableId,
+            amount: p.amount,
+            method: p.method,
+            reference: p.reference,
+            notes: p.notes,
+            paidAt: p.paidAt,
+            createdAt: p.createdAt,
+          )).toList();
+      return Right(_toEntity(row, payments: payments));
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal mengambil data utang: $e'));
     }
@@ -200,7 +225,7 @@ class PayableRepositoryImpl implements PayableRepository {
     } catch (_) {}
   }
 
-  Payable _toEntity(PayablesTableData row) {
+  Payable _toEntity(PayablesTableData row, {List<PayablePayment>? payments}) {
     return Payable(
       id: row.id,
       supplierId: row.supplierId,
@@ -213,6 +238,7 @@ class PayableRepositoryImpl implements PayableRepository {
       dueDate: row.dueDate,
       status: row.status,
       notes: row.notes,
+      payments: payments ?? const [],
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     );

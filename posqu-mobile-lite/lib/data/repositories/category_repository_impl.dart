@@ -69,6 +69,13 @@ class CategoryRepositoryImpl implements CategoryRepository {
           CategoriesTableCompanion(
             id: Value(model.id),
             name: Value(model.name),
+            description: Value(model.description),
+            icon: Value(model.icon),
+            color: Value(model.color),
+            isActive: Value(model.isActive),
+            productCount: Value(model.productCount),
+            createdAt: Value(model.createdAt),
+            updatedAt: Value(model.updatedAt),
           ),
         );
       }
