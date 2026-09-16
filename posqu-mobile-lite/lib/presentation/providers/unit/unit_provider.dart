@@ -38,8 +38,9 @@ final unitsProvider = FutureProvider<List<String>>((ref) async {
     try {
       final remoteUnits = await remote.getUnits();
       if (remoteUnits.isNotEmpty) {
-        await cache.setCache(_unitsCacheKey, remoteUnits.toList());
-        return _merge(_defaultUnits, remoteUnits);
+        final names = remoteUnits.map((u) => u.name).toList();
+        await cache.setCache(_unitsCacheKey, names);
+        return _merge(_defaultUnits, names);
       }
     } catch (_) {
       // Gangguan jaringan / endpoint tak tersedia -> pakai cache & default.
