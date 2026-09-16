@@ -1,7 +1,8 @@
+import { withApiHandler } from "@/lib/api-response";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { getMetricsSummary, getCacheHitRatio } from "@/lib/perf-monitor";
 
-export async function GET() {
+export const GET = withApiHandler(async () => {
   await requireSuperAdmin();
 
   const metrics = getMetricsSummary();
@@ -15,4 +16,4 @@ export async function GET() {
       serverTime: new Date().toISOString(),
     },
   });
-}
+});

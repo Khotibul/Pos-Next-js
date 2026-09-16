@@ -324,15 +324,6 @@ class KasirNotifier extends StateNotifier<KasirState> {
       );
 
       if (saved != null) {
-        for (final item in items) {
-          final product = _productCache[item.productId];
-          if (product != null && product.stock > 0) {
-            _productRepository.updateStock(
-              product.id,
-              product.stock - item.qty.toInt(),
-            );
-          }
-        }
         final config = await getReceiptConfig();
         state = state.copyWith(isLoading: false);
         _reset();

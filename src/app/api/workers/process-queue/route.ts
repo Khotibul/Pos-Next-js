@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withApiHandler } from "@/lib/api-response";
 import { dequeueJob, markJobDone, markJobFailed, type QueueName } from "@/lib/queue";
 import { sendEmail } from "@/lib/email/smtp";
 import { writeSyncLog } from "@/lib/monitoring/log-service";
@@ -45,7 +46,7 @@ async function processSyncJob(job: Awaited<ReturnType<typeof dequeueJob>>) {
   return true;
 }
 
-export async function POST(req: Request) {
+export const POST = withApiHandler(async (req: Request) => {
   if (!isAuthorized(req)) {
     return NextResponse.json({ ok: false, message: "Unauthorized worker." }, { status: 401 });
   }
@@ -74,4 +75,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, queue, processed, failed });
-}
+});

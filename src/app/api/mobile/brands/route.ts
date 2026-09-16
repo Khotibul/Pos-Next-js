@@ -11,6 +11,7 @@ export const GET = withApiHandler(async (req: Request) => {
   const brands = await prisma.productBrand.findMany({
     where: { tenantId: ctx.tenantId },
     orderBy: { name: "asc" },
+    take: 5000,
   });
 
   return apiOk(

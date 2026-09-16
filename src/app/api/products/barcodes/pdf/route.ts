@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
 import { requireActiveTenant } from "@/lib/tenant-guards";
+import { withApiHandler } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { code128Svg } from "@/lib/barcode/code128";
 
@@ -41,7 +42,7 @@ function pickLabelSize(label: z.infer<typeof payloadSchema>["label"]) {
   return { wMm: w, hMm: h, gapMm: label.gapMm ?? 2 };
 }
 
-export async function POST(req: Request) {
+export const POST = withApiHandler(async (req: Request) => {
   await requirePermission(PERMISSIONS.products_barcode_print);
   const ctx = await requireActiveTenant();
 
@@ -97,7 +98,6 @@ export async function POST(req: Request) {
     const x0 = margin + col * (labelW + gap);
     const y0 = margin + row * (labelH + gap);
 
-    // Border (light)
     doc.setDrawColor(220);
     doc.setLineWidth(0.5);
     doc.roundedRect(x0, y0, labelW, labelH, 6, 6);
@@ -109,12 +109,10 @@ export async function POST(req: Request) {
     const innerW = labelW - padding * 2;
     const innerH = labelH - padding * 2;
 
-    // Name
     doc.setTextColor(20);
     doc.setFontSize(7);
     doc.text(L.name.slice(0, 26), innerX, innerY + 7);
 
-    // Barcode (CODE128 rects)
     const barcodeH = Math.min(innerH - 14, mm(12));
     const svg = code128Svg(L.barcodeValue, { height: 44, moduleWidth: 1.2, quietZone: 6 });
     const scaleX = innerW / svg.width;
@@ -127,12 +125,10 @@ export async function POST(req: Request) {
       doc.rect(x, barY, w, barcodeH, "F");
     }
 
-    // Barcode text
     doc.setFontSize(6);
     doc.setTextColor(80);
     doc.text(L.barcodeValue.slice(0, 22), innerX, barY + barcodeH + 8);
 
-    // QR (optional, right bottom)
     if (parsed.data.includeQr) {
       const size = Math.min(mm(12), innerH - 12);
       const qrX = innerX + innerW - size;
@@ -161,4 +157,4 @@ export async function POST(req: Request) {
       "Cache-Control": "no-store",
     },
   });
-}
+});

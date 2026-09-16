@@ -7,23 +7,30 @@ import { computeDebtStatus } from "@/shared/utils/debt-status";
 
 export async function getPayableOverview(params: { tenantId: string }): Promise<PayableOverview> {
   try {
-    const all = await prisma.payable.findMany({
-      where: { tenantId: params.tenantId },
-      select: { status: true, totalAmount: true, paidAmount: true, remainingAmount: true },
-    });
-    const total = all.length;
-    let unpaid = 0, partial = 0, paid = 0, overdue = 0;
-    let totalPayable = 0, totalPaid = 0, totalRemaining = 0;
-    for (const r of all) {
-      if (r.status === "UNPAID") unpaid++;
-      else if (r.status === "PARTIAL") partial++;
-      else if (r.status === "PAID") paid++;
-      else if (r.status === "OVERDUE") overdue++;
-      totalPayable += Number(r.totalAmount);
-      totalPaid += Number(r.paidAmount);
-      totalRemaining += Number(r.remainingAmount);
-    }
-    return { total, unpaid, partial, paid, overdue, totalPayable, totalPaid, totalRemaining };
+    const where = { tenantId: params.tenantId };
+    const [statusCounts, totals] = await Promise.all([
+      prisma.payable.groupBy({
+        by: ["status"],
+        where,
+        _count: { id: true },
+      }),
+      prisma.payable.aggregate({
+        where,
+        _sum: { totalAmount: true, paidAmount: true, remainingAmount: true },
+        _count: { id: true },
+      }),
+    ]);
+    const countMap = new Map(statusCounts.map((r) => [r.status, r._count.id]));
+    return {
+      total: totals._count.id,
+      unpaid: countMap.get("UNPAID") ?? 0,
+      partial: countMap.get("PARTIAL") ?? 0,
+      paid: countMap.get("PAID") ?? 0,
+      overdue: countMap.get("OVERDUE") ?? 0,
+      totalPayable: Number(totals._sum.totalAmount ?? 0),
+      totalPaid: Number(totals._sum.paidAmount ?? 0),
+      totalRemaining: Number(totals._sum.remainingAmount ?? 0),
+    };
   } catch {
     return { total: 0, unpaid: 0, partial: 0, paid: 0, overdue: 0, totalPayable: 0, totalPaid: 0, totalRemaining: 0 };
   }

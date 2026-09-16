@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { withApiHandler } from "@/lib/api-response";
 import { getLatestRelease } from "@/config/downloads";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = withApiHandler(async () => {
   const android = getLatestRelease("ANDROID");
   const windows = getLatestRelease("WINDOWS");
 
@@ -29,5 +30,4 @@ export async function GET() {
         }
       : null,
   });
-}
-
+});

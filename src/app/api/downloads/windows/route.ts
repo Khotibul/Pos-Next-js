@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withApiHandler } from "@/lib/api-response";
 import { getLatestRelease } from "@/config/downloads";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -10,7 +11,7 @@ function toAbsolute(url: string, reqUrl: string) {
   return new URL(url, reqUrl).toString();
 }
 
-export async function GET(request: Request) {
+export const GET = withApiHandler(async (request: Request) => {
   const limit = await checkRateLimit("download", `${getClientIp(request)}:windows`);
   if (!limit.success) return NextResponse.json({ ok: false, message: "Terlalu banyak request download." }, { status: 429 });
 
@@ -19,4 +20,4 @@ export async function GET(request: Request) {
   const abs = toAbsolute(r.downloadUrl, request.url);
   if (!abs) return NextResponse.json({ ok: false, message: "URL download tidak valid." }, { status: 400 });
   return NextResponse.redirect(abs);
-}
+});

@@ -29,19 +29,23 @@ class ProductRemoteDataSource {
     if (categoryId != null) params['category_id'] = categoryId;
 
     final response = await _dio.get(ApiConstants.products, queryParameters: params);
-    return (response.data['data'] as List)
-        .map((e) => ProductModel.fromJson(e))
-        .toList();
+    final data = response.data['data'];
+    if (data == null || data is! List) return [];
+    return data.map((e) => ProductModel.fromJson(e)).toList();
   }
 
   Future<ProductModel> getProduct(String id) async {
     final response = await _dio.get('${ApiConstants.products}/$id');
-    return ProductModel.fromJson(response.data['data']);
+    final data = response.data['data'];
+    if (data == null) throw Exception('Produk tidak ditemukan');
+    return ProductModel.fromJson(data);
   }
 
   Future<ProductModel> getProductByBarcode(String barcode) async {
     final response = await _dio.get('${ApiConstants.products}/barcode/$barcode');
-    return ProductModel.fromJson(response.data['data']);
+    final data = response.data['data'];
+    if (data == null) throw Exception('Produk dengan barcode $barcode tidak ditemukan');
+    return ProductModel.fromJson(data);
   }
 
   Future<ProductModel> createProduct(Map<String, dynamic> data) async {

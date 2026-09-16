@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
+import { withApiHandler } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { SalesReportQuerySchema } from "@/modules/reports/validators";
 import { resolvePresetRange, type ReportPreset } from "@/modules/reports/service";
@@ -22,7 +23,7 @@ function csvEscape(value: unknown) {
   return s;
 }
 
-export async function GET(req: Request) {
+export const GET = withApiHandler(async (req: Request) => {
   const ctx = await requirePermission(PERMISSIONS.sales_read);
   const url = new URL(req.url);
   const parsed = SalesReportQuerySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
@@ -66,4 +67,4 @@ export async function GET(req: Request) {
       "content-disposition": `attachment; filename="sales-${range.label.replaceAll(" ", "_").toLowerCase()}.csv"`,
     },
   });
-}
+});

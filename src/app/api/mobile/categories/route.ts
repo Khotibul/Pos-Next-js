@@ -11,6 +11,7 @@ export const GET = withApiHandler(async (req: Request) => {
   const categories = await prisma.productCategory.findMany({
     where: { tenantId: ctx.tenantId },
     orderBy: { name: "asc" },
+    take: 5000,
   });
 
   return apiOk(

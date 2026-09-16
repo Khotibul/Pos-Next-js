@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS } from "@/lib/permissions-keys";
 import { requirePermission } from "@/lib/permissions";
+import { withApiHandler } from "@/lib/api-response";
 import { getPrinterSettings } from "@/modules/settings/printer/service";
 import { getCachedReceiptData, cacheReceiptData } from "@/lib/transaction-cache";
 
@@ -10,7 +11,7 @@ function toNumber(value: unknown) {
   return Number.isFinite(num) ? num : 0;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string }> }) {
+export const GET = withApiHandler(async (_req: Request, ctx: { params: Promise<{ saleId: string }> }) => {
   const authCtx = await requirePermission(PERMISSIONS.sales_read);
   const p = await ctx.params;
 
@@ -74,4 +75,4 @@ export async function GET(_req: Request, ctx: { params: Promise<{ saleId: string
   void cacheReceiptData(p.saleId, authCtx.tenantId, receiptData);
 
   return NextResponse.json({ ok: true, data: receiptData });
-}
+});

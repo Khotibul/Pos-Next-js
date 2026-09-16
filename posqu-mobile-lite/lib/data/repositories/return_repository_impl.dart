@@ -63,37 +63,39 @@ class ReturnRepositoryImpl implements ReturnRepository {
   Future<Either<Failure, Return>> createReturn(Return returnData) async {
     try {
       final returnId = returnData.id.isEmpty ? const Uuid().v4() : returnData.id;
-      final companion = ReturnsTableCompanion(
-        id: Value(returnId),
-        tenantId: Value(returnData.tenantId),
-        returnNumber: Value(returnData.returnNumber),
-        saleId: Value(returnData.saleId),
-        purchaseId: Value(returnData.purchaseId),
-        type: Value(returnData.type),
-        userId: Value(returnData.userId),
-        customerId: Value(returnData.customerId),
-        supplierId: Value(returnData.supplierId),
-        returnDate: Value(returnData.returnDate),
-        reason: Value(returnData.reason),
-        status: Value(returnData.status),
-        total: Value(returnData.total),
-        notes: Value(returnData.notes),
-        isSynced: const Value(false),
-      );
-      await database.returnDao.insertReturn(companion);
-      for (final item in returnData.items) {
-        await database.returnDao.insertReturnItem(
-          ReturnItemsTableCompanion(
-            id: Value(item.id.isEmpty ? const Uuid().v4() : item.id),
-            returnId: Value(returnId),
-            productId: Value(item.productId),
-            quantity: Value(item.quantity),
-            price: Value(item.price),
-            subtotal: Value(item.subtotal),
-            reason: Value(item.reason),
-          ),
+      await database.transaction(() async {
+        final companion = ReturnsTableCompanion(
+          id: Value(returnId),
+          tenantId: Value(returnData.tenantId),
+          returnNumber: Value(returnData.returnNumber),
+          saleId: Value(returnData.saleId),
+          purchaseId: Value(returnData.purchaseId),
+          type: Value(returnData.type),
+          userId: Value(returnData.userId),
+          customerId: Value(returnData.customerId),
+          supplierId: Value(returnData.supplierId),
+          returnDate: Value(returnData.returnDate),
+          reason: Value(returnData.reason),
+          status: Value(returnData.status),
+          total: Value(returnData.total),
+          notes: Value(returnData.notes),
+          isSynced: const Value(false),
         );
-      }
+        await database.returnDao.insertReturn(companion);
+        for (final item in returnData.items) {
+          await database.returnDao.insertReturnItem(
+            ReturnItemsTableCompanion(
+              id: Value(item.id.isEmpty ? const Uuid().v4() : item.id),
+              returnId: Value(returnId),
+              productId: Value(item.productId),
+              quantity: Value(item.quantity),
+              price: Value(item.price),
+              subtotal: Value(item.subtotal),
+              reason: Value(item.reason),
+            ),
+          );
+        }
+      });
       return Right(returnData.copyWith(id: returnId));
     } catch (e) {
       return Left(DatabaseFailure(message: 'Gagal menyimpan retur: $e'));

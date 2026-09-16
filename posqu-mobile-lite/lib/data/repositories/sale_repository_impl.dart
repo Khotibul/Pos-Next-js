@@ -236,7 +236,7 @@ class SaleRepositoryImpl implements SaleRepository {
           }
           await database.paymentDao.upsertPayment(
             PaymentsTableCompanion(
-              id: Value(const Uuid().v4()),
+              id: Value('pay-${model.id}'),
               saleId: Value(model.id),
               method: Value(model.paymentMethod),
               amount: Value(model.total),

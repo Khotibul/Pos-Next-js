@@ -17,6 +17,7 @@ export const GET = withApiHandler(async (req: Request) => {
       ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { phone: { contains: search } }] } : {}),
     },
     orderBy: { name: "asc" },
+    take: 5000,
   });
 
   return apiOk(
