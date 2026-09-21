@@ -39,7 +39,7 @@ jobs:
             test -f "$f" || { echo "ERROR: $f tidak ditemukan."; exit 1; }
           done
 
-          grep -q '"output".*"standalone"' next.config.mjs \
+          grep -q 'output.*"standalone"' next.config.mjs \
             || { echo "ERROR: next.config.mjs harus output: standalone."; exit 1; }
 
           echo "Repository OK."
