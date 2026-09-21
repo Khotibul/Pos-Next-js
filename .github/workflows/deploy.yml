@@ -102,7 +102,7 @@ jobs:
           test -n "$SERVER_JS" \
             || { echo "ERROR: server.js tidak ditemukan."; exit 1; }
 
-          echo "Standalone build OK: $SERVER_JS"
+          echo "Standalone build OK."
 
       # ==========================================================
       # PACKAGE FOR CPANEL
@@ -118,57 +118,35 @@ jobs:
           SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
           SERVER_DIR=$(dirname "$SERVER_JS")
 
-          # Copy standalone app (server.js, .next/, node_modules/)
           cp -a "$SERVER_DIR"/. cpanel-package/
 
-          # Copy public assets
           if [ -d public ]; then
             mkdir -p cpanel-package/public
             cp -a public/. cpanel-package/public/
           fi
 
-          # Copy .next/static for client assets
           if [ -d .next/static ]; then
             mkdir -p cpanel-package/.next
             cp -a .next/static cpanel-package/.next/
           fi
 
-          # CRITICAL: package.json for npm install on server
           cp package.json cpanel-package/package.json
-
-          # Copy package-lock.json for deterministic installs
           cp package-lock.json cpanel-package/package-lock.json
 
-          # Copy Prisma schema (needed for migrate deploy on server)
           mkdir -p cpanel-package/src/prisma
           cp "$PRISMA_SCHEMA" cpanel-package/src/prisma/schema.prisma
 
-          # Copy migrations (needed for migrate deploy)
           if [ -d src/prisma/migrations ]; then
             cp -a src/prisma/migrations cpanel-package/src/prisma/migrations
           fi
 
-          # NEVER ship .env files
           rm -f cpanel-package/.env cpanel-package/.env.* cpanel-package/.env.local
 
-          echo ""
-          echo "=== Critical files check ==="
-          test -f cpanel-package/server.js \
-            || { echo "ERROR: server.js missing in package."; exit 1; }
-          test -f cpanel-package/package.json \
-            || { echo "ERROR: package.json missing in package."; exit 1; }
-          test -f cpanel-package/package-lock.json \
-            || { echo "ERROR: package-lock.json missing in package."; exit 1; }
-          test -d cpanel-package/node_modules \
-            || { echo "ERROR: node_modules/ missing in package."; exit 1; }
-          test -d cpanel-package/.next \
-            || { echo "ERROR: .next/ missing in package."; exit 1; }
+          test -f cpanel-package/server.js     || { echo "ERROR: server.js missing."; exit 1; }
+          test -f cpanel-package/package.json  || { echo "ERROR: package.json missing."; exit 1; }
+          test -d cpanel-package/node_modules  || { echo "ERROR: node_modules/ missing."; exit 1; }
+          test -d cpanel-package/.next         || { echo "ERROR: .next/ missing."; exit 1; }
 
-          echo ""
-          echo "=== Migrations in package ==="
-          find cpanel-package/src/prisma/migrations -type f 2>/dev/null || echo "(none)"
-
-          echo ""
           echo "Package OK."
 
       - name: Upload artifact
@@ -186,16 +164,16 @@ jobs:
         run: |
           set -e
 
-          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: CPANEL_HOST secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: CPANEL_USER secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: CPANEL_SSH_PORT secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: CPANEL_SSH_KEY_B64 secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: CPANEL_APP_DIR secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: Set CPANEL_HOST secret (e.g. posqupro.co-id.id)."; exit 1; }
+          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: Set CPANEL_USER secret (cPanel username)."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: Set CPANEL_SSH_PORT secret (e.g. 22)."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: Set CPANEL_SSH_KEY_B64 secret (base64-encoded SSH private key)."; exit 1; }
+          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: Set CPANEL_APP_DIR secret (e.g. /home/user/app)."; exit 1; }
 
           echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
-            || { echo "ERROR: CPANEL_SSH_PORT harus angka."; exit 1; }
+            || { echo "ERROR: CPANEL_SSH_PORT must be a number, got: ${{ secrets.CPANEL_SSH_PORT }}"; exit 1; }
 
-          echo "All secrets OK."
+          echo "All secrets validated."
 
       # ==========================================================
       # SETUP SSH
@@ -208,40 +186,30 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Decode SSH key
-          echo "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_ed25519 || {
-            echo "ERROR: Failed to decode SSH key (invalid base64)"
+          printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_ed25519 || {
+            echo "ERROR: Failed to base64-decode CPANEL_SSH_KEY_B64."
+            echo "Fix: Generate a new key with: ssh-keygen -t ed25519 -N '' -f deploy_key"
+            echo "Then: cat deploy_key | base64"
             exit 1
           }
           chmod 600 ~/.ssh/id_ed25519
 
-          # Verify key is valid
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2>/dev/null || {
-            echo "ERROR: Decoded key is not a valid SSH private key"
-            echo "Key file size: $(wc -c < ~/.ssh/id_ed25519) bytes"
-            head -1 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1 || {
+            echo "ERROR: Decoded file is not a valid SSH private key."
+            echo "File size: $(wc -c < ~/.ssh/id_ed25519) bytes"
+            echo "Fix: Ensure CPANEL_SSH_KEY_B64 contains base64 of a PRIVATE key (not public key)."
+            echo "Command: cat deploy_key | base64   (where deploy_key is the private key file)"
             exit 1
           }
-          echo "SSH key type: $(head -1 ~/.ssh/id_ed25519 | cut -d' ' -f1)"
 
-          # Add host key (ssh-keyscan may partially fail — don't let it kill the step)
-          ssh-keyscan \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
-            "${{ secrets.CPANEL_HOST }}" \
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          # Verify at least one host key was found
-          if [ ! -s ~/.ssh/known_hosts ]; then
-            echo "WARNING: ssh-keyscan returned no host keys"
-            echo "Trying ssh with StrictHostKeyChecking=no as fallback"
-          fi
-
           chmod 644 ~/.ssh/known_hosts
-          echo "SSH ready."
+          echo "SSH key loaded."
 
       - name: Test SSH connection
         run: |
-          # Try with StrictHostKeyChecking first, fallback to accept-new
           ssh \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
@@ -250,9 +218,22 @@ jobs:
             -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
-            "echo 'SSH connection OK. Hostname: '$(hostname)" \
+            "echo 'SSH OK: '$(hostname)" \
           || {
-            echo "ERROR: SSH connection failed. Check CPANEL_SSH_KEY_B64, CPANEL_HOST, CPANEL_SSH_PORT secrets."
+            echo ""
+            echo "============================================="
+            echo "SSH CONNECTION FAILED"
+            echo "============================================="
+            echo "Host:     ${{ secrets.CPANEL_HOST }}"
+            echo "Port:     ${{ secrets.CPANEL_SSH_PORT }}"
+            echo "User:     ${{ secrets.CPANEL_USER }}"
+            echo ""
+            echo "Common fixes:"
+            echo "1. CPANEL_SSH_PORT must be 22 (not 2222)"
+            echo "2. SSH key must be ed25519 private key (not public)"
+            echo "3. Key must NOT be password-protected"
+            echo "4. Add deploy key to cPanel: SSH Access > Manage SSH Keys"
+            echo "============================================="
             exit 1
           }
 
@@ -267,19 +248,18 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
-
               APP='${{ secrets.CPANEL_APP_DIR }}'
               BACKUP=\"/home/${{ secrets.CPANEL_USER }}/backups/posqupro-\$(date +%Y%m%d-%H%M%S)\"
-
               if [ -d \"\$APP/.next\" ]; then
                 mkdir -p \"\$BACKUP\"
-                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null
-                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null
-                cp -a \"\$APP\"/package.json \"\$BACKUP\"/ 2>/dev/null
+                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null || true
+                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null || true
+                cp -a \"\$APP\"/package.json \"\$BACKUP\"/ 2>/dev/null || true
                 echo \"Backup: \$BACKUP\"
               else
                 echo 'No previous deployment to backup.'
@@ -302,6 +282,7 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             cpanel-package.tar.gz \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}:/tmp/cpanel-package.tar.gz"
@@ -313,29 +294,26 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
-
               APP='${{ secrets.CPANEL_APP_DIR }}'
 
               echo '=== Extracting package ==='
-
               rm -rf /tmp/cpanel-extract
               mkdir -p /tmp/cpanel-extract
               cd /tmp/cpanel-extract
               tar xzf /tmp/cpanel-package.tar.gz
               cd cpanel-package
 
-              echo '=== Pre-deploy verification ==='
-              test -f server.js        || { echo 'ERROR: server.js missing in package'; exit 1; }
-              test -f package.json     || { echo 'ERROR: package.json missing in package'; exit 1; }
-              test -d node_modules     || { echo 'ERROR: node_modules/ missing in package'; exit 1; }
-              test -d .next            || { echo 'ERROR: .next/ missing in package'; exit 1; }
+              test -f server.js    || { echo 'ERROR: server.js missing in package'; exit 1; }
+              test -f package.json || { echo 'ERROR: package.json missing in package'; exit 1; }
+              test -d node_modules || { echo 'ERROR: node_modules/ missing in package'; exit 1; }
+              test -d .next        || { echo 'ERROR: .next/ missing in package'; exit 1; }
 
               echo '=== Syncing to app directory ==='
-
               rsync -a --delete \
                 --exclude='.env' \
                 --exclude='.env.*' \
@@ -343,18 +321,13 @@ jobs:
                 --exclude='tmp/' \
                 ./ \"\$APP/\"
 
-              echo '=== Post-sync verification ==='
-              test -f \"\$APP/server.js\"      || { echo 'ERROR: server.js missing after sync'; exit 1; }
-              test -f \"\$APP/package.json\"    || { echo 'ERROR: package.json missing after sync'; exit 1; }
-              test -d \"\$APP/node_modules\"    || { echo 'ERROR: node_modules/ missing after sync'; exit 1; }
-              test -f \"\$APP/.env\"            || { echo 'ERROR: .env missing after sync (was it excluded from rsync?)'; exit 1; }
+              test -f \"\$APP/server.js\"    || { echo 'ERROR: server.js missing after sync'; exit 1; }
+              test -f \"\$APP/package.json\"  || { echo 'ERROR: package.json missing after sync'; exit 1; }
+              test -d \"\$APP/node_modules\"  || { echo 'ERROR: node_modules/ missing after sync'; exit 1; }
+              test -f \"\$APP/.env\"          || { echo 'ERROR: .env missing after sync'; exit 1; }
 
-              # Ensure tmp directory exists for Passenger restart
               mkdir -p \"\$APP/tmp\"
-
-              # Cleanup
               rm -rf /tmp/cpanel-extract /tmp/cpanel-package.tar.gz
-
               echo 'Package deployed.'
             "
 
@@ -369,64 +342,32 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
-
               APP='${{ secrets.CPANEL_APP_DIR }}'
               NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
-
               cd \"\$APP\"
 
-              echo '=== Pre-install check ==='
-              test -f package.json || { echo 'ERROR: package.json not found in app dir'; exit 1; }
+              test -f package.json || { echo 'ERROR: package.json not found'; exit 1; }
 
-              echo ''
               echo '=== npm install --omit=dev ==='
               \"\$NPM\" install --omit=dev --no-audit --no-fund 2>&1
 
-              echo ''
-              echo '=== Verify node_modules ==='
-              test -d \"\$APP/node_modules/next\" \
-                || { echo 'ERROR: next package missing after npm install'; exit 1; }
-              test -d \"\$APP/node_modules/@prisma/client\" \
-                || { echo 'ERROR: @prisma/client missing after npm install'; exit 1; }
+              test -d \"\$APP/node_modules/next\"       || { echo 'ERROR: next missing'; exit 1; }
+              test -d \"\$APP/node_modules/@prisma/client\" || { echo 'ERROR: @prisma/client missing'; exit 1; }
 
-              echo ''
               echo '=== prisma generate ==='
               \"\$NPM\" exec --yes -- prisma generate --schema src/prisma/schema.prisma 2>&1
 
-              echo ''
-              echo '=== Verify Prisma client ==='
-              test -d \"\$APP/node_modules/.prisma/client\" \
-                || { echo 'ERROR: .prisma/client missing after prisma generate'; exit 1; }
+              test -d \"\$APP/node_modules/.prisma/client\" || { echo 'ERROR: .prisma/client missing'; exit 1; }
+              test -f \"\$APP/.env\" || { echo 'ERROR: .env missing'; exit 1; }
 
-              echo ''
-              echo '=== Verify .env exists ==='
-              test -f \"\$APP/.env\" \
-                || { echo 'ERROR: .env file missing from app directory'; exit 1; }
+              grep -q '^NODE_ENV=' \"\$APP/.env\" || echo 'NODE_ENV=production' >> \"\$APP/.env\"
+              grep -q '^HOSTNAME=' \"\$APP/.env\" || echo 'HOSTNAME=0.0.0.0' >> \"\$APP/.env\"
 
-              echo ''
-              echo '=== Ensure critical env vars in .env ==='
-              grep -q '^NODE_ENV=' \"\$APP/.env\" \
-                || echo 'NODE_ENV=production' >> \"\$APP/.env\"
-              grep -q '^HOSTNAME=' \"\$APP/.env\" \
-                || echo 'HOSTNAME=0.0.0.0' >> \"\$APP/.env\"
-              echo 'env vars OK.'
-
-              echo ''
-              echo '=== Verify runtime structure ==='
-              echo 'server.js:' \$(test -f \"\$APP/server.js\" && echo 'OK' || echo 'MISSING')
-              echo 'package.json:' \$(test -f \"\$APP/package.json\" && echo 'OK' || echo 'MISSING')
-              echo '.next/server:' \$(test -d \"\$APP/.next/server\" && echo 'OK' || echo 'MISSING')
-              echo '.next/static:' \$(test -d \"\$APP/.next/static\" && echo 'OK' || echo 'MISSING')
-              echo 'public:' \$(test -d \"\$APP/public\" && echo 'OK' || echo 'MISSING')
-              echo 'node_modules/next:' \$(test -d \"\$APP/node_modules/next\" && echo 'OK' || echo 'MISSING')
-              echo 'node_modules/@prisma/client:' \$(test -d \"\$APP/node_modules/@prisma/client\" && echo 'OK' || echo 'MISSING')
-              echo 'node_modules/.prisma/client:' \$(test -d \"\$APP/node_modules/.prisma/client\" && echo 'OK' || echo 'MISSING')
-
-              echo ''
               echo 'Production deps + Prisma OK.'
             "
 
@@ -441,15 +382,14 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
-
               APP='${{ secrets.CPANEL_APP_DIR }}'
               NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
 
-              # Load DATABASE_URL + DIRECT_URL from server .env
               if [ -f \"\$APP/.env\" ]; then
                 export \$(grep -E '^(DATABASE_URL|DIRECT_URL)=' \"\$APP/.env\" | xargs)
               fi
@@ -462,7 +402,6 @@ jobs:
               cd \"\$APP\"
 
               echo '=== Baseline: create _prisma_migrations table ==='
-
               \"\$NPM\" exec --yes -- prisma db execute \
                 --schema src/prisma/schema.prisma \
                 --stdin \
@@ -480,7 +419,6 @@ jobs:
 
               echo ''
               echo '=== Baseline: mark existing migrations as applied ==='
-
               EXISTING_MIGRATIONS='
               20260520233403_init
               20260521103000_add_license_keys
@@ -505,7 +443,6 @@ jobs:
 
               echo ''
               echo '=== Deploy pending migrations ==='
-
               \"\$NPM\" exec --yes -- prisma migrate deploy \
                 --schema src/prisma/schema.prisma 2>&1
 
@@ -520,15 +457,14 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
-
               APP='${{ secrets.CPANEL_APP_DIR }}'
               NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
 
-              # Load DATABASE_URL from server .env
               if [ -f \"\$APP/.env\" ]; then
                 export \$(grep -E '^(DATABASE_URL|DIRECT_URL)=' \"\$APP/.env\" | xargs)
               fi
@@ -547,7 +483,6 @@ jobs:
               END
               \\\$\\\$;\"
 
-              echo ''
               echo '=== Verifying tables ==='
               for table in Receivable ReceivablePayment Payable PayablePayment; do
                 \"\$NPM\" exec --yes -- prisma db execute \
@@ -563,7 +498,6 @@ jobs:
                 echo \"  \$table OK\"
               done
 
-              echo ''
               echo '=== All verifications passed ==='
             "
 
@@ -578,18 +512,14 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
               set -e
               APP='${{ secrets.CPANEL_APP_DIR }}'
-
-              # Ensure tmp dir exists
               mkdir -p \"\$APP/tmp\"
-
-              # Passenger restart
               touch \"\$APP/tmp/restart.txt\"
-
               echo 'Passenger restart triggered.'
             "
 
@@ -629,7 +559,6 @@ jobs:
 
           echo ""
           echo "ERROR: Server did not become healthy after \$MAX_ATTEMPTS attempts."
-          echo "Check server logs manually."
           exit 1
 
       # ==========================================================
@@ -641,10 +570,6 @@ jobs:
           echo "========================================="
           echo "  DEPLOY COMPLETE"
           echo "========================================="
-          echo ""
-          echo "  App:    ${{ secrets.CPANEL_HOST }}"
-          echo "  Dir:    ${{ secrets.CPANEL_APP_DIR }}"
           echo "  Branch: ${{ github.ref_name }}"
           echo "  Commit: ${{ github.sha }}"
-          echo ""
           echo "========================================="
