@@ -186,6 +186,26 @@ jobs:
           retention-days: 3
 
       # ==========================================================
+      # VALIDATE SECRETS (BEFORE migration + deploy)
+      # ==========================================================
+
+      - name: Validate required secrets
+        run: |
+          set -e
+
+          test -n "${{ secrets.CPANEL_HOST }}"            || { echo "ERROR: CPANEL_HOST secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_USER }}"             || { echo "ERROR: CPANEL_USER secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_PORT }}"         || { echo "ERROR: CPANEL_SSH_PORT secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}"      || { echo "ERROR: CPANEL_SSH_KEY_B64 secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_APP_DIR }}"          || { echo "ERROR: CPANEL_APP_DIR secret belum di-set."; exit 1; }
+          test -n "${{ secrets.PRODUCTION_DATABASE_URL }}" || { echo "ERROR: PRODUCTION_DATABASE_URL secret belum di-set. Buat di GitHub > Settings > Secrets > Actions."; exit 1; }
+
+          echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
+            || { echo "ERROR: CPANEL_SSH_PORT harus angka."; exit 1; }
+
+          echo "All secrets OK."
+
+      # ==========================================================
       # DATABASE MIGRATION (BEFORE deployment — fail fast)
       # ==========================================================
 
@@ -285,25 +305,6 @@ jobs:
 
           echo ""
           echo "=== All verifications passed ==="
-
-      # ==========================================================
-      # VALIDATE SECRETS
-      # ==========================================================
-
-      - name: Validate required secrets
-        run: |
-          set -e
-
-          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: CPANEL_HOST secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: CPANEL_USER secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: CPANEL_SSH_PORT secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: CPANEL_SSH_KEY_B64 secret belum di-set."; exit 1; }
-          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: CPANEL_APP_DIR secret belum di-set."; exit 1; }
-
-          echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
-            || { echo "ERROR: CPANEL_SSH_PORT harus angka."; exit 1; }
-
-          echo "All secrets OK."
 
       # ==========================================================
       # SETUP SSH
