@@ -69,6 +69,8 @@ jobs:
         run: npm ci --include=dev
 
       - name: Generate Prisma Client (build-time)
+        env:
+          DIRECT_URL: "postgresql://build:build@127.0.0.1:5432/build"
         run: npx prisma generate --schema "$PRISMA_SCHEMA"
 
       - name: Verify Prisma engine binaries
@@ -190,6 +192,7 @@ jobs:
       - name: Run database migration
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           set -e
 
@@ -248,6 +251,7 @@ jobs:
       - name: Verify migration results
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: |
           set -e
 
