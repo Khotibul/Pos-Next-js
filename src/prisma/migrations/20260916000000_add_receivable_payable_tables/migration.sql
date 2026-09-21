@@ -1,6 +1,3 @@
--- Migration: Add Receivable, ReceivablePayment, Payable, PayablePayment tables
--- These tables were added to Prisma schema but never pushed to PostgreSQL
-
 -- CreateEnum
 CREATE TYPE "DebtStatus" AS ENUM ('UNPAID', 'PARTIAL', 'PAID', 'OVERDUE');
 

@@ -1,0 +1,556 @@
+name: Deploy to cPanel
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: posqupro-production
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  PRISMA_SCHEMA: "src/prisma/schema.prisma"
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ==========================================================
+      # VALIDATE REPOSITORY
+      # ==========================================================
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repository structure
+        run: |
+          set -e
+
+          for f in package.json package-lock.json next.config.mjs "$PRISMA_SCHEMA"; do
+            test -f "$f" || { echo "ERROR: $f tidak ditemukan."; exit 1; }
+          done
+
+          grep -q '"output".*"standalone"' next.config.mjs \
+            || { echo "ERROR: next.config.mjs harus output: standalone."; exit 1; }
+
+          echo "Repository OK."
+
+      - name: Validate Prisma binary targets
+        run: |
+          set -e
+
+          for target in "debian-openssl-1.0.x" "debian-openssl-1.1.x" "debian-openssl-3.0.x"; do
+            grep -q "$target" "$PRISMA_SCHEMA" \
+              || { echo "ERROR: binary target $target tidak ada di schema."; exit 1; }
+          done
+
+          echo "Prisma binary targets OK."
+
+      # ==========================================================
+      # SETUP NODE + INSTALL + GENERATE + BUILD
+      # ==========================================================
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Generate Prisma Client (build-time)
+        run: npx prisma generate --schema "$PRISMA_SCHEMA"
+
+      - name: Verify Prisma engine binaries
+        run: |
+          set -e
+
+          for target in "debian-openssl-1.0.x" "debian-openssl-1.1.x" "debian-openssl-3.0.x"; do
+            test -d "node_modules/.prisma/client" \
+              || { echo "ERROR: .prisma/client tidak ada."; exit 1; }
+          done
+
+          echo "Prisma engine binaries OK."
+
+      - name: Build Next.js
+        env:
+          DATABASE_URL: "postgresql://build:build@127.0.0.1:5432/build"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: Verify standalone build
+        run: |
+          set -e
+
+          test -d .next/standalone \
+            || { echo "ERROR: .next/standalone tidak ada."; exit 1; }
+
+          SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
+          test -n "$SERVER_JS" \
+            || { echo "ERROR: server.js tidak ditemukan."; exit 1; }
+
+          echo "Standalone build OK: $SERVER_JS"
+
+      # ==========================================================
+      # PACKAGE FOR CPANEL
+      # ==========================================================
+
+      - name: Package for cPanel
+        run: |
+          set -e
+
+          rm -rf cpanel-package
+          mkdir -p cpanel-package
+
+          SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
+          SERVER_DIR=$(dirname "$SERVER_JS")
+
+          # Copy standalone app
+          cp -a "$SERVER_DIR"/. cpanel-package/
+
+          # Copy public assets
+          if [ -d public ]; then
+            mkdir -p cpanel-package/public
+            cp -a public/. cpanel-package/public/
+          fi
+
+          # Copy .next/static for client assets
+          if [ -d .next/static ]; then
+            mkdir -p cpanel-package/.next
+            cp -a .next/static cpanel-package/.next/
+          fi
+
+          # Copy Prisma schema (needed for migrate deploy)
+          mkdir -p cpanel-package/src/prisma
+          cp "$PRISMA_SCHEMA" cpanel-package/src/prisma/schema.prisma
+
+          # Copy migrations (needed for migrate deploy)
+          if [ -d src/prisma/migrations ]; then
+            cp -a src/prisma/migrations cpanel-package/src/prisma/migrations
+          fi
+
+          # Remove node_modules (server uses CloudLinux nodevenv)
+          rm -rf cpanel-package/node_modules
+
+          # Never ship .env files
+          rm -f cpanel-package/.env cpanel-package/.env.* cpanel-package/.env.local
+
+          echo ""
+          echo "=== Package contents ==="
+          find cpanel-package -maxdepth 3 -type f | sort | head -60
+
+          echo ""
+          echo "=== Migrations in package ==="
+          find cpanel-package/src/prisma/migrations -type f 2>/dev/null || echo "(none)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: posqupro-deploy
+          path: cpanel-package/
+          retention-days: 3
+
+      # ==========================================================
+      # VALIDATE SECRETS
+      # ==========================================================
+
+      - name: Validate required secrets
+        run: |
+          set -e
+
+          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: CPANEL_HOST secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: CPANEL_USER secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: CPANEL_SSH_PORT secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: CPANEL_SSH_KEY_B64 secret belum di-set."; exit 1; }
+          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: CPANEL_APP_DIR secret belum di-set."; exit 1; }
+          test -n "${{ secrets.PRODUCTION_DATABASE_URL }}" || { echo "ERROR: PRODUCTION_DATABASE_URL secret belum di-set."; exit 1; }
+
+          # Validate port is numeric
+          echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
+            || { echo "ERROR: CPANEL_SSH_PORT harus angka."; exit 1; }
+
+          echo "All secrets OK."
+
+      # ==========================================================
+      # SETUP SSH
+      # ==========================================================
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY_B64: ${{ secrets.CPANEL_SSH_KEY_B64 }}
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s' "$SSH_PRIVATE_KEY_B64" \
+            | base64 --decode \
+            > ~/.ssh/id_ed25519
+
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+
+          ssh-keyscan \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_HOST }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null
+
+          chmod 644 ~/.ssh/known_hosts
+
+          echo "SSH ready."
+
+      - name: Test SSH connection
+        run: |
+          ssh \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
+            "echo 'SSH connection OK. Hostname: '$(hostname)"
+
+      # ==========================================================
+      # BACKUP CURRENT DEPLOYMENT
+      # ==========================================================
+
+      - name: Backup current deployment
+        run: |
+          ssh \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
+            "
+              set -e
+
+              APP='${{ secrets.CPANEL_APP_DIR }}'
+              BACKUP=\"/home/${{ secrets.CPANEL_USER }}/backups/posqupro-\$(date +%Y%m%d-%H%M%S)\"
+
+              if [ -d \"\$APP/.next\" ]; then
+                mkdir -p \"\$BACKUP\"
+                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null || true
+                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null || true
+                echo \"Backup: \$BACKUP\"
+              else
+                echo 'No previous deployment to backup.'
+              fi
+            "
+
+      # ==========================================================
+      # DEPLOY PACKAGE TO CPANEL
+      # ==========================================================
+
+      - name: Deploy to cPanel
+        run: |
+          set -e
+
+          tar czf cpanel-package.tar.gz cpanel-package/
+
+          scp \
+            -p \
+            -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            cpanel-package.tar.gz \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}:/tmp/cpanel-package.tar.gz"
+
+          echo "Package uploaded."
+
+          ssh \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
+            "
+              set -e
+
+              APP='${{ secrets.CPANEL_APP_DIR }}'
+
+              echo '=== Extracting package ==='
+
+              # Extract to temp dir, then move
+              rm -rf /tmp/cpanel-extract
+              mkdir -p /tmp/cpanel-extract
+              cd /tmp/cpanel-extract
+              tar xzf /tmp/cpanel-package.tar.gz
+              cd cpanel-package
+
+              # Stop Passenger (touch restart after deploy)
+              # Passenger auto-restarts when files change
+
+              # Replace app files (keep .env and tmp/)
+              rsync -a --delete \
+                --exclude='.env' \
+                --exclude='.env.*' \
+                --exclude='.env.local' \
+                --exclude='tmp/' \
+                ./ \"\$APP/\"
+
+              # Ensure node_modules symlink exists
+              EXPECTED=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/lib/node_modules\"
+
+              if [ -L \"\$APP/node_modules\" ]; then
+                CURRENT_TARGET=\$(readlink \"\$APP/node_modules\")
+                if [ \"\$CURRENT_TARGET\" != \"\$EXPECTED\" ]; then
+                  rm -f \"\$APP/node_modules\"
+                  ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
+                fi
+              elif [ -e \"\$APP/node_modules\" ]; then
+                rm -rf \"\$APP/node_modules\"
+                ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
+              else
+                ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
+              fi
+
+              # Ensure tmp directory exists
+              mkdir -p \"\$APP/tmp\"
+
+              # Cleanup
+              rm -rf /tmp/cpanel-extract /tmp/cpanel-package.tar.gz
+
+              echo 'Package deployed.'
+            "
+
+      # ==========================================================
+      # INSTALL PRODUCTION DEPS + GENERATE PRISMA ON SERVER
+      # ==========================================================
+
+      - name: Install production deps on server
+        run: |
+          ssh \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
+            "
+              set -e
+
+              APP='${{ secrets.CPANEL_APP_DIR }}'
+              NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
+
+              cd \"\$APP\"
+
+              echo '=== npm install --omit=dev ==='
+              \"\$NPM\" install --omit=dev --no-audit --no-fund 2>&1
+
+              echo ''
+              echo '=== prisma generate ==='
+              \"\$NPM\" exec -- prisma generate --schema src/prisma/schema.prisma 2>&1
+
+              # Verify
+              test -d \"\$APP/node_modules/@prisma/client\"  || { echo 'ERROR: @prisma/client missing.'; exit 1; }
+              test -d \"\$APP/node_modules/.prisma/client\"  || { echo 'ERROR: .prisma/client missing.'; exit 1; }
+
+              echo ''
+              echo 'Production deps + Prisma OK.'
+            "
+
+      # ==========================================================
+      # DATABASE MIGRATION (via GitHub Actions, not cPanel)
+      # ==========================================================
+
+      - name: Run database migration
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          set -e
+
+          echo "=== Baseline: create _prisma_migrations table ==="
+
+          # Create _prisma_migrations table (idempotent)
+          npx prisma db execute \
+            --schema "$PRISMA_SCHEMA" \
+            --stdin \
+            <<< 'CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+              "id"                      TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+              "checksum"                TEXT NOT NULL,
+              "finished_at"             TIMESTAMP(3),
+              "migration_name"          TEXT NOT NULL,
+              "logs"                    TEXT,
+              "rolled_back_at"          TIMESTAMP(3),
+              "started_at"              TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "applied_steps_count"     INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY ("id")
+            );'
+
+          echo ""
+          echo "=== Baseline: mark existing migrations as applied ==="
+
+          # All 12 existing migrations that were never tracked in production.
+          # These MUST match the directory names in src/prisma/migrations/ exactly.
+          EXISTING_MIGRATIONS=(
+            "20260520233403_init"
+            "20260521103000_add_license_keys"
+            "20260524090000_shiftbook_qrcode"
+            "20260527034016"
+            "20260527104155"
+            "20260527145038"
+            "20260530090000_monitoring_logs"
+            "20260612090000_user_email_lower_index"
+            "20260706090000_add_audit_log_tenant_created_idx"
+            "20260707090000_add_pg_trgm_search_indexes"
+            "20260820000000_sync_schema_drift"
+            "20260823000000_pos_performance_indexes"
+          )
+
+          for migration in "${EXISTING_MIGRATIONS[@]}"; do
+            echo "  Resolving: $migration"
+            npx prisma migrate resolve \
+              --applied "$migration" \
+              --schema "$PRISMA_SCHEMA" 2>&1 || {
+                echo "  WARNING: resolve failed for $migration (may already be resolved)"
+              }
+          done
+
+          echo ""
+          echo "=== Deploy pending migrations ==="
+
+          npx prisma migrate deploy \
+            --schema "$PRISMA_SCHEMA" 2>&1
+
+          echo ""
+          echo "=== Migration complete ==="
+
+      # ==========================================================
+      # VERIFY MIGRATION
+      # ==========================================================
+
+      - name: Verify migration results
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          set -e
+
+          echo "=== Verifying DebtStatus enum ==="
+          npx prisma db execute \
+            --schema "$PRISMA_SCHEMA" \
+            --stdin \
+            <<< "DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DebtStatus') THEN
+              RAISE EXCEPTION 'DebtStatus enum not found';
+            END IF;
+          END
+          \$\$;" 2>&1
+
+          echo ""
+          echo "=== Verifying tables ==="
+          for table in Receivable ReceivablePayment Payable PayablePayment; do
+            npx prisma db execute \
+              --schema "$PRISMA_SCHEMA" \
+              --stdin \
+              <<< "DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '$table') THEN
+              RAISE EXCEPTION '$table table not found';
+            END IF;
+          END
+          \$\$;" 2>&1
+            echo "  $table OK"
+          done
+
+          echo ""
+          echo "=== All verifications passed ==="
+
+      # ==========================================================
+      # RESTART PASSENGER
+      # ==========================================================
+
+      - name: Restart Passenger
+        run: |
+          ssh \
+            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/id_ed25519 \
+            "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
+            "
+              set -e
+              APP='${{ secrets.CPANEL_APP_DIR }}'
+
+              # Ensure tmp dir exists
+              mkdir -p \"\$APP/tmp\"
+
+              # Passenger restart
+              touch \"\$APP/tmp/restart.txt\"
+
+              echo 'Passenger restart triggered.'
+            "
+
+      # ==========================================================
+      # HEALTH CHECK
+      # ==========================================================
+
+      - name: Wait for server ready
+        run: sleep 10
+
+      - name: Health check
+        run: |
+          set -e
+
+          MAX_ATTEMPTS=12
+          ATTEMPT=1
+
+          while [ \$ATTEMPT -le \$MAX_ATTEMPTS ]; do
+            echo "Attempt \$ATTEMPT/\$MAX_ATTEMPTS..."
+
+            HTTP_CODE=\$(curl -s -o /dev/null -w '%{http_code}' \
+              --connect-timeout 5 \
+              --max-time 10 \
+              "https://${{ secrets.CPANEL_HOST }}/" 2>/dev/null || echo "000")
+
+            echo "  HTTP \$HTTP_CODE"
+
+            if [ "\$HTTP_CODE" = "200" ] || [ "\$HTTP_CODE" = "301" ] || [ "\$HTTP_CODE" = "302" ]; then
+              echo ""
+              echo "=== Server is healthy (HTTP \$HTTP_CODE) ==="
+              exit 0
+            fi
+
+            ATTEMPT=\$((ATTEMPT + 1))
+            sleep 10
+          done
+
+          echo ""
+          echo "ERROR: Server did not become healthy after \$MAX_ATTEMPTS attempts."
+          echo "Check server logs manually."
+          exit 1
+
+      # ==========================================================
+      # DONE
+      # ==========================================================
+
+      - name: Deploy summary
+        run: |
+          echo "========================================="
+          echo "  DEPLOY COMPLETE"
+          echo "========================================="
+          echo ""
+          echo "  App:    ${{ secrets.CPANEL_HOST }}"
+          echo "  Dir:    ${{ secrets.CPANEL_APP_DIR }}"
+          echo "  Branch: ${{ github.ref_name }}"
+          echo "  Commit: ${{ github.sha }}"
+          echo ""
+          echo "========================================="
