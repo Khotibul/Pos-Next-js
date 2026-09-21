@@ -115,7 +115,7 @@ jobs:
           SERVER_JS=$(find .next/standalone -type f -name "server.js" | head -n 1)
           SERVER_DIR=$(dirname "$SERVER_JS")
 
-          # Copy standalone app
+          # Copy standalone app (server.js, .next/, node_modules/)
           cp -a "$SERVER_DIR"/. cpanel-package/
 
           # Copy public assets
@@ -130,7 +130,13 @@ jobs:
             cp -a .next/static cpanel-package/.next/
           fi
 
-          # Copy Prisma schema (needed for migrate deploy)
+          # CRITICAL: package.json for npm install on server
+          cp package.json cpanel-package/package.json
+
+          # Copy package-lock.json for deterministic installs
+          cp package-lock.json cpanel-package/package-lock.json
+
+          # Copy Prisma schema (needed for migrate deploy on server)
           mkdir -p cpanel-package/src/prisma
           cp "$PRISMA_SCHEMA" cpanel-package/src/prisma/schema.prisma
 
@@ -139,19 +145,36 @@ jobs:
             cp -a src/prisma/migrations cpanel-package/src/prisma/migrations
           fi
 
-          # Remove node_modules (server uses CloudLinux nodevenv)
-          rm -rf cpanel-package/node_modules
-
-          # Never ship .env files
+          # NEVER ship .env files
           rm -f cpanel-package/.env cpanel-package/.env.* cpanel-package/.env.local
 
+          # =====================================================
+          # VERIFY PACKAGE BEFORE UPLOAD
+          # =====================================================
+
           echo ""
-          echo "=== Package contents ==="
-          find cpanel-package -maxdepth 3 -type f | sort | head -60
+          echo "=== Package structure ==="
+          find cpanel-package -maxdepth 3 -type f | sort | head -80
+
+          echo ""
+          echo "=== Critical files check ==="
+          test -f cpanel-package/server.js \
+            || { echo "ERROR: server.js missing in package."; exit 1; }
+          test -f cpanel-package/package.json \
+            || { echo "ERROR: package.json missing in package."; exit 1; }
+          test -f cpanel-package/package-lock.json \
+            || { echo "ERROR: package-lock.json missing in package."; exit 1; }
+          test -d cpanel-package/node_modules \
+            || { echo "ERROR: node_modules/ missing in package."; exit 1; }
+          test -d cpanel-package/.next \
+            || { echo "ERROR: .next/ missing in package."; exit 1; }
 
           echo ""
           echo "=== Migrations in package ==="
           find cpanel-package/src/prisma/migrations -type f 2>/dev/null || echo "(none)"
+
+          echo ""
+          echo "Package OK."
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -159,6 +182,105 @@ jobs:
           name: posqupro-deploy
           path: cpanel-package/
           retention-days: 3
+
+      # ==========================================================
+      # DATABASE MIGRATION (BEFORE deployment — fail fast)
+      # ==========================================================
+
+      - name: Run database migration
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          set -e
+
+          echo "=== Baseline: create _prisma_migrations table ==="
+
+          # Create _prisma_migrations table (idempotent)
+          npx prisma db execute \
+            --schema "$PRISMA_SCHEMA" \
+            --stdin \
+            <<< 'CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+              "id"                      TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+              "checksum"                TEXT NOT NULL,
+              "finished_at"             TIMESTAMP(3),
+              "migration_name"          TEXT NOT NULL,
+              "logs"                    TEXT,
+              "rolled_back_at"          TIMESTAMP(3),
+              "started_at"              TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "applied_steps_count"     INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY ("id")
+            );'
+
+          echo ""
+          echo "=== Baseline: mark existing migrations as applied ==="
+
+          EXISTING_MIGRATIONS=(
+            "20260520233403_init"
+            "20260521103000_add_license_keys"
+            "20260524090000_shiftbook_qrcode"
+            "20260527034016"
+            "20260527104155"
+            "20260527145038"
+            "20260530090000_monitoring_logs"
+            "20260612090000_user_email_lower_index"
+            "20260706090000_add_audit_log_tenant_created_idx"
+            "20260707090000_add_pg_trgm_search_indexes"
+            "20260820000000_sync_schema_drift"
+            "20260823000000_pos_performance_indexes"
+          )
+
+          for migration in "${EXISTING_MIGRATIONS[@]}"; do
+            echo "  Resolving: $migration"
+            npx prisma migrate resolve \
+              --applied "$migration" \
+              --schema "$PRISMA_SCHEMA"
+          done
+
+          echo ""
+          echo "=== Deploy pending migrations ==="
+
+          npx prisma migrate deploy \
+            --schema "$PRISMA_SCHEMA" 2>&1
+
+          echo ""
+          echo "=== Migration complete ==="
+
+      - name: Verify migration results
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          set -e
+
+          echo "=== Verifying DebtStatus enum ==="
+          npx prisma db execute \
+            --schema "$PRISMA_SCHEMA" \
+            --stdin \
+            <<< "DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DebtStatus') THEN
+              RAISE EXCEPTION 'DebtStatus enum not found';
+            END IF;
+          END
+          \$\$;"
+
+          echo ""
+          echo "=== Verifying tables ==="
+          for table in Receivable ReceivablePayment Payable PayablePayment; do
+            npx prisma db execute \
+              --schema "$PRISMA_SCHEMA" \
+              --stdin \
+              <<< "DO \$\$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '$table') THEN
+              RAISE EXCEPTION '$table table not found';
+            END IF;
+          END
+          \$\$;"
+            echo "  $table OK"
+          done
+
+          echo ""
+          echo "=== All verifications passed ==="
 
       # ==========================================================
       # VALIDATE SECRETS
@@ -173,9 +295,7 @@ jobs:
           test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: CPANEL_SSH_PORT secret belum di-set."; exit 1; }
           test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: CPANEL_SSH_KEY_B64 secret belum di-set."; exit 1; }
           test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: CPANEL_APP_DIR secret belum di-set."; exit 1; }
-          test -n "${{ secrets.PRODUCTION_DATABASE_URL }}" || { echo "ERROR: PRODUCTION_DATABASE_URL secret belum di-set."; exit 1; }
 
-          # Validate port is numeric
           echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
             || { echo "ERROR: CPANEL_SSH_PORT harus angka."; exit 1; }
 
@@ -243,8 +363,9 @@ jobs:
 
               if [ -d \"\$APP/.next\" ]; then
                 mkdir -p \"\$BACKUP\"
-                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null || true
-                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null || true
+                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null
+                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null
+                cp -a \"\$APP\"/package.json \"\$BACKUP\"/ 2>/dev/null
                 echo \"Backup: \$BACKUP\"
               else
                 echo 'No previous deployment to backup.'
@@ -287,17 +408,20 @@ jobs:
 
               echo '=== Extracting package ==='
 
-              # Extract to temp dir, then move
               rm -rf /tmp/cpanel-extract
               mkdir -p /tmp/cpanel-extract
               cd /tmp/cpanel-extract
               tar xzf /tmp/cpanel-package.tar.gz
               cd cpanel-package
 
-              # Stop Passenger (touch restart after deploy)
-              # Passenger auto-restarts when files change
+              echo '=== Pre-deploy verification ==='
+              test -f server.js        || { echo 'ERROR: server.js missing in package'; exit 1; }
+              test -f package.json     || { echo 'ERROR: package.json missing in package'; exit 1; }
+              test -d node_modules     || { echo 'ERROR: node_modules/ missing in package'; exit 1; }
+              test -d .next            || { echo 'ERROR: .next/ missing in package'; exit 1; }
 
-              # Replace app files (keep .env and tmp/)
+              echo '=== Syncing to app directory ==='
+
               rsync -a --delete \
                 --exclude='.env' \
                 --exclude='.env.*' \
@@ -305,23 +429,13 @@ jobs:
                 --exclude='tmp/' \
                 ./ \"\$APP/\"
 
-              # Ensure node_modules symlink exists
-              EXPECTED=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/lib/node_modules\"
+              echo '=== Post-sync verification ==='
+              test -f \"\$APP/server.js\"      || { echo 'ERROR: server.js missing after sync'; exit 1; }
+              test -f \"\$APP/package.json\"    || { echo 'ERROR: package.json missing after sync'; exit 1; }
+              test -d \"\$APP/node_modules\"    || { echo 'ERROR: node_modules/ missing after sync'; exit 1; }
+              test -f \"\$APP/.env\"            || { echo 'ERROR: .env missing after sync (was it excluded from rsync?)'; exit 1; }
 
-              if [ -L \"\$APP/node_modules\" ]; then
-                CURRENT_TARGET=\$(readlink \"\$APP/node_modules\")
-                if [ \"\$CURRENT_TARGET\" != \"\$EXPECTED\" ]; then
-                  rm -f \"\$APP/node_modules\"
-                  ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
-                fi
-              elif [ -e \"\$APP/node_modules\" ]; then
-                rm -rf \"\$APP/node_modules\"
-                ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
-              else
-                ln -s \"\$EXPECTED\" \"\$APP/node_modules\"
-              fi
-
-              # Ensure tmp directory exists
+              # Ensure tmp directory exists for Passenger restart
               mkdir -p \"\$APP/tmp\"
 
               # Cleanup
@@ -331,7 +445,7 @@ jobs:
             "
 
       # ==========================================================
-      # INSTALL PRODUCTION DEPS + GENERATE PRISMA ON SERVER
+      # INSTALL PRODUCTION DEPS + PRISMA ON SERVER
       # ==========================================================
 
       - name: Install production deps on server
@@ -347,131 +461,64 @@ jobs:
               set -e
 
               APP='${{ secrets.CPANEL_APP_DIR }}'
+              NODE=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/node\"
               NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
 
               cd \"\$APP\"
 
+              echo '=== Pre-install check ==='
+              test -f package.json || { echo 'ERROR: package.json not found in app dir'; exit 1; }
+              echo 'NODE:' \"\$NODE\" --version
+              echo 'NPM:' \"\$NPM\" --version
+
+              echo ''
               echo '=== npm install --omit=dev ==='
               \"\$NPM\" install --omit=dev --no-audit --no-fund 2>&1
 
               echo ''
-              echo '=== prisma generate ==='
-              \"\$NPM\" exec -- prisma generate --schema src/prisma/schema.prisma 2>&1
+              echo '=== Verify node_modules ==='
+              test -d \"\$APP/node_modules/next\" \
+                || { echo 'ERROR: next package missing after npm install'; exit 1; }
+              test -d \"\$APP/node_modules/@prisma/client\" \
+                || { echo 'ERROR: @prisma/client missing after npm install'; exit 1; }
 
-              # Verify
-              test -d \"\$APP/node_modules/@prisma/client\"  || { echo 'ERROR: @prisma/client missing.'; exit 1; }
-              test -d \"\$APP/node_modules/.prisma/client\"  || { echo 'ERROR: .prisma/client missing.'; exit 1; }
+              echo ''
+              echo '=== prisma generate ==='
+              # prisma is a devDependency; use npx to download and run it
+              \"\$NPM\" exec --yes -- prisma generate --schema src/prisma/schema.prisma 2>&1
+
+              echo ''
+              echo '=== Verify Prisma client ==='
+              test -d \"\$APP/node_modules/.prisma/client\" \
+                || { echo 'ERROR: .prisma/client missing after prisma generate'; exit 1; }
+
+              echo ''
+              echo '=== Verify .env exists ==='
+              test -f \"\$APP/.env\" \
+                || { echo 'ERROR: .env file missing from app directory'; exit 1; }
+
+              echo ''
+              echo '=== Ensure critical env vars in .env ==='
+              grep -q '^NODE_ENV=' \"\$APP/.env\" \
+                || echo 'NODE_ENV=production' >> \"\$APP/.env\"
+              grep -q '^HOSTNAME=' \"\$APP/.env\" \
+                || echo 'HOSTNAME=0.0.0.0' >> \"\$APP/.env\"
+              echo 'env vars OK.'
+
+              echo ''
+              echo '=== Verify runtime structure ==='
+              echo 'server.js:' \$(test -f \"\$APP/server.js\" && echo 'OK' || echo 'MISSING')
+              echo 'package.json:' \$(test -f \"\$APP/package.json\" && echo 'OK' || echo 'MISSING')
+              echo '.next/server:' \$(test -d \"\$APP/.next/server\" && echo 'OK' || echo 'MISSING')
+              echo '.next/static:' \$(test -d \"\$APP/.next/static\" && echo 'OK' || echo 'MISSING')
+              echo 'public:' \$(test -d \"\$APP/public\" && echo 'OK' || echo 'MISSING')
+              echo 'node_modules/next:' \$(test -d \"\$APP/node_modules/next\" && echo 'OK' || echo 'MISSING')
+              echo 'node_modules/@prisma/client:' \$(test -d \"\$APP/node_modules/@prisma/client\" && echo 'OK' || echo 'MISSING')
+              echo 'node_modules/.prisma/client:' \$(test -d \"\$APP/node_modules/.prisma/client\" && echo 'OK' || echo 'MISSING')
 
               echo ''
               echo 'Production deps + Prisma OK.'
             "
-
-      # ==========================================================
-      # DATABASE MIGRATION (via GitHub Actions, not cPanel)
-      # ==========================================================
-
-      - name: Run database migration
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: |
-          set -e
-
-          echo "=== Baseline: create _prisma_migrations table ==="
-
-          # Create _prisma_migrations table (idempotent)
-          npx prisma db execute \
-            --schema "$PRISMA_SCHEMA" \
-            --stdin \
-            <<< 'CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
-              "id"                      TEXT NOT NULL DEFAULT gen_random_uuid()::text,
-              "checksum"                TEXT NOT NULL,
-              "finished_at"             TIMESTAMP(3),
-              "migration_name"          TEXT NOT NULL,
-              "logs"                    TEXT,
-              "rolled_back_at"          TIMESTAMP(3),
-              "started_at"              TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              "applied_steps_count"     INTEGER NOT NULL DEFAULT 0,
-              PRIMARY KEY ("id")
-            );'
-
-          echo ""
-          echo "=== Baseline: mark existing migrations as applied ==="
-
-          # All 12 existing migrations that were never tracked in production.
-          # These MUST match the directory names in src/prisma/migrations/ exactly.
-          EXISTING_MIGRATIONS=(
-            "20260520233403_init"
-            "20260521103000_add_license_keys"
-            "20260524090000_shiftbook_qrcode"
-            "20260527034016"
-            "20260527104155"
-            "20260527145038"
-            "20260530090000_monitoring_logs"
-            "20260612090000_user_email_lower_index"
-            "20260706090000_add_audit_log_tenant_created_idx"
-            "20260707090000_add_pg_trgm_search_indexes"
-            "20260820000000_sync_schema_drift"
-            "20260823000000_pos_performance_indexes"
-          )
-
-          for migration in "${EXISTING_MIGRATIONS[@]}"; do
-            echo "  Resolving: $migration"
-            npx prisma migrate resolve \
-              --applied "$migration" \
-              --schema "$PRISMA_SCHEMA" 2>&1 || {
-                echo "  WARNING: resolve failed for $migration (may already be resolved)"
-              }
-          done
-
-          echo ""
-          echo "=== Deploy pending migrations ==="
-
-          npx prisma migrate deploy \
-            --schema "$PRISMA_SCHEMA" 2>&1
-
-          echo ""
-          echo "=== Migration complete ==="
-
-      # ==========================================================
-      # VERIFY MIGRATION
-      # ==========================================================
-
-      - name: Verify migration results
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: |
-          set -e
-
-          echo "=== Verifying DebtStatus enum ==="
-          npx prisma db execute \
-            --schema "$PRISMA_SCHEMA" \
-            --stdin \
-            <<< "DO \$\$
-          BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DebtStatus') THEN
-              RAISE EXCEPTION 'DebtStatus enum not found';
-            END IF;
-          END
-          \$\$;" 2>&1
-
-          echo ""
-          echo "=== Verifying tables ==="
-          for table in Receivable ReceivablePayment Payable PayablePayment; do
-            npx prisma db execute \
-              --schema "$PRISMA_SCHEMA" \
-              --stdin \
-              <<< "DO \$\$
-          BEGIN
-            IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '$table') THEN
-              RAISE EXCEPTION '$table table not found';
-            END IF;
-          END
-          \$\$;" 2>&1
-            echo "  $table OK"
-          done
-
-          echo ""
-          echo "=== All verifications passed ==="
 
       # ==========================================================
       # RESTART PASSENGER
@@ -504,7 +551,7 @@ jobs:
       # ==========================================================
 
       - name: Wait for server ready
-        run: sleep 10
+        run: sleep 15
 
       - name: Health check
         run: |
