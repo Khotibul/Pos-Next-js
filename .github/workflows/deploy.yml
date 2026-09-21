@@ -181,28 +181,76 @@ jobs:
       # TCP PREFLIGHT (verify port 22 is reachable before SSH)
       # ==========================================================
 
+      - name: Show GitHub Actions runner IP
+        run: |
+          echo "GitHub Actions runner public IP:"
+          curl -s --max-time 10 https://api.ipify.org || echo "(could not determine)"
+
       - name: TCP preflight test to cPanel SSH
         run: |
-          echo "Testing TCP connectivity to ${{ secrets.CPANEL_HOST }}:${{ env.SSH_PORT }}..."
+          HOST="${{ secrets.CPANEL_HOST }}"
+          PORT="${{ env.SSH_PORT }}"
 
-          if timeout 15 bash -c "</dev/tcp/${{ secrets.CPANEL_HOST }}/${{ env.SSH_PORT }}" 2>/dev/null; then
-            echo "TCP port ${{ env.SSH_PORT }} is OPEN."
+          echo "Testing TCP connectivity to $HOST:$PORT..."
+          echo ""
+
+          # Method 1: netcat (most reliable)
+          TCP_OK=false
+          if command -v nc &>/dev/null; then
+            echo "Using: nc -z -w 15 $HOST $PORT"
+            if nc -z -w 15 "$HOST" "$PORT" 2>/dev/null; then
+              TCP_OK=true
+            fi
+          fi
+
+          # Method 2: /dev/tcp fallback
+          if [ "$TCP_OK" = "false" ] && [ -e /dev/tcp ]; then
+            echo "Using: bash /dev/tcp"
+            if (echo >/dev/tcp/"$HOST"/"$PORT") 2>/dev/null; then
+              TCP_OK=true
+            fi
+          fi
+
+          # Method 3: timeout + nc (if nc exists but no -w flag)
+          if [ "$TCP_OK" = "false" ] && command -v nc &>/dev/null; then
+            echo "Using: timeout 15 nc $HOST $PORT"
+            if timeout 15 nc "$HOST" "$PORT" </dev/null 2>/dev/null; then
+              TCP_OK=true
+            fi
+          fi
+
+          # Method 4: Python socket
+          if [ "$TCP_OK" = "false" ] && command -v python3 &>/dev/null; then
+            echo "Using: python3 socket"
+            if python3 -c "import socket; s=socket.socket(); s.settimeout(15); s.connect(('$HOST',$PORT)); s.close()" 2>/dev/null; then
+              TCP_OK=true
+            fi
+          fi
+
+          echo ""
+          if [ "$TCP_OK" = "true" ]; then
+            echo "TCP port $PORT is OPEN."
           else
-            echo ""
             echo "============================================="
             echo "TCP PREFLIGHT FAILED"
             echo "============================================="
-            echo "Host: ${{ secrets.CPANEL_HOST }}"
-            echo "Port: ${{ env.SSH_PORT }}"
+            echo "Host: $HOST"
+            echo "Port: $PORT"
             echo ""
-            echo "Port 22 is not reachable from GitHub Actions."
-            echo "Possible causes:"
-            echo "1. Firewall blocking GitHub Actions IPs"
-            echo "2. cPanel SSH server is down"
-            echo "3. Host IP changed"
+            echo "Port $PORT is NOT reachable from GitHub Actions runners."
             echo ""
-            echo "Test from your Windows (confirmed working):"
-            echo "  194.233.65.45:22  = TcpTestSucceeded=True"
+            echo "This is a network/firewall issue, NOT a code issue."
+            echo "Your Windows test confirmed the port works locally."
+            echo ""
+            echo "Causes:"
+            echo "1. cPanel hosting firewall blocks cloud IPs"
+            echo "2. CSF/LFD on server blocks non-whitelisted IPs"
+            echo "3. Cloudflare proxy is blocking SSH"
+            echo ""
+            echo "Solutions:"
+            echo "1. Whitelist GitHub Actions IPs in cPanel firewall"
+            echo "2. Use a self-hosted GitHub Actions runner on your VPS"
+            echo "3. Deploy manually via SSH from your Windows"
             echo "============================================="
             exit 1
           fi
