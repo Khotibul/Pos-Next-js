@@ -16,6 +16,7 @@ concurrency:
 env:
   NODE_VERSION: "22"
   PRISMA_SCHEMA: "src/prisma/schema.prisma"
+  SSH_PORT: "22"
 
 jobs:
   deploy:
@@ -164,16 +165,47 @@ jobs:
         run: |
           set -e
 
-          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: Set CPANEL_HOST secret (e.g. posqupro.co-id.id)."; exit 1; }
-          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: Set CPANEL_USER secret (cPanel username)."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_PORT }}"    || { echo "ERROR: Set CPANEL_SSH_PORT secret (e.g. 22)."; exit 1; }
-          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: Set CPANEL_SSH_KEY_B64 secret (base64-encoded SSH private key)."; exit 1; }
-          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: Set CPANEL_APP_DIR secret (e.g. /home/user/app)."; exit 1; }
+          echo "SSH port configured: ${{ env.SSH_PORT }}"
 
-          echo "${{ secrets.CPANEL_SSH_PORT }}" | grep -qE '^[0-9]+$' \
-            || { echo "ERROR: CPANEL_SSH_PORT must be a number, got: ${{ secrets.CPANEL_SSH_PORT }}"; exit 1; }
+          test -n "${{ secrets.CPANEL_HOST }}"       || { echo "ERROR: Set CPANEL_HOST secret."; exit 1; }
+          test -n "${{ secrets.CPANEL_USER }}"        || { echo "ERROR: Set CPANEL_USER secret."; exit 1; }
+          test -n "${{ secrets.CPANEL_SSH_KEY_B64 }}" || { echo "ERROR: Set CPANEL_SSH_KEY_B64 secret."; exit 1; }
+          test -n "${{ secrets.CPANEL_APP_DIR }}"     || { echo "ERROR: Set CPANEL_APP_DIR secret."; exit 1; }
 
+          echo "Host: ${{ secrets.CPANEL_HOST }}"
+          echo "User: ${{ secrets.CPANEL_USER }}"
+          echo "Port: ${{ env.SSH_PORT }} (hardcoded)"
           echo "All secrets validated."
+
+      # ==========================================================
+      # TCP PREFLIGHT (verify port 22 is reachable before SSH)
+      # ==========================================================
+
+      - name: TCP preflight test to cPanel SSH
+        run: |
+          echo "Testing TCP connectivity to ${{ secrets.CPANEL_HOST }}:${{ env.SSH_PORT }}..."
+
+          if timeout 15 bash -c "</dev/tcp/${{ secrets.CPANEL_HOST }}/${{ env.SSH_PORT }}" 2>/dev/null; then
+            echo "TCP port ${{ env.SSH_PORT }} is OPEN."
+          else
+            echo ""
+            echo "============================================="
+            echo "TCP PREFLIGHT FAILED"
+            echo "============================================="
+            echo "Host: ${{ secrets.CPANEL_HOST }}"
+            echo "Port: ${{ env.SSH_PORT }}"
+            echo ""
+            echo "Port 22 is not reachable from GitHub Actions."
+            echo "Possible causes:"
+            echo "1. Firewall blocking GitHub Actions IPs"
+            echo "2. cPanel SSH server is down"
+            echo "3. Host IP changed"
+            echo ""
+            echo "Test from your Windows (confirmed working):"
+            echo "  194.233.65.45:22  = TcpTestSucceeded=True"
+            echo "============================================="
+            exit 1
+          fi
 
       # ==========================================================
       # SETUP SSH
@@ -188,8 +220,7 @@ jobs:
 
           printf '%s' "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_ed25519 || {
             echo "ERROR: Failed to base64-decode CPANEL_SSH_KEY_B64."
-            echo "Fix: Generate a new key with: ssh-keygen -t ed25519 -N '' -f deploy_key"
-            echo "Then: cat deploy_key | base64"
+            echo "Fix: ssh-keygen -t ed25519 -N '' -f deploy_key && cat deploy_key | base64"
             exit 1
           }
           chmod 600 ~/.ssh/id_ed25519
@@ -197,12 +228,11 @@ jobs:
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null 2>&1 || {
             echo "ERROR: Decoded file is not a valid SSH private key."
             echo "File size: $(wc -c < ~/.ssh/id_ed25519) bytes"
-            echo "Fix: Ensure CPANEL_SSH_KEY_B64 contains base64 of a PRIVATE key (not public key)."
-            echo "Command: cat deploy_key | base64   (where deploy_key is the private key file)"
+            echo "Fix: Ensure CPANEL_SSH_KEY_B64 contains base64 of a PRIVATE key."
             exit 1
           }
 
-          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" \
+          ssh-keyscan -p "${{ env.SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
 
           chmod 644 ~/.ssh/known_hosts
@@ -211,7 +241,7 @@ jobs:
       - name: Test SSH connection
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -224,15 +254,14 @@ jobs:
             echo "============================================="
             echo "SSH CONNECTION FAILED"
             echo "============================================="
-            echo "Host:     ${{ secrets.CPANEL_HOST }}"
-            echo "Port:     ${{ secrets.CPANEL_SSH_PORT }}"
-            echo "User:     ${{ secrets.CPANEL_USER }}"
+            echo "Host: ${{ secrets.CPANEL_HOST }}"
+            echo "Port: ${{ env.SSH_PORT }}"
+            echo "User: ${{ secrets.CPANEL_USER }}"
             echo ""
-            echo "Common fixes:"
-            echo "1. CPANEL_SSH_PORT must be 22 (not 2222)"
-            echo "2. SSH key must be ed25519 private key (not public)"
-            echo "3. Key must NOT be password-protected"
-            echo "4. Add deploy key to cPanel: SSH Access > Manage SSH Keys"
+            echo "Fixes:"
+            echo "1. Ensure deploy key is in cPanel: SSH Access > Manage SSH Keys"
+            echo "2. Key must NOT be password-protected"
+            echo "3. Key must be ed25519 PRIVATE key (not public)"
             echo "============================================="
             exit 1
           }
@@ -244,7 +273,7 @@ jobs:
       - name: Backup current deployment
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -257,9 +286,9 @@ jobs:
               BACKUP=\"/home/${{ secrets.CPANEL_USER }}/backups/posqupro-\$(date +%Y%m%d-%H%M%S)\"
               if [ -d \"\$APP/.next\" ]; then
                 mkdir -p \"\$BACKUP\"
-                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null || true
-                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null || true
-                cp -a \"\$APP\"/package.json \"\$BACKUP\"/ 2>/dev/null || true
+                cp -a \"\$APP\"/.next \"\$BACKUP\"/ 2>/dev/null
+                cp -a \"\$APP\"/server.js \"\$BACKUP\"/ 2>/dev/null
+                cp -a \"\$APP\"/package.json \"\$BACKUP\"/ 2>/dev/null
                 echo \"Backup: \$BACKUP\"
               else
                 echo 'No previous deployment to backup.'
@@ -278,7 +307,7 @@ jobs:
 
           scp \
             -p \
-            -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            -P "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -290,7 +319,7 @@ jobs:
           echo "Package uploaded."
 
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -338,7 +367,7 @@ jobs:
       - name: Install production deps on server
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -356,7 +385,7 @@ jobs:
               echo '=== npm install --omit=dev ==='
               \"\$NPM\" install --omit=dev --no-audit --no-fund 2>&1
 
-              test -d \"\$APP/node_modules/next\"       || { echo 'ERROR: next missing'; exit 1; }
+              test -d \"\$APP/node_modules/next\"          || { echo 'ERROR: next missing'; exit 1; }
               test -d \"\$APP/node_modules/@prisma/client\" || { echo 'ERROR: @prisma/client missing'; exit 1; }
 
               echo '=== prisma generate ==='
@@ -378,7 +407,7 @@ jobs:
       - name: Run database migration on server
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -453,7 +482,7 @@ jobs:
       - name: Verify migration results on server
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
@@ -508,7 +537,7 @@ jobs:
       - name: Restart Passenger
         run: |
           ssh \
-            -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            -p "${{ env.SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
