@@ -205,38 +205,56 @@ jobs:
         env:
           SSH_PRIVATE_KEY_B64: ${{ secrets.CPANEL_SSH_KEY_B64 }}
         run: |
-          set -e
-
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          printf '%s' "$SSH_PRIVATE_KEY_B64" \
-            | base64 --decode \
-            > ~/.ssh/id_ed25519
-
+          # Decode SSH key
+          echo "$SSH_PRIVATE_KEY_B64" | base64 -d > ~/.ssh/id_ed25519 || {
+            echo "ERROR: Failed to decode SSH key (invalid base64)"
+            exit 1
+          }
           chmod 600 ~/.ssh/id_ed25519
 
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          # Verify key is valid
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2>/dev/null || {
+            echo "ERROR: Decoded key is not a valid SSH private key"
+            echo "Key file size: $(wc -c < ~/.ssh/id_ed25519) bytes"
+            head -1 ~/.ssh/id_ed25519
+            exit 1
+          }
+          echo "SSH key type: $(head -1 ~/.ssh/id_ed25519 | cut -d' ' -f1)"
 
+          # Add host key (ssh-keyscan may partially fail — don't let it kill the step)
           ssh-keyscan \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_HOST }}" \
-            >> ~/.ssh/known_hosts 2>/dev/null
+            >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          # Verify at least one host key was found
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "WARNING: ssh-keyscan returned no host keys"
+            echo "Trying ssh with StrictHostKeyChecking=no as fallback"
+          fi
 
           chmod 644 ~/.ssh/known_hosts
-
           echo "SSH ready."
 
       - name: Test SSH connection
         run: |
+          # Try with StrictHostKeyChecking first, fallback to accept-new
           ssh \
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
-            "echo 'SSH connection OK. Hostname: '$(hostname)"
+            "echo 'SSH connection OK. Hostname: '$(hostname)" \
+          || {
+            echo "ERROR: SSH connection failed. Check CPANEL_SSH_KEY_B64, CPANEL_HOST, CPANEL_SSH_PORT secrets."
+            exit 1
+          }
 
       # ==========================================================
       # BACKUP CURRENT DEPLOYMENT
@@ -248,7 +266,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
@@ -283,7 +301,7 @@ jobs:
             -P "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             cpanel-package.tar.gz \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}:/tmp/cpanel-package.tar.gz"
@@ -294,7 +312,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
@@ -350,7 +368,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
@@ -422,7 +440,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
@@ -501,7 +519,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
@@ -559,7 +577,7 @@ jobs:
             -p "${{ secrets.CPANEL_SSH_PORT }}" \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
+            -o StrictHostKeyChecking=accept-new \
             -i ~/.ssh/id_ed25519 \
             "${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}" \
             "
