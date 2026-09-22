@@ -181,6 +181,7 @@ jobs:
             cd \"\$APP\"
             grep -q '^NODE_ENV=' \"\$APP/.env\" || echo 'NODE_ENV=production' >> \"\$APP/.env\"
             grep -q '^HOSTNAME=' \"\$APP/.env\" || echo 'HOSTNAME=0.0.0.0' >> \"\$APP/.env\"
+            export \$(grep -E '^(DATABASE_URL|DIRECT_URL)=' \"\$APP/.env\" | xargs)
             \"\$NPM\" exec --yes -- prisma generate --schema src/prisma/schema.prisma 2>&1
             test -d \"\$APP/node_modules/.prisma/client\" || { echo 'ERROR: .prisma/client missing'; exit 1; }
             echo 'Prisma OK.'
