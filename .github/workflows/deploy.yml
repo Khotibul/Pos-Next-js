@@ -139,15 +139,29 @@ jobs:
       - name: Deploy to cPanel via SSH
         id: ssh_deploy
         run: |
-          SSH_OPTS="-p ${{ env.SSH_PORT }} -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -i ~/.ssh/id_ed25519"
+          SSH_OPTS="-o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -i ~/.ssh/id_ed25519"
+          SSH_PORT="${{ env.SSH_PORT }}"
           TARGET="${{ secrets.CPANEL_USER }}@${{ secrets.CPANEL_HOST }}"
 
+          echo "=== SSH configuration ==="
+          echo "SSH_PORT=$SSH_PORT"
+          echo "TARGET=$TARGET"
+          echo "SSH_OPTS=$SSH_OPTS"
+
+          test -f ~/.ssh/id_ed25519 || { echo "ERROR: SSH private key not found"; exit 1; }
+
+          echo ""
+          echo "=== SSH connectivity test ==="
+          ssh -p "$SSH_PORT" $SSH_OPTS "$TARGET" "echo 'SSH OK: '$(hostname)"
+
+          echo ""
           echo "=== Uploading package ==="
           tar czf cpanel-package.tar.gz cpanel-package/
-          scp $SSH_OPTS -P "${{ env.SSH_PORT }}" cpanel-package.tar.gz "$TARGET:/tmp/cpanel-package.tar.gz"
+          scp -P "$SSH_PORT" $SSH_OPTS cpanel-package.tar.gz "$TARGET:/tmp/cpanel-package.tar.gz"
 
+          echo ""
           echo "=== Extracting on server ==="
-          ssh $SSH_OPTS "$TARGET" "
+          ssh -p "$SSH_PORT" $SSH_OPTS "$TARGET" "
             set -e
             APP='${{ secrets.CPANEL_APP_DIR }}'
             rm -rf /tmp/cpanel-extract && mkdir -p /tmp/cpanel-extract
@@ -159,8 +173,9 @@ jobs:
             echo 'Package deployed.'
           "
 
+          echo ""
           echo "=== Prisma generate ==="
-          ssh $SSH_OPTS "$TARGET" "
+          ssh -p "$SSH_PORT" $SSH_OPTS "$TARGET" "
             APP='${{ secrets.CPANEL_APP_DIR }}'
             NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
             cd \"\$APP\"
@@ -171,8 +186,9 @@ jobs:
             echo 'Prisma OK.'
           "
 
+          echo ""
           echo "=== Database migration ==="
-          ssh $SSH_OPTS "$TARGET" "
+          ssh -p "$SSH_PORT" $SSH_OPTS "$TARGET" "
             APP='${{ secrets.CPANEL_APP_DIR }}'
             NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
             cd \"\$APP\"
@@ -181,8 +197,9 @@ jobs:
             echo 'Migration complete.'
           "
 
+          echo ""
           echo "=== Restart Passenger ==="
-          ssh $SSH_OPTS "$TARGET" "
+          ssh -p "$SSH_PORT" $SSH_OPTS "$TARGET" "
             APP='${{ secrets.CPANEL_APP_DIR }}'
             mkdir -p \"\$APP/tmp\" && touch \"\$APP/tmp/restart.txt\"
             echo 'Passenger restarted.'
