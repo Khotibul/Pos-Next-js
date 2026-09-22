@@ -409,10 +409,11 @@ jobs:
             "
 
       # ==========================================================
-      # INSTALL PRODUCTION DEPS + PRISMA ON SERVER
+      # PRISMA GENERATE + ENV SETUP ON SERVER
+      # (no npm install — standalone build already includes all deps)
       # ==========================================================
 
-      - name: Install production deps on server
+      - name: Generate Prisma Client on server
         run: |
           ssh \
             -p "${{ env.SSH_PORT }}" \
@@ -428,24 +429,17 @@ jobs:
               NPM=\"/home/${{ secrets.CPANEL_USER }}/nodevenv/Pos-Next-Js/cpanel-runtime/22/bin/npm\"
               cd \"\$APP\"
 
-              test -f package.json || { echo 'ERROR: package.json not found'; exit 1; }
-
-              echo '=== npm install --omit=dev ==='
-              \"\$NPM\" install --omit=dev --no-audit --no-fund 2>&1
-
-              test -d \"\$APP/node_modules/next\"          || { echo 'ERROR: next missing'; exit 1; }
-              test -d \"\$APP/node_modules/@prisma/client\" || { echo 'ERROR: @prisma/client missing'; exit 1; }
-
-              echo '=== prisma generate ==='
-              \"\$NPM\" exec --yes -- prisma generate --schema src/prisma/schema.prisma 2>&1
-
-              test -d \"\$APP/node_modules/.prisma/client\" || { echo 'ERROR: .prisma/client missing'; exit 1; }
               test -f \"\$APP/.env\" || { echo 'ERROR: .env missing'; exit 1; }
 
               grep -q '^NODE_ENV=' \"\$APP/.env\" || echo 'NODE_ENV=production' >> \"\$APP/.env\"
               grep -q '^HOSTNAME=' \"\$APP/.env\" || echo 'HOSTNAME=0.0.0.0' >> \"\$APP/.env\"
 
-              echo 'Production deps + Prisma OK.'
+              echo '=== prisma generate ==='
+              \"\$NPM\" exec --yes -- prisma generate --schema src/prisma/schema.prisma 2>&1
+
+              test -d \"\$APP/node_modules/.prisma/client\" || { echo 'ERROR: .prisma/client missing'; exit 1; }
+
+              echo 'Prisma generate OK.'
             "
 
       # ==========================================================
