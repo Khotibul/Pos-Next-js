@@ -10,6 +10,11 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const url = new URL(req.url);
   const search = url.searchParams.get("search")?.trim();
+  const pageParam = Number(url.searchParams.get("page") ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
+  const limitParam = Number(url.searchParams.get("limit") ?? "5000");
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 5000) : 5000;
+  const paginate = url.searchParams.has("page");
 
   const suppliers = await prisma.supplier.findMany({
     where: {
@@ -17,7 +22,8 @@ export const GET = withApiHandler(async (req: Request) => {
       ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { phone: { contains: search } }] } : {}),
     },
     orderBy: { name: "asc" },
-    take: 5000,
+    take: limit,
+    ...(paginate ? { skip: (page - 1) * limit } : {}),
   });
 
   return apiOk(

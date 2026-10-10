@@ -30,7 +30,7 @@ class NetworkInfoImpl implements NetworkInfo {
   Future<bool> get hasInternetAccess async {
     if (!await isConnected) return false;
     try {
-      final lookup = await InternetAddress.lookup('posqupro.co-id.id').timeout(const Duration(seconds: 3));
+      final lookup = await InternetAddress.lookup('pos-next-js-kohl.vercel.app').timeout(const Duration(seconds: 3));
       if (lookup.isEmpty || lookup.first.rawAddress.isEmpty) return false;
       return true;
     } catch (_) {

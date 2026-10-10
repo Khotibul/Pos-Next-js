@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/constants/api_constants.dart';
@@ -66,6 +67,18 @@ class GoogleAuthDataSource {
           throw Exception('$msg (cek NEXT_PUBLIC_GOOGLE_* di .env & SHA-1 di console)');
         }
         throw Exception(msg);
+      }
+
+      // Simpan token & data user agar sesi Google login persisten
+      // (tanpa ini semua request API berikutnya gagal 401)
+      final authBox = Hive.isBoxOpen('auth') ? Hive.box('auth') : await Hive.openBox('auth');
+      final token = response.data['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        await authBox.put('token', token);
+      }
+      final userJson = response.data['user'];
+      if (userJson is Map) {
+        await authBox.put('user', Map<String, dynamic>.from(userJson));
       }
 
       final userModel = UserModel.fromJson(response.data['user']);

@@ -10,7 +10,7 @@ import '../../presentation/providers/setting/setting_provider.dart';
 final dioClientProvider = Provider<DioClient>((ref) {
   final client = DioClient();
   // Sinkron URL efektif (otomatis dari EnvConfig atau manual dari Pengaturan) ke Dio
-  // Otomatis: EnvConfig.apiBaseUrl (https://posqupro.co-id.id/api)
+  // Otomatis: EnvConfig.apiBaseUrl (https://pos-next-js-kohl.vercel.app/api)
   // Manual: Hive settings API_BASE_URL
   void syncEffective() {
     try {
@@ -108,7 +108,7 @@ class DioClient {
     );
   }
 
-  /// Health check cepat ke posqupro.co-id.id — dipakai NetworkInfo & Sync untuk validasi online nyata
+  /// Health check cepat ke pos-next-js-kohl.vercel.app — dipakai NetworkInfo & Sync untuk validasi online nyata
   Future<bool> healthCheck() async {
     try {
       final res = await _dio.get(

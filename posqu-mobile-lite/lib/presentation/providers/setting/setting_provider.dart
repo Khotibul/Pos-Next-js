@@ -13,7 +13,7 @@ final apiBaseUrlProvider = FutureProvider<String?>((ref) async {
 
 /// URL efektif yang dipakai Dio & sinkronisasi:
 /// - Jika user set manual di Pengaturan → pakai manual
-/// - Jika kosong / belum diatur → otomatis dari sistem (EnvConfig / .env / posqupro.co-id.id)
+/// - Jika kosong / belum diatur → otomatis dari sistem (EnvConfig / .env / pos-next-js-kohl.vercel.app)
 final effectiveApiBaseUrlProvider = Provider<String>((ref) {
   // Watch manual agar rebuild saat user simpan di Pengaturan
   final manualAsync = ref.watch(apiBaseUrlProvider);

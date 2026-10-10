@@ -126,8 +126,14 @@ export const GET = withApiHandler(async (req: Request) => {
 
   const url = new URL(req.url);
   const search = url.searchParams.get("search")?.trim();
+  const categoryId = url.searchParams.get("category_id")?.trim();
+  const pageParam = Number(url.searchParams.get("page") ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
   const limitParam = Number(url.searchParams.get("limit") ?? "200");
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 200;
+  // Android default limit 20 + page → paginasi aktif. Tanpa page, kirim batch besar.
+  const paginate = url.searchParams.has("page");
+  const skip = paginate ? (page - 1) * limit : 0;
 
   const stockAgg = await prisma.productWarehouseStock.groupBy({
     by: ["productId"],
@@ -140,6 +146,7 @@ export const GET = withApiHandler(async (req: Request) => {
     where: {
       tenantId: ctx.tenantId,
       ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { sku: { contains: search, mode: "insensitive" } }, { barcode: { contains: search } }] } : {}),
+      ...(categoryId ? { categoryId } : {}),
     },
     include: {
       category: { select: { name: true } },
@@ -150,6 +157,7 @@ export const GET = withApiHandler(async (req: Request) => {
     },
     orderBy: { name: "asc" },
     take: limit,
+    ...(paginate ? { skip } : {}),
   });
 
   return apiOk(

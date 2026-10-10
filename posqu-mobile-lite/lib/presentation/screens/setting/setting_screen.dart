@@ -270,7 +270,7 @@ class SettingScreen extends ConsumerWidget {
                       hintText: EnvConfig.apiBaseUrl,
                       labelText: 'URL Manual',
                       prefixIcon: const Icon(Icons.link),
-                      helperText: 'Contoh: https://posqupro.co-id.id/api\natau http://10.0.2.2:3000/api (emulator)',
+                      helperText: 'Contoh: https://pos-next-js-kohl.vercel.app/api\natau http://10.0.2.2:3000/api (emulator)',
                     ),
                     keyboardType: TextInputType.url,
                   ),
@@ -287,7 +287,7 @@ class SettingScreen extends ConsumerWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Pakai ${EnvConfig.apiBaseUrl}\nSinkron otomatis ke PostgreSQL via posqupro.co-id.id',
+                            'Pakai ${EnvConfig.apiBaseUrl}\nSinkron otomatis ke PostgreSQL via pos-next-js-kohl.vercel.app',
                             style: const TextStyle(fontSize: 11),
                           ),
                         ),

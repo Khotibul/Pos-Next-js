@@ -15,7 +15,7 @@ class EnvConfig {
       // Di sini kita biarkan apa adanya tapi dengan catatan: pastikan .env di device sudah pakai IP yang benar.
       // Jika masih localhost di release prod, pakai fallback prod.
       if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
-        // Di prod .env sudah https://posqupro.co-id.id/api, jadi tidak masuk sini
+        // Di prod .env sudah https://pos-next-js-kohl.vercel.app/api, jadi tidak masuk sini
         // Dev bisa override via API_BASE_URL_DEV di .env: kita cek
         final devUrl = dotenv.get('API_BASE_URL_DEV', fallback: '').trim();
         if (devUrl.isNotEmpty) url = devUrl;

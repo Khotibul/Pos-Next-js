@@ -58,7 +58,7 @@ class OnlineSyncBanner extends ConsumerWidget {
               const SizedBox(width: 6),
               const Expanded(
                 child: Text(
-                  'Online — akses langsung ke PostgreSQL via posqupro.co-id.id',
+                  'Online — akses langsung ke PostgreSQL via pos-next-js-kohl.vercel.app',
                   style: TextStyle(color: Colors.white, fontSize: 11),
                 ),
               ),

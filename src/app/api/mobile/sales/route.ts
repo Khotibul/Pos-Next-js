@@ -10,15 +10,45 @@ export const GET = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
 
   const url = new URL(req.url);
+  const search = url.searchParams.get("search")?.trim();
+  const startDate = url.searchParams.get("start_date")?.trim();
+  const endDate = url.searchParams.get("end_date")?.trim();
+  const pageParam = Number(url.searchParams.get("page") ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
   const limitParam = Number(url.searchParams.get("limit") ?? "100");
   const limit =
     Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100;
+  const paginate = url.searchParams.has("page");
+
+  const start = startDate ? new Date(startDate) : null;
+  const end = endDate ? new Date(endDate) : null;
+  const startOk = start !== null && !isNaN(start.getTime());
+  const endOk = end !== null && !isNaN(end.getTime());
 
   const sales = await prisma.sale.findMany({
-    where: { tenantId: ctx.tenantId },
+    where: {
+      tenantId: ctx.tenantId,
+      ...(search
+        ? {
+            OR: [
+              { invoiceNo: { contains: search, mode: "insensitive" as const } },
+              { notes: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(startOk || endOk
+        ? {
+            createdAt: {
+              ...(startOk ? { gte: start as Date } : {}),
+              ...(endOk ? { lte: end as Date } : {}),
+            },
+          }
+        : {}),
+    },
     include: { items: true, payments: true },
     orderBy: { createdAt: "desc" },
     take: limit,
+    ...(paginate ? { skip: (page - 1) * limit } : {}),
   });
 
   const customerIds = [...new Set(sales.map((s) => s.customerId).filter(Boolean))] as string[];

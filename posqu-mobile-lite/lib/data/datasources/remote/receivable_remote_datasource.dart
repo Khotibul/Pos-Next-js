@@ -29,6 +29,6 @@ class ReceivableRemoteDataSource {
   }
 
   Future<void> createReceivablePayment(Map<String, dynamic> data) async {
-    await _dio.post('${ApiConstants.receivables}/payments', data: data);
+    await _dio.post('/mobile/receivable-payments', data: data);
   }
 }

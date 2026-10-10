@@ -125,10 +125,16 @@ export const GET = withApiHandler(async (req: Request) => {
   const ctx = await getMobileContext(req);
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? "20"), 100);
+  const cashierId = url.searchParams.get("cashierId")?.trim();
+  const limitParam = Number(url.searchParams.get("limit") ?? "20");
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
   const shifts = await prisma.cashierShift.findMany({
-    where: { tenantId: ctx.tenantId, ...(status ? { status: status as never } : {}) },
+    where: {
+      tenantId: ctx.tenantId,
+      ...(status ? { status: status as never } : {}),
+      ...(cashierId ? { cashierId } : {}),
+    },
     orderBy: { openedAt: "desc" },
     take: limit,
   });
