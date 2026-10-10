@@ -45,7 +45,8 @@ overview_architecture.puml
 *.tsbuildinfo
 
 # legacy UI folders (keep local only)
-UI/
+# Only ignore the root legacy folder, not src/components/ui.
+/UI/
 legacy/
 src/legacy/
 
