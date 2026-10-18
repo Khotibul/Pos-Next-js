@@ -29,7 +29,18 @@ export const GET = withApiHandler(async (req: Request) => {
     );
   }
 
-  // Bentuk datar: Android membaca response.data['user'] dan default role 'USER'
+  const membership = await prisma.tenantUser.findFirst({
+    where: { userId: auth.userId },
+    select: {
+      tenantId: true,
+      tenant: { select: { name: true } },
+      role: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const roleName = membership?.role?.name ?? (user.isSuperAdmin ? "OWNER" : "USER");
+
   return Response.json(
     {
       ok: true,
@@ -38,7 +49,9 @@ export const GET = withApiHandler(async (req: Request) => {
         email: user.email,
         name: user.name,
         image: user.image,
-        role: user.isSuperAdmin ? "ADMIN" : "USER",
+        role: roleName,
+        tenantId: membership?.tenantId ?? null,
+        tenantName: membership?.tenant?.name ?? null,
         isActive: user.isActive,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,

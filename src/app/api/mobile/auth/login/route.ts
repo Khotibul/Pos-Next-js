@@ -45,6 +45,7 @@ export async function POST(req: Request) {
         image: true,
         passwordHash: true,
         isActive: true,
+        isSuperAdmin: true,
       },
     });
 
@@ -73,7 +74,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const membershipCount = await prisma.tenantUser.count({ where: { userId: user.id } });
+    const membership = await prisma.tenantUser.findFirst({
+      where: { userId: user.id },
+      select: {
+        tenantId: true,
+        tenant: { select: { id: true, name: true, status: true } },
+        role: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const roleName = membership?.role?.name ?? (user.isSuperAdmin ? "OWNER" : null);
 
     return NextResponse.json(
       {
@@ -83,9 +94,12 @@ export async function POST(req: Request) {
           email: user.email,
           name: user.name,
           image: user.image,
+          role: roleName ?? "USER",
+          tenantId: membership?.tenantId ?? null,
+          tenantName: membership?.tenant?.name ?? null,
         },
         token: signMobileToken({ userId: user.id, email: user.email }),
-        needsOnboarding: membershipCount === 0,
+        needsOnboarding: !membership,
       },
       { status: 200 },
     );

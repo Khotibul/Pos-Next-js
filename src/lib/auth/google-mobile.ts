@@ -12,6 +12,9 @@ export type GoogleMobileAuthResult = {
     email: string | null;
     name: string | null;
     image: string | null;
+    role: string;
+    tenantId: string | null;
+    tenantName: string | null;
   };
   token: string;
   needsOnboarding: boolean;
@@ -123,11 +126,26 @@ export async function authenticateMobileGoogleIdToken(idToken: string): Promise<
   }
 
   await setCachedEmailVerified(user.id, true);
-  const membershipCount = await prisma.tenantUser.count({ where: { userId: user.id } });
+  const membership = await prisma.tenantUser.findFirst({
+    where: { userId: user.id },
+    select: {
+      tenantId: true,
+      tenant: { select: { name: true } },
+      role: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const roleName = membership?.role?.name ?? null;
 
   return {
-    user,
+    user: {
+      ...user,
+      role: roleName ?? "USER",
+      tenantId: membership?.tenantId ?? null,
+      tenantName: membership?.tenant?.name ?? null,
+    },
     token: signMobileToken({ userId: user.id, email: user.email }),
-    needsOnboarding: membershipCount === 0,
+    needsOnboarding: !membership,
   };
 }

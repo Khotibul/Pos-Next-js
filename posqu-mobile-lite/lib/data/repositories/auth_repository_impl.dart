@@ -167,7 +167,7 @@ class AuthRepositoryImpl implements AuthRepository {
         image: Value(user.avatarUrl),
         passwordHash: Value(hashed),
         isActive: const Value(true),
-        isSuperAdmin: Value(user.role == 'ADMIN' || email.contains('superadmin')),
+        isSuperAdmin: Value(user.role == 'OWNER' || user.role == 'ADMIN' || email.contains('superadmin')),
         updatedAt: Value(DateTime.now()),
       ));
     } catch (_) {}

@@ -8,6 +8,7 @@ export type MobileAuthContext = {
   userId: string;
   email: string | null;
   tenantId: string;
+  roleName: string | null;
 };
 
 function safeEqual(a: string, b: string) {
@@ -53,6 +54,7 @@ export async function getMobileContext(req: Request): Promise<MobileAuthContext>
     where: { userId: auth.userId },
     select: {
       tenantId: true,
+      role: { select: { name: true } },
       tenant: { select: { status: true } },
     },
     orderBy: { createdAt: "asc" },
@@ -66,5 +68,10 @@ export async function getMobileContext(req: Request): Promise<MobileAuthContext>
     throw Errors.forbidden("Tenant ini telah ditangguhkan atau kedaluwarsa.");
   }
 
-  return { userId: auth.userId, email: auth.email, tenantId: membership.tenantId };
+  return {
+    userId: auth.userId,
+    email: auth.email,
+    tenantId: membership.tenantId,
+    roleName: membership.role?.name ?? null,
+  };
 }
