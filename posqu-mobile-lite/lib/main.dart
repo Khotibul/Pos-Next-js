@@ -25,7 +25,11 @@ Future<void> main() async {
         FlutterError.presentError(details);
       };
 
-      await dotenv.load(fileName: '.env');
+      try {
+        await dotenv.load(fileName: '.env');
+      } catch (_) {
+        // .env gagal load — EnvConfig pakai fallback https://pos-next-js-kohl.vercel.app/api
+      }
 
       await initializeDateFormatting('id', null);
       await initializeDateFormatting('en', null);

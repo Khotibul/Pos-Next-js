@@ -6,7 +6,7 @@ class EnvConfig {
   static String get apiBaseUrl {
     var url = dotenv.get(
       'API_BASE_URL',
-      fallback: 'http://localhost:3000/api',
+      fallback: 'https://pos-next-js-kohl.vercel.app/api',
     ).trim();
     // Android: localhost/127.0.0.1 tidak reachable dari device/emulator.
     // Jika .env masih localhost, coba fallback ke 10.0.2.2 (emulator) atau biarkan https prod.
