@@ -10,6 +10,13 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+// Keystore release hanya dipakai jika file-nya tersedia. Tanpa file (mis. di
+// mesin developer/CI yang tidak menyimpan secret), build tetap jalan dengan
+// signing debug agar APK tetap bisa di-sideload. Taruh upload-keystore.jks di
+// folder ini + isi key.properties untuk signing release sungguhan.
+def releaseStoreFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+def hasReleaseKeystore = releaseStoreFile != null && releaseStoreFile.exists()
+
 android {
     namespace "com.posqu.mobile.lite"
     compileSdk 36
@@ -33,17 +40,20 @@ android {
     }
 
     signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
+        if (hasReleaseKeystore) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile releaseStoreFile
+                storePassword keystoreProperties['storePassword']
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // Fallback ke debug signing bila keystore release belum tersedia
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             // Play Protect: signed release (bukan debug) + shrinkResources nonaktifkan untuk sideload stabil
             minifyEnabled false
             shrinkResources false
