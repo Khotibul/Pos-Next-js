@@ -77,11 +77,13 @@ class GoogleAuthDataSource {
         await authBox.put('token', token);
       }
       final userJson = response.data['user'];
-      if (userJson is Map) {
-        await authBox.put('user', Map<String, dynamic>.from(userJson));
+      if (userJson is! Map) {
+        throw Exception('Respons server tidak lengkap (data user tidak ditemukan).');
       }
+      final userMap = Map<String, dynamic>.from(userJson);
+      await authBox.put('user', userMap);
 
-      final userModel = UserModel.fromJson(response.data['user']);
+      final userModel = UserModel.fromJson(userMap);
       return userModel.toEntity();
     } catch (e) {
       final msg = e.toString();

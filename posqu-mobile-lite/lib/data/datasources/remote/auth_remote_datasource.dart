@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../core/network/dio_client.dart';
 import '../../models/user_model.dart';
 
@@ -32,10 +33,28 @@ class AuthRemoteDataSource {
         validateStatus: (s) => s != null && s < 500,
       ),
     );
+    final status = response.statusCode;
     final data = response.data;
+
+    // Server mengirim { ok:false, code, message } untuk error (400/401/403/429).
+    // Jangan pernah parse user/token dari payload error — itu yang menyebabkan
+    // crash "type 'Null' is not a subtype of type 'Map<String, dynamic>'/'String'".
+    if (data is! Map || data['ok'] != true || data['token'] is! String || data['user'] is! Map) {
+      String message;
+      if (data is Map && data['message'] is String && (data['message'] as String).trim().isNotEmpty) {
+        message = data['message'] as String;
+      } else if (status == null) {
+        message = 'Tidak dapat terhubung ke server. Periksa koneksi internet.';
+      } else {
+        message = 'Login gagal (HTTP $status). Silakan coba lagi.';
+      }
+      throw ServerException(message: message, statusCode: status, data: data);
+    }
+
+    final userJson = Map<String, dynamic>.from(data['user'] as Map);
     return LoginResponse(
-      user: UserModel.fromJson(data['user']),
-      token: data['token'],
+      user: UserModel.fromJson(userJson),
+      token: data['token'] as String,
     );
   }
 
@@ -50,7 +69,17 @@ class AuthRemoteDataSource {
 
   Future<UserModel> getCurrentUser() async {
     final response = await _dio.get('/auth/me');
-    return UserModel.fromJson(response.data['user']);
+    final data = response.data;
+    if (data is! Map || data['user'] is! Map) {
+      throw ServerException(
+        message: (data is Map && data['message'] is String)
+            ? data['message'] as String
+            : 'Gagal memuat data pengguna.',
+        statusCode: response.statusCode,
+        data: data,
+      );
+    }
+    return UserModel.fromJson(Map<String, dynamic>.from(data['user'] as Map));
   }
 
   Future<String> refreshToken(String refreshToken) async {

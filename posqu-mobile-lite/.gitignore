@@ -52,4 +52,4 @@ coverage/
 test_reports/
 
 # FVM Version Cache
-.fvm/
+.fvm/android/key.properties
