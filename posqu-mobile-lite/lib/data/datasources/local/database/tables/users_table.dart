@@ -9,6 +9,7 @@ class UsersTable extends Table {
   DateTimeColumn get emailVerified => dateTime().nullable()();
   TextColumn get image => text().nullable()();
   TextColumn get passwordHash => text().nullable()();
+  TextColumn get role => text().nullable()();
   BoolColumn get isSuperAdmin => boolean().withDefault(const Constant(false))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

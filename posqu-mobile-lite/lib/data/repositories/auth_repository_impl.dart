@@ -141,7 +141,9 @@ class AuthRepositoryImpl implements AuthRepository {
             : email.split('@').first,
         email: row.email ?? email,
         avatarUrl: row.image,
-        role: row.isSuperAdmin ? 'ADMIN' : 'USER',
+        role: (row.role != null && row.role!.trim().isNotEmpty)
+            ? row.role!.trim()
+            : (row.isSuperAdmin ? 'ADMIN' : 'USER'),
         isActive: row.isActive,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
@@ -166,6 +168,7 @@ class AuthRepositoryImpl implements AuthRepository {
         name: Value(user.name),
         image: Value(user.avatarUrl),
         passwordHash: Value(hashed),
+        role: Value(user.role),
         isActive: const Value(true),
         isSuperAdmin: Value(user.role == 'OWNER' || user.role == 'ADMIN' || email.contains('superadmin')),
         updatedAt: Value(DateTime.now()),

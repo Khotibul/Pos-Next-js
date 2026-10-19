@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/role_permissions.dart';
 import '../providers/auth/auth_provider.dart';
 import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
@@ -58,6 +59,19 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
       if (isLoggedIn && isAuthRoute) return '/dashboard';
+
+      // Guard role: tolak akses route di luar hak aktor (role tenant).
+      if (isLoggedIn) {
+        final role = authState.maybeWhen(
+          authenticated: (user) => user.role,
+          orElse: () => null,
+        );
+        final segments = state.matchedLocation.split('/');
+        final basePath = segments.length > 1 ? '/${segments[1]}' : '/';
+        if (!RolePermissions.canAccessRoute(role, basePath)) {
+          return '/dashboard';
+        }
+      }
 
       return null;
     },

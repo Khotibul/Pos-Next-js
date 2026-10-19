@@ -86,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -132,6 +132,11 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(unitsTable);
           await m.addColumn(productsTable, productsTable.brandName);
         }
+        if (from < 7) {
+          // Role tenant asli (OWNER/ADMIN/CASHIER/WAREHOUSE/ACCOUNTANT/BRANCH_MANAGER)
+          // dari server, agar offline login tetap punya role yang benar.
+          await m.addColumn(usersTable, usersTable.role);
+        }
       },
       beforeOpen: (details) async {
         if (details.wasCreated) {
@@ -151,6 +156,7 @@ class AppDatabase extends _$AppDatabase {
         passwordHash: const Value(
           '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9',
         ),
+        role: const Value('OWNER'),
         isActive: const Value(true),
       ),
     );

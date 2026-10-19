@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/role_permissions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/responsive_helper.dart';
+import '../providers/auth/auth_provider.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
 
   const MainShell({super.key, required this.child});
@@ -43,18 +46,18 @@ class MainShell extends StatelessWidget {
     ),
   ];
 
-  int _currentIndex(String location) {
-    for (int i = 0; i < _destinations.length; i++) {
-      if (location == _destinations[i].route ||
-          location.startsWith('${_destinations[i].route}/')) {
+  int _currentIndex(String location, List<({String route, IconData icon, IconData selectedIcon, String label})> destinations) {
+    for (int i = 0; i < destinations.length; i++) {
+      if (location == destinations[i].route ||
+          location.startsWith('${destinations[i].route}/')) {
         return i;
       }
     }
     return 0;
   }
 
-  void _navigate(BuildContext context, String location, int index) {
-    final target = _destinations[index].route;
+  void _navigate(BuildContext context, String location, int index, List<({String route, IconData icon, IconData selectedIcon, String label})> destinations) {
+    final target = destinations[index].route;
     if (location != target) {
       context.go(target);
     }
@@ -64,12 +67,13 @@ class MainShell extends StatelessWidget {
     BuildContext context,
     String location,
     int index,
+    List<({String route, IconData icon, IconData selectedIcon, String label})> destinations,
   ) {
     return NavigationBar(
       selectedIndex: index,
-      onDestinationSelected: (i) => _navigate(context, location, i),
+      onDestinationSelected: (i) => _navigate(context, location, i, destinations),
       destinations: [
-        for (final destination in _destinations)
+        for (final destination in destinations)
           NavigationDestination(
             icon: Icon(destination.icon),
             selectedIcon: Icon(destination.selectedIcon),
@@ -84,9 +88,10 @@ class MainShell extends StatelessWidget {
     String location,
     int index,
     double viewportHeight,
+    List<({String route, IconData icon, IconData selectedIcon, String label})> destinations,
   ) {
     const destinationExtent = 72.0;
-    final minimumContentHeight = _destinations.length * destinationExtent;
+    final minimumContentHeight = destinations.length * destinationExtent;
     final contentHeight = viewportHeight < minimumContentHeight
         ? minimumContentHeight
         : viewportHeight;
@@ -103,14 +108,14 @@ class MainShell extends StatelessWidget {
             groupAlignment: -1,
             labelType: NavigationRailLabelType.none,
             selectedIndex: index,
-            onDestinationSelected: (i) => _navigate(context, location, i),
+            onDestinationSelected: (i) => _navigate(context, location, i, destinations),
             indicatorColor: const Color(0xFF1E3A8A),
             selectedIconTheme: const IconThemeData(color: Colors.white, size: 22),
             unselectedIconTheme: const IconThemeData(color: Color(0xFF94A3C8), size: 22),
             selectedLabelTextStyle: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
             unselectedLabelTextStyle: const TextStyle(color: Color(0xFF94A3C8), fontSize: 11),
             destinations: [
-              for (final destination in _destinations)
+              for (final destination in destinations)
                 NavigationRailDestination(
                   icon: Tooltip(
                     message: destination.label,
@@ -130,9 +135,23 @@ class MainShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(authStateProvider).maybeWhen(
+          authenticated: (user) => user.role,
+          orElse: () => null,
+        );
+    final destinations = _destinations
+        .where((d) => RolePermissions.canAccessRoute(role, d.route))
+        .toList();
+    // Fallback minimal agar tab bar tidak kosong sama sekali.
+    final effectiveDestinations = destinations.isNotEmpty
+        ? destinations
+        : _destinations.where((d) => d.route == '/dashboard').toList();
+
     final location = GoRouterState.of(context).uri.path;
-    final index = _currentIndex(location);
+    final index = _currentIndex(location, effectiveDestinations);
+    // Jika route aktif disembunyikan dari role → tetap tampilkan tab pertama.
+    final safeIndex = index < effectiveDestinations.length ? index : 0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -150,8 +169,9 @@ class MainShell extends StatelessWidget {
                       _buildScrollableNavigationRail(
                         context,
                         location,
-                        index,
+                        safeIndex,
                         MediaQuery.of(context).size.height,
+                        effectiveDestinations,
                       ),
                       Expanded(child: child),
                     ],
@@ -160,7 +180,7 @@ class MainShell extends StatelessWidget {
           ),
           bottomNavigationBar: useNavigationRail
               ? null
-              : _buildNavigationBar(context, location, index),
+              : _buildNavigationBar(context, location, safeIndex, effectiveDestinations),
         );
       },
     );

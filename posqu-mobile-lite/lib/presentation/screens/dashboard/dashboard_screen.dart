@@ -23,6 +23,10 @@ class DashboardScreen extends ConsumerWidget {
       authenticated: (user) => user.id,
       orElse: () => '',
     );
+    final userRole = authState.maybeWhen(
+      authenticated: (user) => user.role,
+      orElse: () => '',
+    );
     final shiftAsync =
         userId.isEmpty ? null : ref.watch(activeShiftProvider(userId));
     final shift = shiftAsync?.valueOrNull;
@@ -59,7 +63,7 @@ class DashboardScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildGreeting(context, userName, shift),
+                _buildGreeting(context, userName, shift, userRole),
                 const SizedBox(height: 16),
                 isWide
                     ? Row(
@@ -100,7 +104,8 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildGreeting(BuildContext context, String userName, shift) {
+  Widget _buildGreeting(BuildContext context, String userName, shift, String role) {
+    final roleLabel = (role.trim().isEmpty) ? 'USER' : role.trim().toUpperCase();
     return Row(
       children: [
         ClipRRect(
@@ -129,6 +134,22 @@ class DashboardScreen extends ConsumerWidget {
                     ?.copyWith(fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  roleLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                ),
               ),
             ],
           ),

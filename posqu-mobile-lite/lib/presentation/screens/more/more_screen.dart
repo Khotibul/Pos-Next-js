@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class MoreScreen extends StatelessWidget {
+import '../../../core/auth/role_permissions.dart';
+import '../../providers/auth/auth_provider.dart';
+
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   static const List<({String route, IconData icon, String title, String subtitle})>
@@ -69,7 +73,15 @@ class MoreScreen extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(authStateProvider).maybeWhen(
+          authenticated: (user) => user.role,
+          orElse: () => null,
+        );
+    final items = _items
+        .where((item) => RolePermissions.canAccessRoute(role, item.route))
+        .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lainnya'),
@@ -77,10 +89,10 @@ class MoreScreen extends StatelessWidget {
       ),
       body: ListView.separated(
         padding: const EdgeInsets.all(12),
-        itemCount: _items.length,
+        itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
-          final item = _items[index];
+          final item = items[index];
           return Card(
             margin: EdgeInsets.zero,
             child: ListTile(
