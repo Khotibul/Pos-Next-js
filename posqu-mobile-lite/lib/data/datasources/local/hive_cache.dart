@@ -47,6 +47,19 @@ class HiveCache {
     return box.get('user');
   }
 
+  /// Waktu aktivitas terakhir (epoch ms) — dasar sesi sliding 1 jam.
+  Future<void> saveLastActiveAt(DateTime time) async {
+    final box = Hive.box(_authBox);
+    await box.put('lastActiveAt', time.millisecondsSinceEpoch);
+  }
+
+  DateTime? getLastActiveAt() {
+    final box = Hive.box(_authBox);
+    final value = box.get('lastActiveAt');
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    return null;
+  }
+
   Future<void> clearAuth() async {
     final box = Hive.box(_authBox);
     await box.clear();

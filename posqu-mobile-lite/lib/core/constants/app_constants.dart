@@ -5,6 +5,14 @@ class AppConstants {
   static const String appVersion = '1.0.7';
   static const String dbName = 'posqu_mobile_lite.db';
 
+  /// Sesi login berlaku 1 jam sejak aktivitas terakhir (sliding).
+  /// Aplikasi yang di-minimize < 1 jam TIDAK logout — cukup buka lagi.
+  /// Idle (background/offline) > 1 jam → login ulang.
+  static const Duration sessionTimeout = Duration(hours: 1);
+
+  /// Perpanjang sesi tiap interval ini selama app aktif di foreground.
+  static const Duration sessionTouchInterval = Duration(minutes: 10);
+
   // Pagination
   static const int defaultPageSize = 20;
   static const int maxPageSize = 100;

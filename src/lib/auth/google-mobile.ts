@@ -34,12 +34,16 @@ export function signMobileToken(payload: { userId: string; email: string | null 
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw Errors.badRequest("AUTH_SECRET belum dikonfigurasi.");
 
+  // Token API berlaku 24 jam. Kebijakan sesi 1 jam (sliding, idle timeout)
+  // ditegakkan di sisi app Android — token server sengaja lebih panjang
+  // sebagai margin (clock skew, request antre offline, dsb) agar tidak
+  // ada 401 palsu di tengah shift kasir yang masih aktif.
   const body = Buffer.from(
     JSON.stringify({
       sub: payload.userId,
       email: payload.email,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
     }),
   ).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(body).digest("base64url");

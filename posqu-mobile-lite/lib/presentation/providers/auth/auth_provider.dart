@@ -65,6 +65,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _authRepository.logout();
     state = const AuthState.unauthenticated(null);
   }
+
+  /// Sesi hangingus (idle > 1 jam) — keluar ke login dengan pesan jelas.
+  Future<void> sessionExpired() async {
+    await _authRepository.logout();
+    state = const AuthState.error(
+      'Sesi berakhir (1 jam tidak aktif). Silakan login kembali.',
+    );
+  }
 }
 
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {

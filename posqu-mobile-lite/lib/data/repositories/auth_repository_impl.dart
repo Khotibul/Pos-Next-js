@@ -7,6 +7,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
 import '../../core/network/network_info.dart';
@@ -72,6 +73,7 @@ class AuthRepositoryImpl implements AuthRepository {
         await Future.wait([
           cache.saveToken(result.token),
           cache.saveUserData(result.user.toJson()),
+          cache.saveLastActiveAt(DateTime.now()),
         ]);
         // Jangan blok login success dengan drift upsert (50-120ms) — jalankan background
         // ignore: unawaited_futures
@@ -152,6 +154,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       await cache.saveToken('$_localTokenPrefix${const Uuid().v4()}');
       await cache.saveUserData(userModel.toJson());
+      await cache.saveLastActiveAt(DateTime.now());
 
       return Right(user);
     } catch (e) {
@@ -215,10 +218,33 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, bool>> isLoggedIn() async {
     try {
       final token = cache.getToken();
-      return Right(token != null && token.isNotEmpty);
+      if (token == null || token.isEmpty) return const Right(false);
+
+      // Sesi sliding 1 jam: token masih ada tapi tidak ada aktivitas > 1 jam
+      // → sesi hangus, pak cache (token+user) agar app minta login ulang.
+      final lastActive = cache.getLastActiveAt();
+      if (lastActive != null &&
+          DateTime.now().difference(lastActive) > AppConstants.sessionTimeout) {
+        await cache.clearAuth();
+        return const Right(false);
+      }
+      // Install lama belum punya lastActiveAt → inisialisasi sekarang.
+      if (lastActive == null) {
+        await cache.saveLastActiveAt(DateTime.now());
+      }
+      return const Right(true);
     } catch (e) {
       return const Right(false);
     }
+  }
+
+  @override
+  Future<void> touchSession() async {
+    try {
+      if (cache.getToken() != null) {
+        await cache.saveLastActiveAt(DateTime.now());
+      }
+    } catch (_) {}
   }
 
   @override

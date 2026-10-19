@@ -9,4 +9,7 @@ abstract class AuthRepository {
   Future<Either<Failure, User>> getCurrentUser();
   Future<Either<Failure, bool>> isLoggedIn();
   Future<Either<Failure, String?>> getToken();
+
+  /// Perpanjang sesi sliding (panggil saat app aktif / resume dari minimize).
+  Future<void> touchSession();
 }
