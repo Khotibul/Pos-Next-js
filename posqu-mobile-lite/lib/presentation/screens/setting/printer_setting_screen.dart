@@ -32,6 +32,7 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
   bool _scanning = false;
   bool _testing = false;
   bool _uploadingQris = false;
+  String? _pairingAddress;
   List<PrinterDeviceInfo> _devices = [];
   PrinterDeviceInfo? _selected;
   String? _qrisImage;
@@ -127,20 +128,70 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Tidak ada printer terdeteksi. Pastikan printer Bluetooth sudah '
-              'di-pairing, atau printer USB/Type-C tercolok.',
+              'Tidak ada printer terdeteksi. Pasangkan printer Bluetooth '
+              'lewat Pengaturan Bluetooth sistem, atau colok printer USB/Type-C.',
             ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final isPermission = e is PrinterNotAvailableException &&
+            e.message.toLowerCase().contains('izin');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memindai: $e')),
+          SnackBar(
+            content: Text('Gagal memindai: $e'),
+            action: isPermission
+                ? const SnackBarAction(
+                    label: 'Buka Pengaturan',
+                    onPressed: PrinterDeviceService.openPermissionSettings,
+                  )
+                : null,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<void> _pair(PrinterDeviceInfo d) async {
+    setState(() => _pairingAddress = d.address);
+    try {
+      final ok = await PrinterDeviceService.pairDevice(d);
+      if (!mounted) return;
+      if (ok) {
+        final paired = PrinterDeviceInfo(
+          name: d.name,
+          type: d.type,
+          address: d.address,
+          bonded: true,
+        );
+        setState(() {
+          _devices = _devices
+              .map((x) => x.address == d.address ? paired : x)
+              .toList();
+          _selected = paired;
+          _printerNameController.text = paired.name;
+          _pairingAddress = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${d.name} berhasil dipasangkan')),
+        );
+      } else {
+        setState(() => _pairingAddress = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal memasangkan ${d.name}. Pastikan printer dalam mode '
+              'pairing (indikator Bluetooth biasanya berkedip).',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _pairingAddress = null);
     }
   }
 
@@ -332,22 +383,40 @@ class _PrinterSettingScreenState extends ConsumerState<PrinterSettingScreen> {
                   ),
                   subtitle: Text(
                     d.type == 'bluetooth'
-                        ? 'Bluetooth • ${d.address ?? '-'}'
+                        ? (d.bonded
+                            ? 'Bluetooth • ${d.address ?? '-'}'
+                            : 'Bluetooth • ${d.address ?? '-'} • Belum dipasangkan')
                         : 'USB/Type-C • ID ${d.vendorId}:${d.productId}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   trailing: isSelected
                       ? const Icon(Icons.check_circle, color: Colors.green)
-                      : TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _selected = d;
-                              _printerNameController.text = d.name;
-                            });
-                          },
-                          child: const Text('Pilih'),
-                        ),
+                      : (d.type == 'bluetooth' && !d.bonded)
+                          ? (_pairingAddress == d.address
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                )
+                              : TextButton(
+                                  onPressed: () => _pair(d),
+                                  child: const Text('Pasangkan'),
+                                ))
+                          : TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _selected = d;
+                                  _printerNameController.text = d.name;
+                                });
+                              },
+                              child: const Text('Pilih'),
+                            ),
                   onTap: () {
+                    if (d.type == 'bluetooth' && !d.bonded) {
+                      _pair(d);
+                      return;
+                    }
                     setState(() {
                       _selected = d;
                       _printerNameController.text = d.name;

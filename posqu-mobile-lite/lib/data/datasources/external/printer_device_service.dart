@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -23,6 +24,7 @@ class PrinterDeviceInfo {
   final String? address; // MAC address (bluetooth)
   final int? vendorId; // USB
   final int? productId; // USB
+  final bool bonded; // bluetooth: sudah dipasangkan (paired)
 
   const PrinterDeviceInfo({
     required this.name,
@@ -30,6 +32,7 @@ class PrinterDeviceInfo {
     this.address,
     this.vendorId,
     this.productId,
+    this.bonded = true,
   });
 
   Map<String, dynamic> toMap() => {
@@ -97,11 +100,23 @@ class PrinterDeviceService {
   static Future<bool> _ensurePermissions() async {
     if (!Platform.isAndroid) return true;
     try {
-      final granted =
+      final already =
           await _permissionChannel.invokeMethod('hasPrinterPermissions');
-      if (granted == true) return true;
-      await _permissionChannel.invokeMethod('requestPrinterPermissions');
-      for (var i = 0; i < 20; i++) {
+      if (already == true) return true;
+
+      Object? res;
+      try {
+        res = await _permissionChannel
+            .invokeMethod('requestPrinterPermissions')
+            .timeout(const Duration(seconds: 90));
+      } on TimeoutException {
+        res = null;
+      }
+
+      if (res == true) return true;
+      if (res == false) return false;
+
+      for (var i = 0; i < 40; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         final check =
             await _permissionChannel.invokeMethod('hasPrinterPermissions');
@@ -109,9 +124,15 @@ class PrinterDeviceService {
       }
       return false;
     } catch (_) {
-      // Channel tidak tersedia (perangkat lama) -> jangan blokir.
-      return true;
+      return false;
     }
+  }
+
+  static Future<void> openPermissionSettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _permissionChannel.invokeMethod('openPrinterPermissionSettings');
+    } catch (_) {}
   }
 
   /// Pindai printer yang tersedia:
@@ -161,13 +182,41 @@ class PrinterDeviceService {
         final bonded = await bt.getBondedDevices();
         for (final d in bonded) {
           devices.add(PrinterDeviceInfo(
-            name: d.name ?? d.address,
+            name: (d.name == null || d.name!.isEmpty) ? d.address : d.name!,
             type: 'bluetooth',
             address: d.address,
+            bonded: true,
           ));
         }
       } catch (e) {
         btError ??= 'Gagal membaca perangkat Bluetooth: $e';
+      }
+
+      try {
+        final known = devices.map((d) => d.address).toSet();
+        final found = <String, PrinterDeviceInfo>{};
+        final sub = bt.startDiscovery().listen((r) {
+          final d = r.device;
+          final addr = d.address;
+          if (addr.isEmpty) return;
+          if (known.contains(addr) || found.containsKey(addr)) return;
+          found[addr] = PrinterDeviceInfo(
+            name: (d.name == null || d.name!.isEmpty) ? addr : d.name!,
+            type: 'bluetooth',
+            address: addr,
+            bonded: d.isBonded,
+          );
+        }, onError: (_) {});
+        await Future.delayed(const Duration(seconds: 10));
+        await sub.cancel();
+        try {
+          await bt.cancelDiscovery();
+        } catch (_) {}
+        devices.addAll(found.values);
+      } catch (_) {
+        try {
+          await bt.cancelDiscovery();
+        } catch (_) {}
       }
     }
 
@@ -205,6 +254,21 @@ class PrinterDeviceService {
     return null;
   }
 
+  static Future<bool> pairDevice(PrinterDeviceInfo device) async {
+    if (!Platform.isAndroid) return false;
+    final address = device.address;
+    if (address == null || address.isEmpty) return false;
+    if (!await _ensurePermissions()) return false;
+    try {
+      final ok = await FlutterBluetoothSerial.instance
+          .bondDeviceAtAddress(address)
+          .timeout(const Duration(seconds: 45));
+      return ok == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Kirim bytes mentah ke printer sesuai tipe perangkat.
   static Future<void> sendBytes(
     PrinterDeviceInfo device,
@@ -215,22 +279,57 @@ class PrinterDeviceService {
       if (address == null || address.isEmpty) {
         throw const PrinterNotAvailableException('Alamat Bluetooth printer belum ada');
       }
-      final BluetoothConnection connection;
-      try {
-        connection = await BluetoothConnection.toAddress(address)
-            .timeout(const Duration(seconds: 8));
-      } catch (_) {
-        throw PrinterNotAvailableException(
-          'Tidak dapat terhubung ke ${device.name}. Pastikan printer menyala dan dalam jangkauan.',
+      if (!await _ensurePermissions()) {
+        throw const PrinterNotAvailableException(
+          'Izin Bluetooth belum diberikan. Buka Pengaturan aplikasi, '
+          'izinkan Bluetooth, lalu coba cetak ulang.',
         );
       }
       try {
-        connection.output.add(Uint8List.fromList(bytes.toList()));
-        await connection.output.allSent;
-      } finally {
-        await Future.delayed(const Duration(milliseconds: 200));
-        await connection.close();
+        await FlutterBluetoothSerial.instance.cancelDiscovery();
+      } catch (_) {}
+
+      for (var attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+        final BluetoothConnection connection;
+        try {
+          connection = await BluetoothConnection.toAddress(address)
+              .timeout(const Duration(seconds: 15));
+        } on TimeoutException {
+          continue;
+        } catch (e) {
+          if (attempt == 1) {
+            final msg = e.toString().toLowerCase();
+            if (msg.contains('securityexception') || msg.contains('permission')) {
+              throw const PrinterNotAvailableException(
+                'Izin Bluetooth dicabut. Buka Pengaturan aplikasi '
+                'lalu izinkan Bluetooth, kemudian coba lagi.',
+              );
+            }
+            if (msg.contains('bond') || msg.contains('pair') || msg.contains('auth')) {
+              throw PrinterNotAvailableException(
+                'Printer "${device.name}" belum dipasangkan. '
+                'Pilih printer lalu ketuk Pasangkan terlebih dahulu.',
+              );
+            }
+          }
+          continue;
+        }
+        try {
+          connection.output.add(Uint8List.fromList(bytes.toList()));
+          await connection.output.allSent;
+          await Future.delayed(const Duration(milliseconds: 400));
+        } finally {
+          await connection.close();
+        }
+        return;
       }
+      throw PrinterNotAvailableException(
+        'Tidak dapat terhubung ke ${device.name}. Pastikan printer menyala, '
+        'sudah dipasangkan, dan dalam jangkauan.',
+      );
     } else {
       final vendorId = device.vendorId;
       final productId = device.productId;

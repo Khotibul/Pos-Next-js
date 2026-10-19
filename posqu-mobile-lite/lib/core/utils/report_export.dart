@@ -5,7 +5,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../domain/entities/report.dart';
 import 'currency_formatter.dart';
@@ -26,6 +25,24 @@ String _fmtDateTime(DateTime d) {
 String _periodLabel(PeriodReport r) =>
     '${_fmtDate(r.start)} - ${_fmtDate(r.end)}';
 
+String reportPeriodLabel(PeriodReport r) => _periodLabel(r);
+
+String buildReportSummaryText(PeriodReport report) {
+  String money(double v) => CurrencyFormatter.format(v);
+  final buf = StringBuffer()
+    ..writeln('Laporan Penjualan POSQU')
+    ..writeln('Periode: ${_periodLabel(report)}')
+    ..writeln('Omset: ${money(report.totalSales)}')
+    ..writeln('Transaksi: ${report.transactionCount}')
+    ..writeln('Item Terjual: ${report.itemsSold}')
+    ..writeln('Laba Kotor: ${money(report.grossProfit)}')
+    ..writeln('Tunai: ${money(report.totalCash)}')
+    ..writeln('QRIS: ${money(report.totalQris)}')
+    ..writeln('Transfer: ${money(report.totalTransfer)}')
+    ..writeln('E-Wallet: ${money(report.totalEwallet)}');
+  return buf.toString().trimRight();
+}
+
 Future<File> _writeTemp(String name, List<int> bytes) async {
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$name');
@@ -35,7 +52,7 @@ Future<File> _writeTemp(String name, List<int> bytes) async {
 
 // ================= EXCEL =================
 
-Future<void> exportReportExcel(PeriodReport report) async {
+Future<File> buildReportExcelFile(PeriodReport report) async {
   final excel = Excel.createExcel();
   final sheet = excel['Laporan Penjualan'];
 
@@ -95,13 +112,23 @@ Future<void> exportReportExcel(PeriodReport report) async {
     ]);
   }
 
+  try {
+    if (excel.getDefaultSheet() != 'Laporan Penjualan') {
+      excel.delete('Sheet1');
+    }
+  } catch (_) {}
+
   final bytes = excel.save();
-  if (bytes == null) return;
+  if (bytes == null) {
+    throw Exception('Gagal membuat file Excel (data kosong)');
+  }
   final file = await _writeTemp(
       'laporan-penjualan-${_fmtDate(report.start).replaceAll('/', '')}.xlsx',
       bytes);
-  await Share.shareXFiles([XFile(file.path)],
-      text: 'Laporan penjualan ${_periodLabel(report)}');
+  if (!await file.exists()) {
+    throw Exception('Gagal menyimpan file Excel');
+  }
+  return file;
 }
 
 // ================= PDF =================
@@ -229,14 +256,16 @@ pw.Document buildReportPdf(PeriodReport report) {
   return doc;
 }
 
-Future<void> exportReportPdf(PeriodReport report) async {
+Future<File> buildReportPdfFile(PeriodReport report) async {
   final doc = buildReportPdf(report);
   final bytes = await doc.save();
   final file = await _writeTemp(
       'laporan-penjualan-${_fmtDate(report.start).replaceAll('/', '')}.pdf',
       bytes);
-  await Share.shareXFiles([XFile(file.path)],
-      text: 'Laporan penjualan ${_periodLabel(report)}');
+  if (!await file.exists()) {
+    throw Exception('Gagal menyimpan file PDF');
+  }
+  return file;
 }
 
 Future<void> printReportPdf(PeriodReport report) async {

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../providers/plan/plan_provider.dart';
 import '../../providers/report/report_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/report_export.dart';
+import '../../../core/utils/whatsapp_share.dart';
 import '../../../domain/entities/report.dart';
 
 enum _Preset { today, week, month, custom }
@@ -78,17 +80,136 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     }
   }
 
+  void _snack(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Colors.red.shade700 : null,
+        ),
+      );
+  }
+
   Future<void> _export({required bool excel}) async {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final report =
-          await ref.read(periodReportProvider(_range).future);
-      if (excel) {
-        await exportReportExcel(report);
-      } else {
-        await exportReportPdf(report);
+      final report = await ref.read(periodReportProvider(_range).future);
+      final file = excel
+          ? await buildReportExcelFile(report)
+          : await buildReportPdfFile(report);
+      final result = await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Laporan penjualan ${reportPeriodLabel(report)}',
+      );
+      if (result.status == ShareResultStatus.success) {
+        _snack('File ${excel ? 'Excel' : 'PDF'} siap dibagikan');
       }
+    } catch (e) {
+      _snack('Export ${excel ? 'Excel' : 'PDF'} gagal: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _shareWhatsApp() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    PeriodReport report;
+    try {
+      report = await ref.read(periodReportProvider(_range).future);
+    } catch (e) {
+      _snack('Gagal memuat laporan: $e', error: true);
+      if (mounted) setState(() => _exporting = false);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _exporting = false);
+
+    final summary = buildReportSummaryText(report);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Share ke WhatsApp',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.text_snippet_outlined,
+                  color: Colors.green),
+              title: const Text('Ringkasan laporan (teks)'),
+              subtitle: const Text('Omset, transaksi, laba — langsung ke WhatsApp'),
+              onTap: () => Navigator.pop(sheetContext, 'text'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined,
+                  color: Colors.red),
+              title: const Text('File PDF laporan'),
+              subtitle: const Text('Lampiran PDF + ringkasan sebagai caption'),
+              onTap: () => Navigator.pop(sheetContext, 'pdf'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.grid_on_outlined, color: Colors.green),
+              title: const Text('File Excel laporan'),
+              subtitle: const Text(
+                  'WhatsApp tidak menerima file Excel — pilih aplikasi lain, '
+                  'atau kirim PDF/teks ke WhatsApp'),
+              onTap: () => Navigator.pop(sheetContext, 'excel'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    setState(() => _exporting = true);
+    try {
+      switch (choice) {
+        case 'text':
+          final ok = await WhatsAppShare.shareText(summary);
+          if (!ok) {
+            await Share.share(summary);
+          }
+          break;
+        case 'pdf':
+          final file = await buildReportPdfFile(report);
+          final ok = await WhatsAppShare.shareFile(file.path, text: summary);
+          if (!ok) {
+            await Share.shareXFiles(
+              [XFile(file.path)],
+              text: summary,
+            );
+            _snack(
+              'WhatsApp tidak terbuka otomatis — pilih WhatsApp di daftar share, '
+              'atau kirim ringkasan teks.',
+            );
+          }
+          break;
+        case 'excel':
+          final file = await buildReportExcelFile(report);
+          final result = await Share.shareXFiles(
+            [XFile(file.path)],
+            text: summary,
+          );
+          if (result.status == ShareResultStatus.dismissed) {
+            _snack(
+              'Excel tidak didukung WhatsApp — kirim PDF atau ringkasan '
+              'teks untuk WhatsApp.',
+            );
+          }
+          break;
+      }
+    } catch (e) {
+      _snack('Gagal membagikan ke WhatsApp: $e', error: true);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -114,6 +235,11 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
             tooltip: 'Export PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.red),
             onPressed: (!canUseDb || _exporting) ? null : () => _export(excel: false),
+          ),
+          IconButton(
+            tooltip: 'Share WhatsApp',
+            icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+            onPressed: (!canUseDb || _exporting) ? null : _shareWhatsApp,
           ),
         ],
       ),
