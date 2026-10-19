@@ -8,7 +8,7 @@
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "node scripts/clean-next.cjs && next dev",
-    "build": "node scripts/clean-next.cjs && npm run prisma:generate && next build",
+    "build": "node scripts/clean-next.cjs && npm run prisma:generate && node scripts/migrate-on-build.cjs && next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",

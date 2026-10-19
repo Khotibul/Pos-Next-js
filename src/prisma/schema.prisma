@@ -120,7 +120,8 @@ model Tenant {
    receivables Receivable[]
    receivablePayments ReceivablePayment[]
    payables Payable[]
-   payablePayments PayablePayment[]
+    payablePayments PayablePayment[]
+    cashTransactions CashTransaction[]
 
    @@unique([domain])
    @@unique([subdomain])
@@ -204,6 +205,7 @@ model User {
   productTransfers    ProductTransfer[] @relation("ProductTransferCreatedBy")
   productAdjustments  ProductAdjustment[] @relation("ProductAdjustmentCreatedBy")
   productOpnames      ProductOpname[] @relation("ProductOpnameCreatedBy")
+  cashTransactions    CashTransaction[]
 
   @@index([isActive])
 }
@@ -1323,6 +1325,29 @@ model CashierShift {
   @@index([openedAt])
   @@index([status])
   @@index([tenantId, branchId, cashierId, status])
+}
+
+model CashTransaction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  shiftId         String?
+  userId          String
+  type            String
+  category        String
+  amount          Decimal  @default(0)
+  description     String?
+  referenceType   String?
+  referenceId     String?
+  transactionDate DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, transactionDate])
+  @@index([tenantId, shiftId])
+  @@index([tenantId, type])
 }
 
 // NextAuth / Auth.js models (Prisma Adapter)
