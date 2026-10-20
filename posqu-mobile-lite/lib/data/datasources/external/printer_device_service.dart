@@ -66,6 +66,9 @@ class PrinterDeviceService {
 
   static const MethodChannel _permissionChannel =
       MethodChannel('posqu/permissions');
+  static const MethodChannel _btChannel = MethodChannel('posqu/bt');
+  static const EventChannel _btDiscoveryChannel =
+      EventChannel('posqu/btDiscovery');
 
   /// Encode teks menjadi byte ESC/POS yang aman.
   /// - Karakter ASCII/Latin-1 (<= 0xFF) ditulis langsung.
@@ -135,6 +138,61 @@ class PrinterDeviceService {
     } catch (_) {}
   }
 
+  /// Izin discovery: Android 12+ cukup BLUETOOTH_SCAN (sudah diminta
+  /// [_ensurePermissions]); Android <=11 framework wajibkan lokasi untuk
+  /// startDiscovery — hanya diminta di versi itu.
+  static Future<bool> _ensureDiscoveryPermission() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final has =
+          await _permissionChannel.invokeMethod('hasDiscoveryPermissions');
+      if (has == true) return true;
+
+      Object? res;
+      try {
+        res = await _permissionChannel
+            .invokeMethod('requestDiscoveryPermissions')
+            .timeout(const Duration(seconds: 90));
+      } on TimeoutException {
+        res = null;
+      }
+      if (res == true) return true;
+      if (res == false) return false;
+
+      for (var i = 0; i < 40; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        final check =
+            await _permissionChannel.invokeMethod('hasDiscoveryPermissions');
+        if (check == true) return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Daftar perangkat bonded/paired via channel native.
+  /// Plugin flutter_bluetooth_serial.getBondedDevices selalu mengecek izin
+  /// lokasi (tanpa syarat versi Android) dan melempar "no_permissions" bila
+  /// tidak ada — native ini tidak butuh lokasi sama sekali.
+  static Future<List<PrinterDeviceInfo>> _getNativeBondedDevices() async {
+    final raw = await _btChannel.invokeMethod<List<dynamic>>('getBondedDevices');
+    final out = <PrinterDeviceInfo>[];
+    for (final item in raw ?? const []) {
+      final map = Map<String, dynamic>.from(item as Map);
+      final addr = (map['address'] as String?) ?? '';
+      if (addr.isEmpty) continue;
+      final name = (map['name'] as String?) ?? '';
+      out.add(PrinterDeviceInfo(
+        name: name.isEmpty ? addr : name,
+        type: 'bluetooth',
+        address: addr,
+        bonded: true,
+      ));
+    }
+    return out;
+  }
+
   /// Pindai printer yang tersedia:
   /// - Bluetooth: semua perangkat yang sudah paired/bonded.
   /// - USB/Type-C: printer yang sedang tercolok (OTG).
@@ -178,46 +236,63 @@ class PrinterDeviceService {
     }
 
     if (btError == null) {
+      final known = <String>{};
       try {
-        final bonded = await bt.getBondedDevices();
+        final bonded = await _getNativeBondedDevices();
         for (final d in bonded) {
-          devices.add(PrinterDeviceInfo(
-            name: (d.name == null || d.name!.isEmpty) ? d.address : d.name!,
-            type: 'bluetooth',
-            address: d.address,
-            bonded: true,
-          ));
+          known.add(d.address!);
+          devices.add(d);
         }
       } catch (e) {
         btError ??= 'Gagal membaca perangkat Bluetooth: $e';
       }
 
+      // Discovery perangkat di sekitar (belum dipasangkan).
+      final found = <String, PrinterDeviceInfo>{};
+      StreamSubscription? sub;
+      final finished = Completer<void>();
       try {
-        final known = devices.map((d) => d.address).toSet();
-        final found = <String, PrinterDeviceInfo>{};
-        final sub = bt.startDiscovery().listen((r) {
-          final d = r.device;
-          final addr = d.address;
-          if (addr.isEmpty) return;
-          if (known.contains(addr) || found.containsKey(addr)) return;
+        sub = _btDiscoveryChannel.receiveBroadcastStream().listen((event) {
+          final map = Map<String, dynamic>.from(event as Map);
+          if (map['event'] == 'finished') {
+            if (!finished.isCompleted) finished.complete();
+            return;
+          }
+          final addr = (map['address'] as String?) ?? '';
+          if (addr.isEmpty || known.contains(addr) || found.containsKey(addr)) {
+            return;
+          }
+          final name = (map['name'] as String?) ?? '';
           found[addr] = PrinterDeviceInfo(
-            name: (d.name == null || d.name!.isEmpty) ? addr : d.name!,
+            name: name.isEmpty ? addr : name,
             type: 'bluetooth',
             address: addr,
-            bonded: d.isBonded,
+            bonded: map['isBonded'] == true,
           );
-        }, onError: (_) {});
-        await Future.delayed(const Duration(seconds: 10));
-        await sub.cancel();
-        try {
-          await bt.cancelDiscovery();
-        } catch (_) {}
-        devices.addAll(found.values);
+        }, onError: (_) {
+          if (!finished.isCompleted) finished.complete();
+        });
+
+        final discoveryPermitted = await _ensureDiscoveryPermission();
+        if (discoveryPermitted) {
+          // Tunggu stream sink siap di sisi native sebelum start.
+          await Future.delayed(const Duration(milliseconds: 150));
+          try {
+            await _btChannel.invokeMethod('startDiscovery');
+            await finished.future.timeout(const Duration(seconds: 12));
+          } catch (_) {
+            // Izin ditolak / framework menolak -> tetap pakai bonded list.
+          }
+        }
       } catch (_) {
+        // Discovery tidak tersedia -> abaikan, bonded list tetap dipakai.
+      } finally {
+        await sub?.cancel();
         try {
-          await bt.cancelDiscovery();
+          await _btChannel.invokeMethod('cancelDiscovery');
         } catch (_) {}
       }
+      devices.addAll(found.values);
     }
 
     try {
@@ -285,6 +360,9 @@ class PrinterDeviceService {
           'izinkan Bluetooth, lalu coba cetak ulang.',
         );
       }
+      try {
+        await _btChannel.invokeMethod('cancelDiscovery');
+      } catch (_) {}
       try {
         await FlutterBluetoothSerial.instance.cancelDiscovery();
       } catch (_) {}

@@ -11,10 +11,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s"/>
-    <!-- Lokasi TIDAK dipakai (printer pakai device bonded, bukan discovery). Dihapus paksa
-         dari manifest plugin agar Play Protect tidak menandai app minta lokasi. -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove"/>
+    <!-- Lokasi HANYA untuk discovery Bluetooth klasik Android <= 11 (framework
+         wajibkan lokasi utk startDiscovery). Tidak diminta di Android 12+ (pakai
+         BLUETOOTH_SCAN neverForLocation). Bonded list tidak butuh lokasi sama sekali. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30"/>
     <!-- Storage legacy hanya Android <=12 (export struk/file picker) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage"/>
