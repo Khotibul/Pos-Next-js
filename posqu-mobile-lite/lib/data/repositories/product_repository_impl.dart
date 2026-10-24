@@ -73,6 +73,17 @@ class ProductRepositoryImpl implements ProductRepository {
         await remoteDataSource.createProduct(model.toJson());
         await database.productDao.markSynced([row.id]);
       } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+        final isPlanFree = status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true);
+        if (isPlanFree) {
+          try {
+            await database.productDao.markSynced([row.id]);
+          } catch (_) {}
+          continue;
+        }
         if (e.response?.statusCode == 400) {
           await database.productDao.markSynced([row.id]);
           continue;
@@ -148,16 +159,16 @@ class ProductRepositoryImpl implements ProductRepository {
       final model = ProductModel.fromEntity(product);
       await remoteDataSource.createProduct(model.toJson());
       pushed = true;
-    } catch (_) {
-      // Offline / endpoint gagal -> tetap simpan lokal, nanti di-push sync.
+    } catch (e) {
+      pushed = false;
+      // Offline / endpoint gagal / PLAN_FREE_NO_DB -> tetap simpan lokal, nanti di-push sync.
     }
 
     try {
       await _saveLocally(product, synced: pushed);
       return Right(product);
     } catch (localError) {
-      return Left(
-          DatabaseFailure(message: 'Gagal membuat produk: $localError'));
+      return Left(DatabaseFailure(message: 'Gagal membuat produk: $localError'));
     }
   }
 
@@ -282,7 +293,9 @@ class ProductRepositoryImpl implements ProductRepository {
       final model = ProductModel.fromEntity(product);
       await remoteDataSource.createProduct(model.toJson());
       pushed = true;
-    } catch (_) {}
+    } catch (_) {
+      pushed = false;
+    }
 
     try {
       await database.productDao.upsertProduct(

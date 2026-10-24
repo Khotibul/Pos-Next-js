@@ -83,15 +83,16 @@ final tenantPlanProvider = FutureProvider<TenantPlan?>((ref) async {
 final canUseDatabaseProvider = Provider<bool>((ref) {
   final planAsync = ref.watch(tenantPlanProvider);
   final plan = planAsync.valueOrNull;
-  // Jika belum load (offline atau error), anggap pro untuk tidak block offline SQLite
-  // Tapi sync akan tetap block via PLAN_FREE_NO_DB dari server saat online
-  if (plan == null) return true;
+  // Sesuai website: starter/free = blokir penggunaan DB terpusat/sinkronisasi.
+  // Kalau belum ter-load (offline/error fetch), anggap free agar konsisten
+  // dengan enforsement server (403 PLAN_FREE_NO_DB). SQLite lokal tetap bisa dipakai.
+  if (plan == null) return false;
   return plan.canUseDatabase;
 });
 
 final canSyncProvider = Provider<bool>((ref) {
   final planAsync = ref.watch(tenantPlanProvider);
   final plan = planAsync.valueOrNull;
-  if (plan == null) return true;
+  if (plan == null) return false;
   return plan.canSync;
 });

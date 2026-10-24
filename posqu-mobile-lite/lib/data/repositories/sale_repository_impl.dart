@@ -49,6 +49,18 @@ class SaleRepositoryImpl implements SaleRepository {
         payload['paymentReference'] = sale.paymentReference;
         await remoteDataSource.createSale(payload);
         await database.saleDao.markSynced([sale.id]);
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+        if (status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true)) {
+          // Paket free: server tolak simpan ke DB terpusat — tetap simpan lokal, tidak di-sync.
+          try {
+            await database.saleDao.markSynced([sale.id]);
+          } catch (_) {}
+        }
+        // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
       } catch (_) {
         // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
       }
@@ -173,6 +185,17 @@ class SaleRepositoryImpl implements SaleRepository {
         await remoteDataSource.createSale(payload);
         await database.saleDao.markSynced([row.id]);
       } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+        final isPlanFree = status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true);
+        if (isPlanFree) {
+          try {
+            await database.saleDao.markSynced([row.id]);
+          } catch (_) {}
+          continue;
+        }
         if (e.response?.statusCode == 400) {
           await database.saleDao.markSynced([row.id]);
           continue;
