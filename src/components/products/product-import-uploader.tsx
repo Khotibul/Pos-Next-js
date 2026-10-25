@@ -20,7 +20,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function normalizeHeader(h: string) {
-  return h.trim().toLowerCase().replace(/\s+/g, "");
+  return h.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
 function toRecord(row: Record<string, unknown>) {
@@ -115,6 +115,7 @@ async function parseSpreadsheet(file: File) {
 export function ProductImportUploader() {
   const [state, setState] = useState<ImportState>({ step: "idle" });
   const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const previewRows = useMemo(() => {
@@ -262,34 +263,60 @@ export function ProductImportUploader() {
       }));
 
     // Chunk client-side for basic progress
-    const chunkSize = 250;
+    const chunkSize = 500;
     let created = 0;
     let updated = 0;
     let failed = 0;
 
-    for (let i = 0; i < payloadRows.length; i += chunkSize) {
-      const chunk = payloadRows.slice(i, i + chunkSize);
-      const res = await fetch("/api/products/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: chunk }),
-      });
-      const json = (await res.json().catch(() => null)) as unknown;
-      const isOk = isRecord(json) && json.ok === true && isRecord(json.data);
-      if (!res.ok || !isOk) {
-        failed += chunk.length;
+    setProgress({ done: 0, total: payloadRows.length });
+
+    async function sendChunk(chunk: Array<Record<string, unknown>>): Promise<{ created: number; updated: number; failed: number }> {
+      try {
+        const res = await fetch("/api/products/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: chunk }),
+        });
+        const json = (await res.json().catch(() => null)) as unknown;
+        const isOk = isRecord(json) && json.ok === true && isRecord(json.data);
+        if (res.ok && isOk) {
+          const data = json.data as Record<string, unknown>;
+          return {
+            created: Number(data.created ?? 0),
+            updated: Number(data.updated ?? 0),
+            failed: Array.isArray(data.errors) ? data.errors.length : 0,
+          };
+        }
+        const retryable = res.status >= 500 || res.status === 408 || res.status === 429;
+        if (retryable && chunk.length > 25) return splitChunk(chunk);
         setErr(isRecord(json) && typeof json.message === "string" ? json.message : "Gagal import sebagian data.");
-        continue;
+        return { created: 0, updated: 0, failed: chunk.length };
+      } catch (e3: unknown) {
+        if (chunk.length > 25) return splitChunk(chunk);
+        setErr(e3 instanceof Error ? e3.message : "Koneksi ke server gagal saat import.");
+        return { created: 0, updated: 0, failed: chunk.length };
       }
-      const data = json.data as Record<string, unknown>;
-      created += Number(data.created ?? 0);
-      updated += Number(data.updated ?? 0);
-      failed += Array.isArray(data.errors) ? data.errors.length : 0;
     }
 
+    async function splitChunk(chunk: Array<Record<string, unknown>>): Promise<{ created: number; updated: number; failed: number }> {
+      const mid = Math.ceil(chunk.length / 2);
+      const [a, b] = [await sendChunk(chunk.slice(0, mid)), await sendChunk(chunk.slice(mid))];
+      return { created: a.created + b.created, updated: a.updated + b.updated, failed: a.failed + b.failed };
+    }
+
+    for (let i = 0; i < payloadRows.length; i += chunkSize) {
+      const chunk = payloadRows.slice(i, i + chunkSize);
+      const part = await sendChunk(chunk);
+      created += part.created;
+      updated += part.updated;
+      failed += part.failed;
+      setProgress({ done: Math.min(i + chunkSize, payloadRows.length), total: payloadRows.length });
+    }
+
+    setProgress(null);
     setState({
       step: "done",
-      message: `Import selesai. Created: ${created}, Updated: ${updated}, Error: ${failed}.`,
+      message: `Import selesai. Dibuat: ${created}, Diperbarui: ${updated}, Gagal: ${failed}.`,
     });
   }
 
@@ -347,24 +374,32 @@ export function ProductImportUploader() {
               <div className="text-muted-foreground">
                 OK: <span className="font-medium text-foreground">{okRows}</span> • Error:{" "}
                 <span className="font-medium text-destructive">{badRows}</span>
+                {progress ? (
+                  <span className="ml-2">
+                    • Progres: <span className="font-medium text-foreground">{progress.done}/{progress.total}</span>
+                  </span>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   className="rounded-xl"
-                  disabled={pending}
-                  onClick={() => setState({ step: "idle" })}
+                  disabled={pending || state.step === "saving"}
+                  onClick={() => {
+                    setProgress(null);
+                    setState({ step: "idle" });
+                  }}
                 >
                   Reset
                 </Button>
                 <Button
                   type="button"
                   className="rounded-xl"
-                  disabled={pending || okRows === 0}
+                  disabled={pending || state.step === "saving" || okRows === 0}
                   onClick={() => void saveImport(previewRows)}
                 >
-                  {state.step === "saving" ? "Menyimpan..." : "Simpan Import"}
+                  {state.step === "saving" ? `Menyimpan... ${progress?.done ?? 0}/${progress?.total ?? 0}` : "Simpan Import"}
                 </Button>
               </div>
             </div>

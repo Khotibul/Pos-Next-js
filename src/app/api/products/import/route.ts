@@ -8,6 +8,7 @@ import { importRowSchema } from "@/modules/products/import-validator";
 import { importProducts } from "@/modules/products/import-service";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const payloadSchema = z.object({
   rows: z.array(importRowSchema).min(1).max(5000),
