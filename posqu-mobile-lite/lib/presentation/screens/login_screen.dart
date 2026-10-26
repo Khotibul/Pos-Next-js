@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../data/datasources/local/hive_cache.dart';
 import '../providers/auth/auth_provider.dart';
 import '../providers/auth/auth_state.dart';
 
@@ -19,6 +20,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedCredentials();
+  }
+
+  void _loadRememberedCredentials() {
+    try {
+      final cache = ref.read(hiveCacheProvider);
+      if (!cache.rememberPasswordEnabled) return;
+      final email = cache.getRememberedEmail();
+      final password = cache.getRememberedPassword();
+      if (email == null || password == null) return;
+      _emailController.text = email;
+      _passwordController.text = password;
+      _rememberPassword = true;
+    } catch (_) {
+      // Hive belum siap — abaikan, user tetap bisa login manual.
+    }
+  }
+
+  Future<void> _persistRememberedCredentials() async {
+    try {
+      final cache = ref.read(hiveCacheProvider);
+      if (_rememberPassword) {
+        await cache.saveRememberedCredentials(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+      } else {
+        await cache.clearRememberedCredentials();
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -33,7 +70,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     ref.listen<AuthState>(authStateProvider, (previous, next) {
       next.whenOrNull(
-        authenticated: (user) => context.go('/dashboard'),
+        authenticated: (user) {
+          if (mounted) {
+            // ignore: unawaited_futures
+            _persistRememberedCredentials();
+          }
+          context.go('/dashboard');
+        },
         error: (message) => ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         ),
@@ -197,7 +240,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: _rememberPassword,
+            onChanged: (value) {
+              setState(() => _rememberPassword = value ?? false);
+              if (value == false) {
+                // ignore: unawaited_futures
+                ref.read(hiveCacheProvider).clearRememberedCredentials();
+              }
+            },
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            title: const Text(
+              'Ingat password',
+              style: TextStyle(fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Email & password otomatis terisi saat login berikutnya',
+              style: TextStyle(fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 16),
           AppButton(
             label: 'Masuk',
             loading: authState.maybeWhen(

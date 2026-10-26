@@ -322,14 +322,20 @@ export async function deleteManyProducts(params: { tenantId: string; ids: string
 }
 
 export async function listProductMeta(params: { tenantId: string }): Promise<ProductMeta> {
-  const { prisma } = await import("@/shared/server/db/prisma");
-  const [categories, brands, units, suppliers] = await Promise.all([
-    prisma.productCategory.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.productBrand.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.productUnit.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.supplier.findMany({ where: { tenantId: params.tenantId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-  ]);
-  return { categories, brands, units, suppliers };
+  return rememberCache({
+    key: `product:meta:${params.tenantId}`,
+    ttl: 120,
+    fetcher: async () => {
+      const { prisma } = await import("@/shared/server/db/prisma");
+      const [categories, brands, units, suppliers] = await Promise.all([
+        prisma.productCategory.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+        prisma.productBrand.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+        prisma.productUnit.findMany({ where: { tenantId: params.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+        prisma.supplier.findMany({ where: { tenantId: params.tenantId, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      ]);
+      return { categories, brands, units, suppliers };
+    },
+  });
 }
 
 export async function findProductByCode(params: { tenantId: string; branchId?: string | null; code: string }): Promise<FindProductByCodeResult | null> {

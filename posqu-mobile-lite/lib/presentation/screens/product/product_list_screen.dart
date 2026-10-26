@@ -207,17 +207,11 @@ class ProductListScreen extends ConsumerWidget {
 
       if (confirmed != true) return;
 
-      // Insert setiap produk via repository
+      // Simpan semua produk lokal dalam satu batch; push ke server di
+      // latar belakang oleh repository (tidak menunggu satu per satu).
       final repository = ref.read(productRepositoryProvider);
-      int success = 0;
-      for (final product in imported) {
-        try {
-          final result = await repository.createProduct(product);
-          if (result.isRight()) success++;
-        } catch (_) {
-          // skip gagal
-        }
-      }
+      final importResult = await repository.importProducts(imported);
+      final success = importResult.getOrElse(() => 0);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

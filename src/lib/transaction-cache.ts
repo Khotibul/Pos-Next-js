@@ -107,13 +107,14 @@ export async function getCachedProducts(
       cacheEntries.push({ key: `tx:product:${tenantId}:${p.id}`, value: cached, ttl: 600 });
     }
     if (redis && cacheEntries.length > 0) {
+      // Jangan blok transaksi kasir menunggu roundtrip Redis; cache bersifat best-effort.
       const pipeline = redis.pipeline();
       for (const entry of cacheEntries) {
         pipeline.set(entry.key, { value: entry.value, storedAt: new Date().toISOString() }, { ex: entry.ttl });
       }
-      await pipeline.exec();
+      void pipeline.exec().catch(() => {});
     } else {
-      await Promise.all(cacheEntries.map((entry) => setCache(entry.key, entry.value, entry.ttl)));
+      void Promise.all(cacheEntries.map((entry) => setCache(entry.key, entry.value, entry.ttl))).catch(() => {});
     }
     endSetBatch();
   }

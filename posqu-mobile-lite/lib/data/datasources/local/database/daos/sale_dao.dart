@@ -58,6 +58,17 @@ class SaleDao extends DatabaseAccessor<AppDatabase> with _$SaleDaoMixin {
     return (select(saleItemsTable)..where((t) => t.saleId.equals(saleId))).get();
   }
 
+  Future<List<SaleItemsTableData>> getItemsForSales(List<String> saleIds) {
+    if (saleIds.isEmpty) return Future.value(const []);
+    return (select(saleItemsTable)..where((t) => t.saleId.isIn(saleIds))).get();
+  }
+
+  Future<List<String>> getInvoiceNumbers() async {
+    final query = selectOnly(salesTable)..addColumns([salesTable.invoiceNo]);
+    final rows = await query.get();
+    return rows.map((r) => r.read(salesTable.invoiceNo)).whereType<String>().toList();
+  }
+
   Future<void> insertSale(SalesTableCompanion sale) async {
     await into(salesTable).insert(sale);
   }

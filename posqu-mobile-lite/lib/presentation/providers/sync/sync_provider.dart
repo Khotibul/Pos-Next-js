@@ -17,7 +17,11 @@ import '../../../data/repositories/sale_repository_impl.dart';
 import '../../../data/repositories/supplier_repository_impl.dart';
 import '../../../data/repositories/receivable_repository_impl.dart';
 import '../../../data/repositories/payable_repository_impl.dart';
+import '../auth/auth_provider.dart';
+import '../auth/auth_state.dart';
 import '../plan/plan_provider.dart';
+import '../product/product_provider.dart';
+import '../sale/sale_provider.dart';
 import '../unit/unit_provider.dart';
 
 class SyncStatusInfo {
@@ -131,7 +135,8 @@ class SyncActions {
       await _ref.read(categoryRepositoryProvider).getCategories();
       await _ref.read(supplierRepositoryProvider).getSuppliers();
       await _ref.read(customerRepositoryProvider).getCustomers();
-      await _ref.read(productRepositoryProvider).getProducts();
+      // Tarik SEMUA produk (semua halaman), bukan hanya 500 pertama.
+      await _ref.read(productRepositoryProvider).syncProducts(force: true);
       await _ref.read(saleRepositoryProvider).getSales();
       await _pushPendingShifts();
       await _pushPendingPurchases();
@@ -148,6 +153,12 @@ class SyncActions {
 
       final box = Hive.isBoxOpen('cache') ? Hive.box('cache') : await Hive.openBox('cache');
       await box.put('last_sync_at', DateTime.now().millisecondsSinceEpoch);
+
+      // Segarkan daftar yang sedang tampil setelah data server masuk.
+      _ref.invalidate(productListProvider);
+      _ref.invalidate(productSearchProvider);
+      _ref.invalidate(lowStockProductsProvider);
+      _ref.invalidate(saleListProvider);
       return true;
     } catch (_) {
       return false;
@@ -306,9 +317,32 @@ final syncSchedulerProvider = Provider<void>((ref) {
     }
   });
 
-  // Dengarkan paket berubah (free ↔ pro) → reschedule
+  // Dengarkan paket berubah (free ↔ pro) → reschedule + tarik data saat
+  // pertama kali sync diizinkan (mis. sesudah plan selesai dimuat).
   ref.listen<bool>(canSyncProvider, (prev, next) {
     if (prev != next) schedule();
+    if (prev != true && next == true) {
+      Future.delayed(const Duration(seconds: 2), () async {
+        final ok = await ref.read(syncActionProvider).syncNow();
+        if (ok) ref.invalidate(syncStatusProvider);
+      });
+    }
+  });
+
+  // Login/restore sesi → langsung tarik data server sekali (jangan tunggu
+  // interval 5 menit, supaya produk langsung lengkap setelah login).
+  ref.listen<AuthState>(authStateProvider, (prev, next) {
+    final wasAuthed =
+        prev?.maybeWhen(authenticated: (_) => true, orElse: () => false) ??
+            false;
+    final isAuthed =
+        next.maybeWhen(authenticated: (_) => true, orElse: () => false);
+    if (!wasAuthed && isAuthed) {
+      Future.delayed(const Duration(seconds: 2), () async {
+        final ok = await ref.read(syncActionProvider).syncNow();
+        if (ok) ref.invalidate(syncStatusProvider);
+      });
+    }
   });
 
   schedule();

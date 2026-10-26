@@ -12,6 +12,11 @@ class PaymentDao extends DatabaseAccessor<AppDatabase> with _$PaymentDaoMixin {
     return (select(paymentsTable)..where((t) => t.saleId.equals(saleId))).get();
   }
 
+  Future<List<PaymentsTableData>> getBySaleIds(List<String> saleIds) {
+    if (saleIds.isEmpty) return Future.value(const []);
+    return (select(paymentsTable)..where((t) => t.saleId.isIn(saleIds))).get();
+  }
+
   Future<void> insertPayment(PaymentsTableCompanion payment) async {
     await into(paymentsTable).insert(payment);
   }

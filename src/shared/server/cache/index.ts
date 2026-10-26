@@ -35,6 +35,7 @@ export async function invalidateProductCache(tenantId: string) {
     deleteCacheByPattern(`tx:product:${tenantId}:*`),
     deleteCacheByPattern(`stock:${tenantId}:*`),
     deleteCache(`product:overview:${tenantId}`),
+    deleteCache(`product:meta:${tenantId}`),
     deleteCacheByPattern(`dashboard:tenant:${tenantId}:*`),
   ]);
 }

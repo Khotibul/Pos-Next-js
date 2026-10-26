@@ -49,9 +49,18 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
     await into(productsTable).insert(product);
   }
 
-  Future<void> upsertProduct(ProductsTableCompanion product) async {
+    Future<void> upsertProduct(ProductsTableCompanion product) async {
     await into(productsTable).insertOnConflictUpdate(product);
-  }  Future<bool> updateProduct(ProductsTableCompanion product) {
+  }
+
+  /// Simpan banyak produk dalam satu batch (jauh lebih cepat untuk ribuan data).
+  Future<void> upsertProducts(List<ProductsTableCompanion> products) async {
+    if (products.isEmpty) return;
+    await batch((b) {
+      b.insertAllOnConflictUpdate(productsTable, products);
+    });
+  }
+  Future<bool> updateProduct(ProductsTableCompanion product) {
     return update(productsTable).replace(product);
   }
 
@@ -91,7 +100,9 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
         .write(const ProductsTableCompanion(isSynced: Value(true)));
   }
 
-    Future<int> getCount() {
-    return select(productsTable).get().then((rows) => rows.length);
+    Future<int> getCount() async {
+    final count = productsTable.id.count();
+    final row = await (selectOnly(productsTable)..addColumns([count])).getSingle();
+    return row.read(count) ?? 0;
   }
 }

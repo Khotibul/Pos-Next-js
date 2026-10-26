@@ -19,4 +19,6 @@ abstract class ProductRepository {
   Future<Either<Failure, List<Product>>> searchProducts(String query);
   Future<Either<Failure, List<Product>>> getLowStockProducts();
   Future<Either<Failure, void>> updateStock(String productId, int quantity);
+  Future<Either<Failure, int>> syncProducts({bool force = false});
+  Future<Either<Failure, int>> importProducts(List<Product> products);
 }

@@ -130,17 +130,10 @@ export const GET = withApiHandler(async (req: Request) => {
   const pageParam = Number(url.searchParams.get("page") ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? Math.floor(pageParam) : 1;
   const limitParam = Number(url.searchParams.get("limit") ?? "200");
-  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 200;
+  const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 1000) : 200;
   // Android default limit 20 + page → paginasi aktif. Tanpa page, kirim batch besar.
   const paginate = url.searchParams.has("page");
   const skip = paginate ? (page - 1) * limit : 0;
-
-  const stockAgg = await prisma.productWarehouseStock.groupBy({
-    by: ["productId"],
-    where: { tenantId: ctx.tenantId },
-    _sum: { qty: true },
-  });
-  const stockMap = new Map(stockAgg.map((r) => [r.productId, Number(r._sum?.qty ?? 0)]));
 
   const products = await prisma.product.findMany({
     where: {
@@ -155,10 +148,22 @@ export const GET = withApiHandler(async (req: Request) => {
       unit: { select: { name: true } },
       images: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }], select: { url: true } },
     },
-    orderBy: { name: "asc" },
+    // Urutan stabil (name + id) supaya paginasi tidak melewatkan/menduplikasi produk.
+    orderBy: [{ name: "asc" }, { id: "asc" }],
     take: limit,
     ...(paginate ? { skip } : {}),
   });
+
+  // Agregasi stok hanya untuk produk di halaman ini (hindari scan seluruh tenant).
+  const productIds = products.map((p) => p.id);
+  const stockAgg = productIds.length
+    ? await prisma.productWarehouseStock.groupBy({
+        by: ["productId"],
+        where: { tenantId: ctx.tenantId, productId: { in: productIds } },
+        _sum: { qty: true },
+      })
+    : [];
+  const stockMap = new Map(stockAgg.map((r) => [r.productId, Number(r._sum?.qty ?? 0)]));
 
   return apiOk(
     products.map((p) => ({

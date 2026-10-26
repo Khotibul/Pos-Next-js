@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:dio/dio.dart' show DioException;
@@ -26,6 +28,10 @@ class SaleRepositoryImpl implements SaleRepository {
   final AppDatabase database;
   final NetworkInfo networkInfo;
 
+  static const Duration _autoPullInterval = Duration(minutes: 10);
+  static DateTime? _lastPullAt;
+  static bool _isPulling = false;
+
   SaleRepositoryImpl({
     required this.remoteDataSource,
     required this.database,
@@ -41,32 +47,38 @@ class SaleRepositoryImpl implements SaleRepository {
     }
 
     if (await networkInfo.isConnected) {
-      try {
-        final payload = Map<String, dynamic>.from(SaleModel.fromEntity(sale).toJson());
-        payload['paidAmount'] = sale.paidAmount;
-        payload['changeAmount'] = sale.changeAmount;
-        payload['paymentMethod'] = sale.paymentMethod;
-        payload['paymentReference'] = sale.paymentReference;
-        await remoteDataSource.createSale(payload);
-        await database.saleDao.markSynced([sale.id]);
-      } on DioException catch (e) {
-        final status = e.response?.statusCode;
-        final data = e.response?.data;
-        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
-        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
-        if (status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true)) {
-          // Paket free: server tolak simpan ke DB terpusat — tetap simpan lokal, tidak di-sync.
-          try {
-            await database.saleDao.markSynced([sale.id]);
-          } catch (_) {}
-        }
-        // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
-      } catch (_) {
-        // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
-      }
+      // Jangan blokir kasir menunggu server: simpan lokal dulu, push di latar
+      // belakang. Bila gagal, transaksi tetap aman dan dicoba lagi nanti.
+      unawaited(_pushSingleSale(sale));
     }
 
     return Right(sale);
+  }
+
+  Future<void> _pushSingleSale(Sale sale) async {
+    try {
+      final payload = Map<String, dynamic>.from(SaleModel.fromEntity(sale).toJson());
+      payload['paidAmount'] = sale.paidAmount;
+      payload['changeAmount'] = sale.changeAmount;
+      payload['paymentMethod'] = sale.paymentMethod;
+      payload['paymentReference'] = sale.paymentReference;
+      await remoteDataSource.createSale(payload);
+      await database.saleDao.markSynced([sale.id]);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final data = e.response?.data;
+      final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+      final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+      if (status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true)) {
+        // Paket free: server tolak simpan ke DB terpusat — tetap simpan lokal, tidak di-sync.
+        try {
+          await database.saleDao.markSynced([sale.id]);
+        } catch (_) {}
+      }
+      // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
+    } catch (_) {
+      // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
+    }
   }
 
   Future<void> _saveSaleLocally(Sale sale) async {
@@ -213,70 +225,94 @@ class SaleRepositoryImpl implements SaleRepository {
   /// Tarik penjualan dari server (dibuat lewat website) ke SQLite lokal.
   /// Dedup berdasarkan invoiceNo agar transaksi yang di-push dari mobile
   /// tidak dobel.
-  Future<void> _syncFromServer() async {
+  Future<void> _syncFromServer({bool force = false}) async {
+    if (!force &&
+        _lastPullAt != null &&
+        DateTime.now().difference(_lastPullAt!) < _autoPullInterval) {
+      return;
+    }
+    if (_isPulling) return;
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('sales')) return;
 
-    await _pushPendingSales();
+    _isPulling = true;
     try {
-      final remote = await remoteDataSource.getSales(limit: 100);
-      for (final model in remote) {
-        final existing = await database.saleDao.getByInvoice(model.invoiceNo);
-        if (existing != null) continue;
+      await _pushPendingSales();
 
-        await database.transaction(() async {
-          await database.saleDao.upsertSale(
-            SalesTableCompanion(
-              id: Value(model.id),
-              invoiceNo: Value(model.invoiceNo),
-              cashierId: Value(model.cashierId),
-              shiftId: Value(model.shiftId),
-              customerId: Value(model.customerId),
-              status: Value(model.status),
-              subtotal: Value(model.subtotal),
-              discount: Value(model.discount),
-              tax: Value(model.tax),
-              total: Value(model.total),
-              notes: Value(model.notes),
-              isSynced: const Value(true),
-              createdAt: Value(model.createdAt),
-              updatedAt: Value(model.updatedAt),
-            ),
-          );
-          for (final item in model.items) {
-            await database.saleDao.upsertSaleItem(
-              SaleItemsTableCompanion(
-                id: Value(item.id),
-                saleId: Value(model.id),
-                productId: Value(item.productId),
-                name: Value(item.name),
-                sku: Value(item.sku),
-                price: Value(item.price),
-                qty: Value(item.qty),
-                lineTotal: Value(item.lineTotal),
-              ),
-            );
-          }
-          await database.paymentDao.upsertPayment(
-            PaymentsTableCompanion(
-              id: Value('pay-${model.id}'),
-              saleId: Value(model.id),
-              method: Value(model.paymentMethod),
-              amount: Value(model.total),
-              receivedAmount: Value(model.paidAmount),
-              changeAmount: Value(model.changeAmount),
-              reference: Value(model.paymentReference),
-              createdAt: Value(model.createdAt),
-            ),
-          );
-        });
+      final knownInvoices = (await database.saleDao.getInvoiceNumbers()).toSet();
+      var page = 1;
+      while (true) {
+        final remote = await remoteDataSource.getSales(page: page, limit: 100);
+        if (remote.isEmpty) break;
+
+        final fresh = remote
+            .where((model) => !knownInvoices.contains(model.invoiceNo))
+            .toList();
+        if (fresh.isNotEmpty) {
+          await database.transaction(() async {
+            for (final model in fresh) {
+              await database.saleDao.upsertSale(
+                SalesTableCompanion(
+                  id: Value(model.id),
+                  invoiceNo: Value(model.invoiceNo),
+                  cashierId: Value(model.cashierId),
+                  shiftId: Value(model.shiftId),
+                  customerId: Value(model.customerId),
+                  status: Value(model.status),
+                  subtotal: Value(model.subtotal),
+                  discount: Value(model.discount),
+                  tax: Value(model.tax),
+                  total: Value(model.total),
+                  notes: Value(model.notes),
+                  isSynced: const Value(true),
+                  createdAt: Value(model.createdAt),
+                  updatedAt: Value(model.updatedAt),
+                ),
+              );
+              for (final item in model.items) {
+                await database.saleDao.upsertSaleItem(
+                  SaleItemsTableCompanion(
+                    id: Value(item.id),
+                    saleId: Value(model.id),
+                    productId: Value(item.productId),
+                    name: Value(item.name),
+                    sku: Value(item.sku),
+                    price: Value(item.price),
+                    qty: Value(item.qty),
+                    lineTotal: Value(item.lineTotal),
+                  ),
+                );
+              }
+              await database.paymentDao.upsertPayment(
+                PaymentsTableCompanion(
+                  id: Value('pay-${model.id}'),
+                  saleId: Value(model.id),
+                  method: Value(model.paymentMethod),
+                  amount: Value(model.total),
+                  receivedAmount: Value(model.paidAmount),
+                  changeAmount: Value(model.changeAmount),
+                  reference: Value(model.paymentReference),
+                  createdAt: Value(model.createdAt),
+                ),
+              );
+              knownInvoices.add(model.invoiceNo);
+            }
+          });
+        }
+
+        if (remote.length < 100) break;
+        page += 1;
+        if (page > 100) break;
       }
+      _lastPullAt = DateTime.now();
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
         MobileApiGate.disable('sales');
       }
     } catch (_) {
       // Offline / gangguan lain -> tetap pakai SQLite lokal.
+    } finally {
+      _isPulling = false;
     }
   }
 
@@ -316,42 +352,64 @@ class SaleRepositoryImpl implements SaleRepository {
     String? paymentMethod,
   }) async {
     try {
-      await _syncFromServer();
+      // Tampilkan data lokal segera; sinkronisasi berjalan di latar belakang
+      // (throttled) agar layar transaksi/riwayat tidak menunggu jaringan.
+      unawaited(_syncFromServer());
+
       final sales = await database.saleDao.getAll(
         search: search,
         startDate: startDate,
         endDate: endDate,
         paymentMethod: paymentMethod,
       );
-      final result = <Sale>[];
-      for (final sale in sales) {
-        final items = await database.saleDao.getItems(sale.id);
-        result.add(await _toEntity(sale, items));
+      if (sales.isEmpty) return const Right([]);
+
+      final ids = sales.map((s) => s.id).toList();
+      final items = await database.saleDao.getItemsForSales(ids);
+      final payments = await database.paymentDao.getBySaleIds(ids);
+      final customers = await database.customerDao.getAll();
+
+      final itemsBySale = <String, List<SaleItemsTableData>>{};
+      for (final item in items) {
+        itemsBySale.putIfAbsent(item.saleId, () => []).add(item);
       }
+      final paymentBySale = <String, PaymentsTableData>{};
+      for (final payment in payments) {
+        paymentBySale.putIfAbsent(payment.saleId, () => payment);
+      }
+      final customerNames = <String, String>{
+        for (final c in customers) c.id: c.name,
+      };
+
+      final result = sales.map((sale) {
+        return _toSaleEntity(
+          sale,
+          itemsBySale[sale.id] ?? const [],
+          payment: paymentBySale[sale.id],
+          customerName: sale.customerId == null ? null : customerNames[sale.customerId],
+        );
+      }).toList();
       return Right(result);
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil data penjualan'));
     }
   }
 
-  Future<Sale> _toEntity(SalesTableData d, List<SaleItemsTableData> items) async {
-    String? customerName;
-    if (d.customerId != null) {
-      final customer = await database.customerDao.getById(d.customerId!);
-      customerName = customer?.name;
-    }
-
-    String paymentMethod = 'cash';
-    double paidAmount = d.total;
-    double changeAmount = 0;
+  Sale _toSaleEntity(
+    SalesTableData d,
+    List<SaleItemsTableData> items, {
+    PaymentsTableData? payment,
+    String? customerName,
+  }) {
+    var paymentMethod = 'cash';
+    var paidAmount = d.total;
+    var changeAmount = 0.0;
     String? paymentReference;
-    final payments = await database.paymentDao.getBySaleId(d.id);
-    if (payments.isNotEmpty) {
-      final p = payments.first;
-      paymentMethod = p.method;
-      paidAmount = p.receivedAmount;
-      changeAmount = p.changeAmount;
-      paymentReference = p.reference;
+    if (payment != null) {
+      paymentMethod = payment.method;
+      paidAmount = payment.receivedAmount;
+      changeAmount = payment.changeAmount;
+      paymentReference = payment.reference;
     }
 
     return Sale(
@@ -374,6 +432,22 @@ class SaleRepositoryImpl implements SaleRepository {
       notes: d.notes,
       items: items.map((i) => _toSaleItemEntity(i)).toList(),
       updatedAt: d.updatedAt,
+    );
+  }
+
+  Future<Sale> _toEntity(SalesTableData d, List<SaleItemsTableData> items) async {
+    String? customerName;
+    if (d.customerId != null) {
+      final customer = await database.customerDao.getById(d.customerId!);
+      customerName = customer?.name;
+    }
+
+    final payments = await database.paymentDao.getBySaleId(d.id);
+    return _toSaleEntity(
+      d,
+      items,
+      payment: payments.isNotEmpty ? payments.first : null,
+      customerName: customerName,
     );
   }
 

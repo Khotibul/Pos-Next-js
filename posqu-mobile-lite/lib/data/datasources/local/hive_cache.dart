@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -63,6 +65,47 @@ class HiveCache {
   Future<void> clearAuth() async {
     final box = Hive.box(_authBox);
     await box.clear();
+  }
+
+  // "Ingat password" — sengaja disimpan di box settings supaya tidak ikut
+  // terhapus saat logout / sesi kedaluwarsa. Obfuscated base64 (bukan enkripsi
+  // kuat) agar tidak tersimpan sebagai plaintext di preferensi.
+  static const String _rememberEmailKey = 'remember_email';
+  static const String _rememberPasswordKey = 'remember_password';
+  static const String _rememberEnabledKey = 'remember_password_enabled';
+
+  Future<void> saveRememberedCredentials(String email, String password) async {
+    final box = Hive.box(_settingsBox);
+    await box.put(_rememberEmailKey, email.trim().toLowerCase());
+    await box.put(_rememberPasswordKey, base64Encode(utf8.encode(password)));
+    await box.put(_rememberEnabledKey, true);
+  }
+
+  Future<void> clearRememberedCredentials() async {
+    final box = Hive.box(_settingsBox);
+    await box.put(_rememberEnabledKey, false);
+    await box.delete(_rememberEmailKey);
+    await box.delete(_rememberPasswordKey);
+  }
+
+  bool get rememberPasswordEnabled =>
+      Hive.box(_settingsBox).get(_rememberEnabledKey) == true;
+
+  String? getRememberedEmail() {
+    final box = Hive.box(_settingsBox);
+    final value = box.get(_rememberEmailKey);
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
+  String? getRememberedPassword() {
+    final box = Hive.box(_settingsBox);
+    final value = box.get(_rememberPasswordKey);
+    if (value is! String || value.isEmpty) return null;
+    try {
+      return utf8.decode(base64Decode(value));
+    } catch (_) {
+      return null;
+    }
   }
 
   // Settings

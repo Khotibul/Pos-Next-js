@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart' show Value;
@@ -24,6 +26,11 @@ class ProductRepositoryImpl implements ProductRepository {
   final ProductRemoteDataSource remoteDataSource;
   final AppDatabase database;
   final NetworkInfo networkInfo;
+
+  static const int _pullPageSize = 500;
+  static const Duration _autoPullInterval = Duration(minutes: 10);
+  static DateTime? _lastPullAt;
+  static bool _isPulling = false;
 
   ProductRepositoryImpl({
     required this.remoteDataSource,
@@ -98,57 +105,98 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
-  Future<void> _syncFromServer() async {
+  Future<void> _syncFromServer({bool force = false}) async {
+    if (!force &&
+        _lastPullAt != null &&
+        DateTime.now().difference(_lastPullAt!) < _autoPullInterval) {
+      return;
+    }
+    if (_isPulling) return;
     if (!await networkInfo.isConnected) return;
     if (MobileApiGate.isDisabled('products')) return;
 
-    await _pushPendingProducts();
-
+    _isPulling = true;
     try {
-      final remote = await remoteDataSource.getProducts(limit: 500);
-      for (final model in remote) {
-        await database.productDao.upsertProduct(
-          ProductsTableCompanion(
-            id: Value(model.id),
-            sku: Value(model.sku),
-            slug: Value(model.slug),
-            name: Value(model.name),
-            description: Value(model.description),
-            barcode: Value(model.barcode),
-            qrCode: Value(model.qrCode),
-            categoryId: Value(model.categoryId),
-            brandId: Value(model.brandId),
-            brandName: Value(model.brandName),
-            supplierId: Value(model.supplierId),
-            unitId: Value(model.unitId),
-            costPrice: Value(model.costPrice),
-            sellingPrice: Value(model.sellingPrice),
-            marginPct: Value(model.marginPct),
-            taxRate: Value(model.taxRate),
-            weight: Value(model.weight),
-            volume: Value(model.volume),
-            minStock: Value(model.minStock),
-            reorderPoint: Value(model.reorderPoint),
-            wholesalePrice: Value(model.wholesalePrice),
-            wholesaleDiscountPercent: Value(model.wholesaleDiscountPercent),
-            wholesaleMinQty: Value(model.wholesaleMinQty),
-            isActive: Value(model.isActive),
-            isFeatured: Value(model.isFeatured),
-            isConsignment: Value(model.isConsignment),
-            type: Value(model.type),
-            stock: Value(model.stock),
-            unit: Value(model.unit),
-            imageUrl: Value(model.imageUrl),
-            isSynced: const Value(true),
-          ),
+      await _pushPendingProducts();
+
+      // Tarik SEMUA halaman produk (bukan hanya 500 pertama).
+      var page = 1;
+      while (true) {
+        final remote = await remoteDataSource.getProducts(
+          page: page,
+          limit: _pullPageSize,
         );
+        if (remote.isEmpty) break;
+
+        await database.productDao.upsertProducts(
+          remote.map((model) => _toCompanion(model)).toList(),
+        );
+
+        if (remote.length < _pullPageSize) break;
+        page += 1;
+        // Guard agar tidak infinite loop bila server mengabaikan `page`.
+        if (page > 400) break;
       }
+      _lastPullAt = DateTime.now();
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 || e.response?.statusCode == 501) {
         MobileApiGate.disable('products');
       }
     } catch (_) {
       // Offline / gangguan lain -> tetap pakai SQLite lokal.
+    } finally {
+      _isPulling = false;
+    }
+  }
+
+  ProductsTableCompanion _toCompanion(ProductModel model, {bool isSynced = true}) {
+    return ProductsTableCompanion(
+      id: Value(model.id),
+      sku: Value(model.sku),
+      slug: Value(model.slug),
+      name: Value(model.name),
+      description: Value(model.description),
+      barcode: Value(model.barcode),
+      qrCode: Value(model.qrCode),
+      categoryId: Value(model.categoryId),
+      brandId: Value(model.brandId),
+      brandName: Value(model.brandName),
+      supplierId: Value(model.supplierId),
+      unitId: Value(model.unitId),
+      costPrice: Value(model.costPrice),
+      sellingPrice: Value(model.sellingPrice),
+      marginPct: Value(model.marginPct),
+      taxRate: Value(model.taxRate),
+      weight: Value(model.weight),
+      volume: Value(model.volume),
+      minStock: Value(model.minStock),
+      reorderPoint: Value(model.reorderPoint),
+      wholesalePrice: Value(model.wholesalePrice),
+      wholesaleDiscountPercent: Value(model.wholesaleDiscountPercent),
+      wholesaleMinQty: Value(model.wholesaleMinQty),
+      isActive: Value(model.isActive),
+      isFeatured: Value(model.isFeatured),
+      isConsignment: Value(model.isConsignment),
+      type: Value(model.type),
+      stock: Value(model.stock),
+      unit: Value(model.unit),
+      imageUrl: Value(model.imageUrl),
+      isSynced: Value(isSynced),
+      createdAt: Value(model.createdAt),
+      updatedAt: Value(model.updatedAt),
+    );
+  }
+
+  @override
+  Future<Either<Failure, int>> syncProducts({bool force = false}) async {
+    if (!await networkInfo.isConnected) {
+      return const Left(NetworkFailure(message: 'Tidak ada koneksi internet'));
+    }
+    await _syncFromServer(force: force);
+    try {
+      return Right(await database.productDao.getCount());
+    } catch (_) {
+      return const Right(0);
     }
   }
 
@@ -174,39 +222,62 @@ class ProductRepositoryImpl implements ProductRepository {
 
   Future<void> _saveLocally(Product p, {bool synced = false}) async {
     await database.productDao.upsertProduct(
-      ProductsTableCompanion(
-        id: Value(p.id),
-        isSynced: Value(synced),
-        sku: Value(p.sku),
-        slug: Value(p.slug),
-        name: Value(p.name),
-        barcode: Value(p.barcode),
-        qrCode: Value(p.qrCode),
-        description: Value(p.description),
-        categoryId: Value(p.categoryId),
-        brandId: Value(p.brandId),
-        brandName: Value(p.brandName),
-        supplierId: Value(p.supplierId),
-        unitId: Value(p.unitId),
-        sellingPrice: Value(p.sellingPrice),
-        marginPct: Value(p.marginPct),
-        taxRate: Value(p.taxRate),
-        weight: Value(p.weight),
-        volume: Value(p.volume),
-        minStock: Value(p.minStock),
-        reorderPoint: Value(p.reorderPoint),
-        wholesalePrice: Value(p.wholesalePrice),
-        wholesaleDiscountPercent: Value(p.wholesaleDiscountPercent),
-        wholesaleMinQty: Value(p.wholesaleMinQty),
-        isActive: Value(p.isActive),
-        isFeatured: Value(p.isFeatured),
-        isConsignment: Value(p.isConsignment),
-        type: Value(p.type),
-        stock: Value(p.stock),
-        unit: Value(p.unit),
-        imageUrl: Value(p.imageUrl),
-      ),
+      _localCompanion(p, synced: synced),
     );
+  }
+
+  ProductsTableCompanion _localCompanion(Product p, {bool synced = false}) {
+    return ProductsTableCompanion(
+      id: Value(p.id),
+      isSynced: Value(synced),
+      sku: Value(p.sku),
+      slug: Value(p.slug),
+      name: Value(p.name),
+      barcode: Value(p.barcode),
+      qrCode: Value(p.qrCode),
+      description: Value(p.description),
+      categoryId: Value(p.categoryId),
+      brandId: Value(p.brandId),
+      brandName: Value(p.brandName),
+      supplierId: Value(p.supplierId),
+      unitId: Value(p.unitId),
+      costPrice: Value(p.costPrice),
+      sellingPrice: Value(p.sellingPrice),
+      marginPct: Value(p.marginPct),
+      taxRate: Value(p.taxRate),
+      weight: Value(p.weight),
+      volume: Value(p.volume),
+      minStock: Value(p.minStock),
+      reorderPoint: Value(p.reorderPoint),
+      wholesalePrice: Value(p.wholesalePrice),
+      wholesaleDiscountPercent: Value(p.wholesaleDiscountPercent),
+      wholesaleMinQty: Value(p.wholesaleMinQty),
+      isActive: Value(p.isActive),
+      isFeatured: Value(p.isFeatured),
+      isConsignment: Value(p.isConsignment),
+      type: Value(p.type),
+      stock: Value(p.stock),
+      unit: Value(p.unit),
+      imageUrl: Value(p.imageUrl),
+    );
+  }
+
+  @override
+  Future<Either<Failure, int>> importProducts(List<Product> products) async {
+    if (products.isEmpty) return const Right(0);
+    try {
+      await database.productDao.upsertProducts(
+        products.map((p) => _localCompanion(p, synced: false)).toList(),
+      );
+      // Push ke server di latar belakang supaya UI tidak menunggu ratusan
+      // request HTTP (atau timeout saat offline).
+      if (await networkInfo.isConnected) {
+        unawaited(_syncFromServer(force: true));
+      }
+      return Right(products.length);
+    } catch (e) {
+      return Left(DatabaseFailure(message: 'Gagal import produk: $e'));
+    }
   }
 
   @override
@@ -257,16 +328,13 @@ class ProductRepositoryImpl implements ProductRepository {
     bool? activeOnly,
   }) async {
     try {
-      await _syncFromServer();
+      // Baca SQLite lokal saja — sinkronisasi dilakukan scheduler/manual
+      // supaya daftar produk & kasir tetap instan saat transaksi.
       final rows = await database.productDao.getAll(
         search: search,
         categoryId: categoryId,
       );
-      final entities = <Product>[];
-      for (final row in rows) {
-        entities.add(await _toEntity(row));
-      }
-      return Right(entities);
+      return Right(await _toEntities(rows));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil data produk'));
     }
@@ -276,11 +344,7 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, List<Product>>> searchProducts(String query) async {
     try {
       final results = await database.productDao.search(query);
-      final entities = <Product>[];
-      for (final row in results) {
-        entities.add(await _toEntity(row));
-      }
-      return Right(entities);
+      return Right(await _toEntities(results));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mencari produk'));
     }
@@ -344,11 +408,7 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, List<Product>>> getLowStockProducts() async {
     try {
       final products = await database.productDao.getLowStock();
-      final entities = <Product>[];
-      for (final row in products) {
-        entities.add(await _toEntity(row));
-      }
-      return Right(entities);
+      return Right(await _toEntities(products));
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengambil produk stok rendah'));
     }
@@ -364,52 +424,61 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
+  Future<List<Product>> _toEntities(List<ProductsTableData> rows) async {
+    if (rows.isEmpty) return const [];
+
+    // Hindari N+1 query: ambil semua nama kategori/supplier sekali saja.
+    final categories = await database.categoryDao.getAll();
+    final suppliers = await database.supplierDao.getAll();
+    final categoryNames = <String, String>{
+      for (final c in categories) c.id: c.name,
+    };
+    final supplierNames = <String, String>{
+      for (final s in suppliers) s.id: s.name,
+    };
+
+    return rows.map((p) {
+      return Product(
+        id: p.id,
+        sku: p.sku,
+        slug: p.slug,
+        barcode: p.barcode,
+        qrCode: p.qrCode,
+        name: p.name,
+        description: p.description,
+        categoryId: p.categoryId,
+        categoryName: p.categoryId == null ? null : categoryNames[p.categoryId],
+        brandId: p.brandId,
+        brandName: p.brandName,
+        supplierId: p.supplierId,
+        supplierName: p.supplierId == null ? null : supplierNames[p.supplierId],
+        unitId: p.unitId,
+        costPrice: p.costPrice,
+        sellingPrice: p.sellingPrice,
+        marginPct: p.marginPct,
+        taxRate: p.taxRate,
+        weight: p.weight,
+        volume: p.volume,
+        minStock: p.minStock,
+        reorderPoint: p.reorderPoint,
+        wholesalePrice: p.wholesalePrice,
+        wholesaleDiscountPercent: p.wholesaleDiscountPercent,
+        wholesaleMinQty: p.wholesaleMinQty,
+        isActive: p.isActive,
+        isFeatured: p.isFeatured,
+        isConsignment: p.isConsignment,
+        type: p.type,
+        stock: p.stock,
+        unit: p.unit,
+        imageUrl: p.imageUrl,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      );
+    }).toList();
+  }
+
   Future<Product> _toEntity(ProductsTableData p) async {
-    String? categoryName;
-    if (p.categoryId != null) {
-      final category = await database.categoryDao.getById(p.categoryId!);
-      categoryName = category?.name;
-    }
-    String? supplierName;
-    if (p.supplierId != null) {
-      final supplier = await database.supplierDao.getById(p.supplierId!);
-      supplierName = supplier?.name;
-    }
-    return Product(
-      id: p.id,
-      sku: p.sku,
-      slug: p.slug,
-      barcode: p.barcode,
-      qrCode: p.qrCode,
-      name: p.name,
-      description: p.description,
-      categoryId: p.categoryId,
-      categoryName: categoryName,
-      brandId: p.brandId,
-      brandName: p.brandName,
-      supplierId: p.supplierId,
-      supplierName: supplierName,
-      unitId: p.unitId,
-      costPrice: p.costPrice,
-      sellingPrice: p.sellingPrice,
-      marginPct: p.marginPct,
-      taxRate: p.taxRate,
-      weight: p.weight,
-      volume: p.volume,
-      minStock: p.minStock,
-      reorderPoint: p.reorderPoint,
-      wholesalePrice: p.wholesalePrice,
-      wholesaleDiscountPercent: p.wholesaleDiscountPercent,
-      wholesaleMinQty: p.wholesaleMinQty,
-      isActive: p.isActive,
-      isFeatured: p.isFeatured,
-      isConsignment: p.isConsignment,
-      type: p.type,
-      stock: p.stock,
-      unit: p.unit,
-      imageUrl: p.imageUrl,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-    );
+    final entities = await _toEntities([p]);
+    return entities.first;
   }
 }
