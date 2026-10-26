@@ -12,6 +12,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       : super(const AuthState.initial());
 
   Future<void> checkAuthStatus() async {
+    // Jangan menimpa proses login yang sedang berjalan (mis. splash masih
+    // memanggil checkAuthStatus saat user menekan tombol Masuk).
+    if (state.maybeWhen(loading: () => true, orElse: () => false)) return;
     final result = await _authRepository.isLoggedIn();
     result.fold(
       (failure) => state = AuthState.unauthenticated(failure.message),
@@ -33,12 +36,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  Future<void> login(String email, String password) async {
+  Future<bool> login(String email, String password) async {
     state = const AuthState.loading();
     final result = await _authRepository.login(email, password);
-    result.fold(
-      (failure) => state = AuthState.error(failure.message),
-      (user) => state = AuthState.authenticated(user),
+    return result.fold(
+      (failure) {
+        state = AuthState.error(failure.message);
+        return false;
+      },
+      (user) {
+        state = AuthState.authenticated(user);
+        return true;
+      },
     );
   }
 

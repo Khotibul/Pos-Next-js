@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/role_permissions.dart';
 import '../providers/auth/auth_provider.dart';
+import '../providers/auth/auth_state.dart';
 import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_shell.dart';
@@ -33,12 +34,17 @@ import '../screens/setting/local_users_screen.dart';
 import '../screens/sync/sync_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  // Jangan buat ulang GoRouter setiap status auth berubah (dulu: login →
+  // router baru → balik ke splash → error hilang). Cukup refresh redirect.
+  final refresh = _AuthRefreshNotifier(ref);
+  ref.onDispose(refresh.dispose);
 
-  final router = GoRouter(
+  return GoRouter(
     initialLocation: '/splash',
     debugLogDiagnostics: true,
+    refreshListenable: refresh,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final isAuthRoute = state.matchedLocation == '/login';
       final isSplash = state.matchedLocation == '/splash';
 
@@ -234,10 +240,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
   );
-
-  ref.listen(authStateProvider, (_, __) {
-    router.refresh();
-  });
-
-  return router;
 });
+
+/// Memberi tahu GoRouter agar mengevaluasi ulang redirect setiap status auth
+/// berubah, tanpa membuang seluruh instance router/navigasi.
+class _AuthRefreshNotifier extends ChangeNotifier {
+  _AuthRefreshNotifier(Ref ref) {
+    ref.listen<AuthState>(authStateProvider, (_, __) => notifyListeners());
+  }
+}

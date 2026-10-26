@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -19,6 +18,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _cache = HiveCache();
   bool _obscurePassword = true;
   bool _rememberPassword = false;
 
@@ -30,10 +30,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _loadRememberedCredentials() {
     try {
-      final cache = ref.read(hiveCacheProvider);
-      if (!cache.rememberPasswordEnabled) return;
-      final email = cache.getRememberedEmail();
-      final password = cache.getRememberedPassword();
+      if (!_cache.rememberPasswordEnabled) return;
+      final email = _cache.getRememberedEmail();
+      final password = _cache.getRememberedPassword();
       if (email == null || password == null) return;
       _emailController.text = email;
       _passwordController.text = password;
@@ -43,18 +42,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _persistRememberedCredentials() async {
+  Future<void> _saveRememberedCredentials(
+    String email,
+    String password,
+    bool remember,
+  ) async {
     try {
-      final cache = ref.read(hiveCacheProvider);
-      if (_rememberPassword) {
-        await cache.saveRememberedCredentials(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
+      if (remember) {
+        await _cache.saveRememberedCredentials(email, password);
       } else {
-        await cache.clearRememberedCredentials();
+        await _cache.clearRememberedCredentials();
       }
-    } catch (_) {}
+    } catch (_) {
+      // Gagal menyimpan tidak boleh menggagalkan login.
+    }
   }
 
   @override
@@ -70,16 +71,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     ref.listen<AuthState>(authStateProvider, (previous, next) {
       next.whenOrNull(
-        authenticated: (user) {
-          if (mounted) {
-            // ignore: unawaited_futures
-            _persistRememberedCredentials();
-          }
-          context.go('/dashboard');
+        error: (message) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
         },
-        error: (message) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        ),
       );
     });
 
@@ -167,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             Text(
               'Kasir modern untuk toko Anda',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
             ),
           ],
@@ -206,6 +203,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
           ),
           const SizedBox(height: 32),
+          authState.maybeWhen(
+            error: (message) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
           AppTextField(
             label: 'Email',
             hint: 'Masukkan email',
@@ -247,7 +276,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               setState(() => _rememberPassword = value ?? false);
               if (value == false) {
                 // ignore: unawaited_futures
-                ref.read(hiveCacheProvider).clearRememberedCredentials();
+                _cache.clearRememberedCredentials();
               }
             },
             contentPadding: EdgeInsets.zero,
@@ -278,14 +307,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  void _handleLogin() {
-    final isLoading = ref.read(authStateProvider).maybeWhen(loading: () => true, orElse: () => false);
+  Future<void> _handleLogin() async {
+    final isLoading = ref.read(authStateProvider).maybeWhen(
+          loading: () => true,
+          orElse: () => false,
+        );
     if (isLoading) return;
-    if (_formKey.currentState!.validate()) {
-      ref.read(authStateProvider.notifier).login(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
+    if (!_formKey.currentState!.validate()) return;
+
+    // Ambil nilai sebelum await: widget bisa sudah di-dispose oleh redirect
+    // router begitu status authenticated muncul.
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final remember = _rememberPassword;
+
+    final success =
+        await ref.read(authStateProvider.notifier).login(email, password);
+
+    if (success) {
+      await _saveRememberedCredentials(email, password, remember);
     }
   }
 
