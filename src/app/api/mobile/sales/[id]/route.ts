@@ -31,7 +31,7 @@ export const DELETE = withApiHandler(async (req: Request, ctx: Params) => {
         shiftId: true,
         status: true,
         total: true,
-        items: { select: { productId: true, qty: true } },
+        items: { select: { productId: true, variantId: true, qty: true } },
       },
     });
     if (!sale) return;
@@ -45,19 +45,21 @@ export const DELETE = withApiHandler(async (req: Request, ctx: Params) => {
     // Kembalikan stok ke gudang
     if (warehouseIds.length > 0) {
       for (const item of sale.items) {
-        const stockRows = await tx.productWarehouseStock.findMany({
-          where: { tenantId: auth.tenantId, productId: item.productId, warehouseId: { in: warehouseIds } },
+        const stockRow = await tx.productWarehouseStock.findFirst({
+          where: {
+            tenantId: auth.tenantId,
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+            warehouseId: { in: warehouseIds },
+          },
           orderBy: { updatedAt: "asc" },
           select: { id: true },
         });
-        let remaining = Number(item.qty);
-        for (const row of stockRows) {
-          if (remaining <= 0) break;
+        if (stockRow) {
           await tx.productWarehouseStock.update({
-            where: { id: row.id },
-            data: { qty: { increment: remaining } },
+            where: { id: stockRow.id },
+            data: { qty: { increment: Number(item.qty) } },
           });
-          remaining = 0;
         }
       }
     }

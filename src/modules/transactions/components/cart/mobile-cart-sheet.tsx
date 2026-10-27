@@ -14,6 +14,7 @@ export function MobileCartSheet({
   cashPaid, cashChange, method, settings, isPending, shiftCheckDone, openShiftId,
   onClose,
   inc, dec, setError, setNotice, setMethod, setCashPaid, setDiscount, setTaxRate, setCart,
+  canEditPrice, onPriceChange, onPriceReset,
   onPay,
   onOpenShift,
   customers, customerId, setCustomerId, dueDate, setDueDate,
@@ -30,6 +31,9 @@ export function MobileCartSheet({
   setMethod: (v: PaymentMethod) => void; setCashPaid: (v: number) => void;
   setDiscount: (v: number) => void; setTaxRate: (v: number) => void;
   setCart: (v: Record<string, number>) => void;
+  canEditPrice?: boolean;
+  onPriceChange: (lineKey: string, price: number) => void;
+  onPriceReset: (lineKey: string) => void;
   onPay: () => void;
   onOpenShift: () => void;
   customers?: Customer[]; customerId: string; setCustomerId: (v: string) => void; dueDate: string; setDueDate: (v: string) => void;
@@ -89,20 +93,23 @@ export function MobileCartSheet({
             ) : (
               lines.map((l) => (
                 <CartLineItem
-                  key={l.productId}
+                  key={l.lineKey}
                   item={l}
                   product={productMap.get(l.productId)}
                   onInc={inc}
                   onDec={dec}
                   showSku={settings.cartShowSku}
                   showStock={settings.cartShowStock}
+                  canEditPrice={canEditPrice}
+                  onPriceChange={onPriceChange}
+                  onPriceReset={onPriceReset}
                 />
               ))
             )}
           </div>
 
           <div className="mt-3 grid gap-3">
-            <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.productId]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={(v) => { setCart(v); onClose(); }} setNotice={setNotice} />
+            <SavedCartsPanel cart={lines.reduce((acc, l) => ({ ...acc, [l.lineKey]: l.qty }), {} as Record<string, number>)} productMap={productMap} setCart={(v) => { setCart(v); onClose(); }} setNotice={setNotice} />
             <CartSummary subtotal={subtotal} discount={discount} effectiveTaxRate={effectiveTaxRate} tax={tax} total={total} settings={settings} cashPaid={cashPaid} cashChange={cashChange} cashShortage={cashChange > 0 ? 0 : Math.max(0, total - cashPaid)} method={method} setDiscount={setDiscount} setTaxRate={setTaxRate} setMethod={setMethod} setCashPaid={setCashPaid} customers={customers} customerId={customerId} setCustomerId={setCustomerId} dueDate={dueDate} setDueDate={setDueDate} />
           </div>
         </div>

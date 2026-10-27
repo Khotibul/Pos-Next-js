@@ -21,4 +21,21 @@ abstract class ProductRepository {
   Future<Either<Failure, void>> updateStock(String productId, int quantity);
   Future<Either<Failure, int>> syncProducts({bool force = false});
   Future<Either<Failure, int>> importProducts(List<Product> products);
+  Future<Either<Failure, List<ProductVariant>>> getProductVariants(
+    String productId,
+  );
+  Future<Either<Failure, void>> upsertProductVariant(
+    String productId, {
+    String? variantId,
+    required String name,
+    String? sku,
+    String? barcode,
+    String? qrCode,
+    double price = 0,
+    int stock = 0,
+  });
+  Future<Either<Failure, void>> deleteProductVariant(
+    String productId,
+    String variantId,
+  );
 }

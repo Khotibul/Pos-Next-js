@@ -5,7 +5,7 @@ import { BookmarkPlus, Trash2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Product } from "./cart-common";
-import { rupiah } from "./cart-common";
+import { parseLineKey, rupiah } from "./cart-common";
 
 type SavedCart = {
   id: string;
@@ -138,8 +138,9 @@ export function SavedCartsPanel({
             {savedCarts.map((sc) => {
               const items = Object.entries(sc.cart).filter(([, qty]) => qty > 0);
               const totalQty = items.reduce((a, [, qty]) => a + qty, 0);
-              const totalPrice = items.reduce((a, [pid, qty]) => {
-                const p = productMap.get(pid);
+              const totalPrice = items.reduce((a, [key, qty]) => {
+                const { productId } = parseLineKey(key);
+                const p = productMap.get(productId);
                 return a + (p ? Number(p.price) * qty : 0);
               }, 0);
               return (

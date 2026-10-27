@@ -165,6 +165,36 @@ export const GET = withApiHandler(async (req: Request) => {
     : [];
   const stockMap = new Map(stockAgg.map((r) => [r.productId, Number(r._sum?.qty ?? 0)]));
 
+  const [variantRows, variantStockAgg] = productIds.length
+    ? await Promise.all([
+        prisma.productVariant.findMany({
+          where: { tenantId: ctx.tenantId, productId: { in: productIds }, isActive: true },
+          orderBy: [{ name: "asc" }],
+          select: { id: true, productId: true, sku: true, name: true, barcode: true, qrCode: true, sellingPrice: true },
+        }),
+        prisma.productWarehouseStock.groupBy({
+          by: ["variantId"],
+          where: { tenantId: ctx.tenantId, productId: { in: productIds }, variantId: { not: null } },
+          _sum: { qty: true },
+        }),
+      ])
+    : [[], []];
+  const variantStockMap = new Map(variantStockAgg.map((r) => [r.variantId, Number(r._sum?.qty ?? 0)]));
+  const variantsByProduct = new Map<string, Array<{ id: string; sku: string; name: string; barcode: string | null; qrCode: string | null; price: number; stock: number }>>();
+  for (const v of variantRows) {
+    const arr = variantsByProduct.get(v.productId) ?? [];
+    arr.push({
+      id: v.id,
+      sku: v.sku,
+      name: v.name,
+      barcode: v.barcode,
+      qrCode: v.qrCode,
+      price: Number(v.sellingPrice),
+      stock: variantStockMap.get(v.id) ?? 0,
+    });
+    variantsByProduct.set(v.productId, arr);
+  }
+
   return apiOk(
     products.map((p) => ({
       id: p.id,
@@ -198,6 +228,7 @@ export const GET = withApiHandler(async (req: Request) => {
       isConsignment: p.isConsignment,
       type: p.type,
       stock: stockMap.get(p.id) ?? 0,
+      variants: variantsByProduct.get(p.id) ?? [],
       imageUrl: p.images.length > 0 ? p.images[0].url : null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,

@@ -16,6 +16,7 @@ import '../../providers/unit/unit_provider.dart';
 import '../../providers/plan/plan_provider.dart';
 import '../../../data/repositories/product_repository_impl.dart';
 import '../../../domain/entities/product.dart';
+import 'variant_management_sheet.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
   final String? productId;
@@ -46,6 +47,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   bool _saving = false;
   bool _listening = false;
   Product? _existing;
+  List<ProductVariant> _variants = const [];
   final SpeechToText _speech = SpeechToText();
 
   bool get isEditing => widget.productId != null;
@@ -71,15 +73,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       },
       (product) {
         _existing = product;
+        _variants = product.variants;
         _skuController.text = product.sku;
         _barcodeController.text = product.barcode ?? '';
         _nameController.text = product.name;
         _descriptionController.text = product.description ?? '';
         _costPriceController.text = _numText(product.costPrice);
         _sellingPriceController.text = _numText(product.sellingPrice);
-        _wholesalePriceController.text = product.wholesalePrice > 0
-            ? _numText(product.wholesalePrice)
-            : '';
+        _wholesalePriceController.text =
+            product.wholesalePrice > 0 ? _numText(product.wholesalePrice) : '';
         _wholesaleMinQtyController.text = product.wholesaleMinQty > 0
             ? product.wholesaleMinQty.toString()
             : '';
@@ -91,6 +93,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _selectedCategoryId = product.categoryId;
       },
     );
+    if (mounted && isEditing) {
+      final variantsResult =
+          await repository.getProductVariants(widget.productId!);
+      variantsResult.fold(
+        (_) {},
+        (variants) {
+          if (mounted) setState(() => _variants = variants);
+        },
+      );
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -210,14 +222,21 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (!canStore) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Paket Free tidak bisa simpan produk ke database. Upgrade ke Pro/Enterprise di website (super-admin).')),
+          const SnackBar(
+              content: Text(
+                  'Paket Free tidak bisa simpan produk ke database. Upgrade ke Pro/Enterprise di website (super-admin).')),
         );
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Upgrade Paket'),
-            content: const Text('Paket Free menonaktifkan penyimpanan produk ke database & sinkronisasi. Hubungi admin website untuk upgrade ke Pro/Enterprise.'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+            content: const Text(
+                'Paket Free menonaktifkan penyimpanan produk ke database & sinkronisasi. Hubungi admin website untuk upgrade ke Pro/Enterprise.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'))
+            ],
           ),
         );
       }
@@ -262,7 +281,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ? null
           : _imageUrlController.text.trim(),
       isActive: _existing?.isActive ?? true,
-      type: _existing?.type ?? 'SINGLE',
+      type: _variants.isNotEmpty ? 'VARIANT' : (_existing?.type ?? 'SINGLE'),
+      variants: _variants,
       createdAt: _existing?.createdAt ?? now,
       updatedAt: now,
     );
@@ -306,208 +326,309 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Center(
               child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: 720, minHeight: double.infinity),
+                constraints: const BoxConstraints(
+                    maxWidth: 720, minHeight: double.infinity),
                 child: Form(
-                    key: _formKey,
-                    child: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                  AppTextField(
-                    label: 'SKU / Kode Produk',
-                    hint: 'Kosongkan untuk dibuat otomatis',
-                    prefixIcon: Icons.qr_code,
-                    controller: _skuController,
-                    suffixIcon: IconButton(
-                      tooltip: 'Generate SKU',
-                      icon: const Icon(Icons.autorenew),
-                      onPressed: () {
-                        setState(() {
-                          _skuController.text = generateSku();
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'Barcode',
-                    hint: 'Scan kamera, bicara, atau ketik manual',
-                    prefixIcon: Icons.qr_code_scanner,
-                    controller: _barcodeController,
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: 'Scan dengan kamera',
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          onPressed: _scanBarcodeWithCamera,
-                        ),
-                        IconButton(
-                          tooltip: 'Input dengan suara',
-                          icon: Icon(
-                            _listening ? Icons.mic : Icons.mic_none,
-                            color: _listening ? Colors.red : null,
-                          ),
-                          onPressed: _toggleVoiceBarcode,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'Nama Produk',
-                    hint: 'Masukkan nama produk',
-                    prefixIcon: Icons.inventory_2,
-                    controller: _nameController,
-                    validator: (v) =>
-                        v?.isEmpty == true ? 'Nama produk wajib diisi' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    label: 'Deskripsi',
-                    hint: 'Masukkan deskripsi (opsional)',
-                    prefixIcon: Icons.description,
-                    controller: _descriptionController,
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  categoriesAsync.when(
-                    data: (categories) => DropdownButtonFormField<String>(
-                      value: _selectedCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'Kategori',
-                        prefixIcon: Icon(Icons.category),
-                      ),
-                      items: categories.map((c) {
-                        return DropdownMenuItem(value: c.id, child: Text(c.name));
-                      }).toList(),
-                      onChanged: (v) => setState(() => _selectedCategoryId = v),
-                    ),
-                    loading: () => const SizedBox(),
-                    error: (_, __) => const SizedBox(),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
                     children: [
-                      Expanded(
-                        child: AppTextField(
-                          label: 'Harga Beli',
-                          hint: '0',
-                          prefixIcon: Icons.shopping_cart,
-                          keyboardType: TextInputType.number,
-                          controller: _costPriceController,
+                      AppTextField(
+                        label: 'SKU / Kode Produk',
+                        hint: 'Kosongkan untuk dibuat otomatis',
+                        prefixIcon: Icons.qr_code,
+                        controller: _skuController,
+                        suffixIcon: IconButton(
+                          tooltip: 'Generate SKU',
+                          icon: const Icon(Icons.autorenew),
+                          onPressed: () {
+                            setState(() {
+                              _skuController.text = generateSku();
+                            });
+                          },
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          label: 'Harga Jual',
-                          hint: '0',
-                          prefixIcon: Icons.attach_money,
-                          keyboardType: TextInputType.number,
-                          controller: _sellingPriceController,
-                          validator: (v) =>
-                              v?.isEmpty == true ? 'Harga jual wajib diisi' : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.withOpacity(0.25)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        label: 'Barcode',
+                        hint: 'Scan kamera, bicara, atau ketik manual',
+                        prefixIcon: Icons.qr_code_scanner,
+                        controller: _barcodeController,
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.sell_outlined, size: 16, color: Colors.blue),
-                            SizedBox(width: 6),
-                            Text(
-                              'Harga Grosir',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
+                            IconButton(
+                              tooltip: 'Scan dengan kamera',
+                              icon: const Icon(Icons.photo_camera_outlined),
+                              onPressed: _scanBarcodeWithCamera,
+                            ),
+                            IconButton(
+                              tooltip: 'Input dengan suara',
+                              icon: Icon(
+                                _listening ? Icons.mic : Icons.mic_none,
+                                color: _listening ? Colors.red : null,
                               ),
+                              onPressed: _toggleVoiceBarcode,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        Row(
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        label: 'Nama Produk',
+                        hint: 'Masukkan nama produk',
+                        prefixIcon: Icons.inventory_2,
+                        controller: _nameController,
+                        validator: (v) => v?.isEmpty == true
+                            ? 'Nama produk wajib diisi'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        label: 'Deskripsi',
+                        hint: 'Masukkan deskripsi (opsional)',
+                        prefixIcon: Icons.description,
+                        controller: _descriptionController,
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 16),
+                      categoriesAsync.when(
+                        data: (categories) => DropdownButtonFormField<String>(
+                          value: _selectedCategoryId,
+                          decoration: const InputDecoration(
+                            labelText: 'Kategori',
+                            prefixIcon: Icon(Icons.category),
+                          ),
+                          items: categories.map((c) {
+                            return DropdownMenuItem(
+                                value: c.id, child: Text(c.name));
+                          }).toList(),
+                          onChanged: (v) =>
+                              setState(() => _selectedCategoryId = v),
+                        ),
+                        loading: () => const SizedBox(),
+                        error: (_, __) => const SizedBox(),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: AppTextField(
+                              label: 'Harga Beli',
+                              hint: '0',
+                              prefixIcon: Icons.shopping_cart,
+                              keyboardType: TextInputType.number,
+                              controller: _costPriceController,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppTextField(
+                              label: 'Harga Jual',
+                              hint: '0',
+                              prefixIcon: Icons.attach_money,
+                              keyboardType: TextInputType.number,
+                              controller: _sellingPriceController,
+                              validator: (v) => v?.isEmpty == true
+                                  ? 'Harga jual wajib diisi'
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: Colors.blue.withOpacity(0.25)),
+                        ),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: AppTextField(
-                                label: 'Harga Grosir',
-                                hint: '0 (opsional)',
-                                keyboardType: TextInputType.number,
-                                controller: _wholesalePriceController,
-                              ),
+                            const Row(
+                              children: [
+                                Icon(Icons.sell_outlined,
+                                    size: 16, color: Colors.blue),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Harga Grosir',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: AppTextField(
-                                label: 'Min. Qty Grosir',
-                                hint: 'mis. 12',
-                                keyboardType: TextInputType.number,
-                                controller: _wholesaleMinQtyController,
-                              ),
+                            const SizedBox(height: 12),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: AppTextField(
+                                    label: 'Harga Grosir',
+                                    hint: '0 (opsional)',
+                                    keyboardType: TextInputType.number,
+                                    controller: _wholesalePriceController,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: AppTextField(
+                                    label: 'Min. Qty Grosir',
+                                    hint: 'mis. 12',
+                                    keyboardType: TextInputType.number,
+                                    controller: _wholesaleMinQtyController,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Harga grosir otomatis dipakai di kasir saat jumlah >= min. qty.',
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Harga grosir otomatis dipakai di kasir saat jumlah >= min. qty.',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildPhotoSection(),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AppTextField(
+                              label: 'Stok',
+                              hint: '0',
+                              prefixIcon: Icons.inventory,
+                              keyboardType: TextInputType.number,
+                              controller: _stockController,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: AppTextField(
+                              label: 'Min. Stok',
+                              hint: '0',
+                              prefixIcon: Icons.warning,
+                              keyboardType: TextInputType.number,
+                              controller: _minStockController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildUnitDropdown(),
+                      if (isEditing) ...[
+                        const SizedBox(height: 16),
+                        _buildVariantsSection(),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildPhotoSection(),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          label: 'Stok',
-                          hint: '0',
-                          prefixIcon: Icons.inventory,
-                          keyboardType: TextInputType.number,
-                          controller: _stockController,
-                        ),
+                      const SizedBox(height: 32),
+                      AppButton(
+                        label: isEditing ? 'Simpan Perubahan' : 'Simpan Produk',
+                        loading: _saving,
+                        onPressed: _saving ? null : _saveProduct,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          label: 'Min. Stok',
-                          hint: '0',
-                          prefixIcon: Icons.warning,
-                          keyboardType: TextInputType.number,
-                          controller: _minStockController,
-                        ),
-                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildUnitDropdown(),
-                  const SizedBox(height: 32),
-                  AppButton(
-                    label: isEditing ? 'Simpan Perubahan' : 'Simpan Produk',
-                    loading: _saving,
-                    onPressed: _saving ? null : _saveProduct,
-                  ),
-                  const SizedBox(height: 24),
-                ],
                 ),
               ),
             ),
+    );
+  }
+
+  String _rupiah(double value) {
+    final digits = value.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+    return 'Rp $buffer';
+  }
+
+  Future<void> _manageVariants() async {
+    final product = _existing;
+    if (product == null) return;
+    await showVariantManagementSheet(
+      context,
+      product: product.copyWith(variants: _variants),
+    );
+    if (!mounted) return;
+    final result = await ref
+        .read(productRepositoryProvider)
+        .getProductVariants(product.id);
+    if (!mounted) return;
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure.message)),
+      ),
+      (variants) => setState(() => _variants = variants),
+    );
+    ref.invalidate(productListProvider);
+  }
+
+  Widget _buildVariantsSection() {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.layers_outlined, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Varian Produk',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _manageVariants,
+                icon: const Icon(Icons.settings_outlined, size: 18),
+                label: const Text('Kelola'),
+              ),
+            ],
           ),
+          if (_variants.isEmpty)
+            Text(
+              'Belum ada varian. Tambahkan varian jika produk punya pilihan seperti ukuran atau rasa.',
+              style: theme.textTheme.bodySmall,
+            )
+          else ...[
+            Text(
+              '${_variants.length} varian aktif',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 6),
+            ..._variants.take(5).map(
+                  (variant) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      '• ${variant.name} — ${_rupiah(variant.price)} — stok ${variant.stock}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+            if (_variants.length > 5)
+              Text(
+                '+${_variants.length - 5} varian lainnya',
+                style: theme.textTheme.bodySmall,
+              ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -519,7 +640,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           orElse: () => _buildUnitField(),
           data: (units) {
             final current = _selectedUnit ?? 'pcs';
-            final allUnits = units.contains(current) ? units : [...units, current];
+            final allUnits =
+                units.contains(current) ? units : [...units, current];
             return DropdownButtonFormField<String>(
               value: current,
               decoration: const InputDecoration(
@@ -558,7 +680,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       hint: 'contoh: pcs',
       prefixIcon: Icons.straighten,
       controller: _unitController,
-      onChanged: (_) => setState(() => _selectedUnit = _unitController.text.trim()),
+      onChanged: (_) =>
+          setState(() => _selectedUnit = _unitController.text.trim()),
     );
   }
 
@@ -603,7 +726,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.4),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withOpacity(0.4),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:drift/drift.dart' show Value;
@@ -10,10 +11,12 @@ import '../../core/errors/failures.dart';
 import '../../core/network/mobile_api_gate.dart';
 import '../../core/network/network_info.dart';
 import '../../domain/entities/sale.dart';
+import '../../domain/entities/product.dart';
 import '../../domain/repositories/sale_repository.dart';
 import '../datasources/local/database/app_database.dart';
 import '../datasources/remote/sale_remote_datasource.dart';
 import '../models/sale_model.dart';
+import '../models/product_variant_model.dart';
 
 final saleRepositoryProvider = Provider<SaleRepository>((ref) {
   return SaleRepositoryImpl(
@@ -22,6 +25,21 @@ final saleRepositoryProvider = Provider<SaleRepository>((ref) {
     networkInfo: ref.read(networkInfoProvider),
   );
 });
+
+List<ProductVariant> _decodeVariants(String? raw, String productId) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+    return decoded
+        .map((item) => ProductVariantModel.tryFromDynamic(item)
+            ?.toEntity(parentProductId: productId))
+        .whereType<ProductVariant>()
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
 
 class SaleRepositoryImpl implements SaleRepository {
   final SaleRemoteDataSource remoteDataSource;
@@ -43,7 +61,8 @@ class SaleRepositoryImpl implements SaleRepository {
     try {
       await _saveSaleLocally(sale);
     } catch (localError) {
-      return Left(DatabaseFailure(message: 'Gagal menyimpan penjualan: $localError'));
+      return Left(
+          DatabaseFailure(message: 'Gagal menyimpan penjualan: $localError'));
     }
 
     if (await networkInfo.isConnected) {
@@ -57,19 +76,19 @@ class SaleRepositoryImpl implements SaleRepository {
 
   Future<void> _pushSingleSale(Sale sale) async {
     try {
-      final payload = Map<String, dynamic>.from(SaleModel.fromEntity(sale).toJson());
-      payload['paidAmount'] = sale.paidAmount;
-      payload['changeAmount'] = sale.changeAmount;
-      payload['paymentMethod'] = sale.paymentMethod;
-      payload['paymentReference'] = sale.paymentReference;
+      final payload = _syncPayload(SaleModel.fromEntity(sale));
       await remoteDataSource.createSale(payload);
       await database.saleDao.markSynced([sale.id]);
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       final data = e.response?.data;
-      final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
-      final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
-      if (status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true)) {
+      final code =
+          data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+      final msg =
+          data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+      if (status == 403 &&
+          (code == 'PLAN_FREE_NO_DB' ||
+              msg?.contains('PLAN_FREE_NO_DB') == true)) {
         // Paket free: server tolak simpan ke DB terpusat — tetap simpan lokal, tidak di-sync.
         try {
           await database.saleDao.markSynced([sale.id]);
@@ -79,6 +98,20 @@ class SaleRepositoryImpl implements SaleRepository {
     } catch (_) {
       // Gagal push -> tetap tersimpan lokal, akan dicoba sync berikutnya.
     }
+  }
+
+  Map<String, dynamic> _syncPayload(SaleModel model) {
+    final payload = Map<String, dynamic>.from(model.toJson());
+    payload['paidAmount'] = model.paidAmount;
+    payload['changeAmount'] = model.changeAmount;
+    payload['paymentMethod'] = model.paymentMethod;
+    payload['paymentReference'] = model.paymentReference;
+    payload['items'] = model.items.map((item) {
+      final json = Map<String, dynamic>.from(item.toJson());
+      json['priceOverride'] = json.remove('priceOverridden') ?? false;
+      return json;
+    }).toList();
+    return payload;
   }
 
   Future<void> _saveSaleLocally(Sale sale) async {
@@ -105,11 +138,14 @@ class SaleRepositoryImpl implements SaleRepository {
             id: Value(item.id),
             saleId: Value(sale.id),
             productId: Value(item.productId),
+            variantId: Value(item.variantId),
+            variantName: Value(item.variantName),
             name: Value(item.name),
             sku: Value(item.sku),
             price: Value(item.price),
             qty: Value(item.qty),
             lineTotal: Value(item.lineTotal),
+            priceOverridden: Value(item.priceOverridden),
           ),
         );
       }
@@ -129,8 +165,36 @@ class SaleRepositoryImpl implements SaleRepository {
       for (final item in sale.items) {
         final product = await database.productDao.getById(item.productId);
         if (product != null) {
-          final newStock = product.stock - item.qty.toInt();
-          await database.productDao.updateStock(item.productId, newStock);
+          final variants = _decodeVariants(product.variantsJson, product.id);
+          final updatedVariants = variants.map((variant) {
+            if (item.variantId == null || variant.id != item.variantId) {
+              return variant;
+            }
+            return ProductVariant(
+              id: variant.id,
+              productId: variant.productId,
+              sku: variant.sku,
+              name: variant.name,
+              barcode: variant.barcode,
+              qrCode: variant.qrCode,
+              price: variant.price,
+              stock: (variant.stock - item.qty).round().clamp(0, 1 << 31),
+            );
+          }).toList();
+          await database.productDao.upsertProduct(
+            ProductsTableCompanion(
+              id: Value(item.productId),
+              stock:
+                  Value((product.stock - item.qty.round()).clamp(0, 1 << 31)),
+              variantsJson: Value(jsonEncode(
+                updatedVariants
+                    .map((v) =>
+                        ProductVariantModel.fromEntity(v, productId: product.id)
+                            .toJson())
+                    .toList(),
+              )),
+            ),
+          );
         }
       }
     });
@@ -180,28 +244,30 @@ class SaleRepositoryImpl implements SaleRepository {
                     id: i.id,
                     saleId: i.saleId,
                     productId: i.productId,
+                    variantId: i.variantId,
+                    variantName: i.variantName,
                     name: i.name,
                     sku: i.sku,
                     qty: i.qty,
                     price: i.price,
                     lineTotal: i.lineTotal,
+                    priceOverridden: i.priceOverridden,
                   ))
               .toList(),
         );
-        final payload = Map<String, dynamic>.from(model.toJson());
-        payload['paidAmount'] = model.paidAmount;
-        payload['changeAmount'] = model.changeAmount;
-        payload['paymentMethod'] = model.paymentMethod;
-        payload['paymentReference'] = model.paymentReference;
-
+        final payload = _syncPayload(model);
         await remoteDataSource.createSale(payload);
         await database.saleDao.markSynced([row.id]);
       } on DioException catch (e) {
         final status = e.response?.statusCode;
         final data = e.response?.data;
-        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
-        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
-        final isPlanFree = status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true);
+        final code =
+            data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+        final msg =
+            data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+        final isPlanFree = status == 403 &&
+            (code == 'PLAN_FREE_NO_DB' ||
+                msg?.contains('PLAN_FREE_NO_DB') == true);
         if (isPlanFree) {
           try {
             await database.saleDao.markSynced([row.id]);
@@ -239,7 +305,8 @@ class SaleRepositoryImpl implements SaleRepository {
     try {
       await _pushPendingSales();
 
-      final knownInvoices = (await database.saleDao.getInvoiceNumbers()).toSet();
+      final knownInvoices =
+          (await database.saleDao.getInvoiceNumbers()).toSet();
       var page = 1;
       while (true) {
         final remote = await remoteDataSource.getSales(page: page, limit: 100);
@@ -275,11 +342,14 @@ class SaleRepositoryImpl implements SaleRepository {
                     id: Value(item.id),
                     saleId: Value(model.id),
                     productId: Value(item.productId),
+                    variantId: Value(item.variantId),
+                    variantName: Value(item.variantName),
                     name: Value(item.name),
                     sku: Value(item.sku),
                     price: Value(item.price),
                     qty: Value(item.qty),
                     lineTotal: Value(item.lineTotal),
+                    priceOverridden: Value(item.priceOverridden),
                   ),
                 );
               }
@@ -320,11 +390,14 @@ class SaleRepositoryImpl implements SaleRepository {
   Future<Either<Failure, Sale>> getSale(String id) async {
     try {
       final sale = await database.saleDao.getById(id);
-      if (sale == null) return const Left(DatabaseFailure(message: 'Penjualan tidak ditemukan'));
+      if (sale == null)
+        return const Left(
+            DatabaseFailure(message: 'Penjualan tidak ditemukan'));
       final items = await database.saleDao.getItems(id);
       return Right(await _toEntity(sale, items));
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal mengambil data penjualan'));
+      return const Left(
+          DatabaseFailure(message: 'Gagal mengambil data penjualan'));
     }
   }
 
@@ -386,12 +459,14 @@ class SaleRepositoryImpl implements SaleRepository {
           sale,
           itemsBySale[sale.id] ?? const [],
           payment: paymentBySale[sale.id],
-          customerName: sale.customerId == null ? null : customerNames[sale.customerId],
+          customerName:
+              sale.customerId == null ? null : customerNames[sale.customerId],
         );
       }).toList();
       return Right(result);
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal mengambil data penjualan'));
+      return const Left(
+          DatabaseFailure(message: 'Gagal mengambil data penjualan'));
     }
   }
 
@@ -435,7 +510,8 @@ class SaleRepositoryImpl implements SaleRepository {
     );
   }
 
-  Future<Sale> _toEntity(SalesTableData d, List<SaleItemsTableData> items) async {
+  Future<Sale> _toEntity(
+      SalesTableData d, List<SaleItemsTableData> items) async {
     String? customerName;
     if (d.customerId != null) {
       final customer = await database.customerDao.getById(d.customerId!);
@@ -456,11 +532,14 @@ class SaleRepositoryImpl implements SaleRepository {
       id: i.id,
       saleId: i.saleId,
       productId: i.productId,
+      variantId: i.variantId,
+      variantName: i.variantName,
       name: i.name,
       sku: i.sku,
       qty: i.qty,
       price: i.price,
       lineTotal: i.lineTotal,
+      priceOverridden: i.priceOverridden,
     );
   }
 }

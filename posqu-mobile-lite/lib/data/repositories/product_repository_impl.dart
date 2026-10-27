@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart' show DioException;
@@ -13,6 +14,7 @@ import '../../domain/repositories/product_repository.dart';
 import '../datasources/local/database/app_database.dart';
 import '../datasources/remote/product_remote_datasource.dart';
 import '../models/product_model.dart';
+import '../models/product_variant_model.dart';
 
 final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepositoryImpl(
@@ -21,6 +23,21 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
     networkInfo: ref.read(networkInfoProvider),
   );
 });
+
+List<ProductVariant> _parseVariants(String? raw, String productId) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+    return decoded
+        .map((item) => ProductVariantModel.tryFromDynamic(item)
+            ?.toEntity(parentProductId: productId))
+        .whereType<ProductVariant>()
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
 
 class ProductRepositoryImpl implements ProductRepository {
   final ProductRemoteDataSource remoteDataSource;
@@ -74,6 +91,9 @@ class ProductRepositoryImpl implements ProductRepository {
           stock: row.stock,
           unit: row.unit,
           imageUrl: row.imageUrl,
+          variants: _parseVariants(row.variantsJson, row.id)
+              .map((v) => ProductVariantModel.fromEntity(v, productId: row.id))
+              .toList(),
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         );
@@ -82,9 +102,13 @@ class ProductRepositoryImpl implements ProductRepository {
       } on DioException catch (e) {
         final status = e.response?.statusCode;
         final data = e.response?.data;
-        final code = data is Map ? (data['code'] ?? data['error'])?.toString() : null;
-        final msg = data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
-        final isPlanFree = status == 403 && (code == 'PLAN_FREE_NO_DB' || msg?.contains('PLAN_FREE_NO_DB') == true);
+        final code =
+            data is Map ? (data['code'] ?? data['error'])?.toString() : null;
+        final msg =
+            data is Map ? (data['message'] ?? data['msg'])?.toString() : null;
+        final isPlanFree = status == 403 &&
+            (code == 'PLAN_FREE_NO_DB' ||
+                msg?.contains('PLAN_FREE_NO_DB') == true);
         if (isPlanFree) {
           try {
             await database.productDao.markSynced([row.id]);
@@ -149,7 +173,8 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
-  ProductsTableCompanion _toCompanion(ProductModel model, {bool isSynced = true}) {
+  ProductsTableCompanion _toCompanion(ProductModel model,
+      {bool isSynced = true}) {
     return ProductsTableCompanion(
       id: Value(model.id),
       sku: Value(model.sku),
@@ -181,6 +206,8 @@ class ProductRepositoryImpl implements ProductRepository {
       stock: Value(model.stock),
       unit: Value(model.unit),
       imageUrl: Value(model.imageUrl),
+      variantsJson:
+          Value(jsonEncode(model.variants.map((v) => v.toJson()).toList())),
       isSynced: Value(isSynced),
       createdAt: Value(model.createdAt),
       updatedAt: Value(model.updatedAt),
@@ -216,7 +243,8 @@ class ProductRepositoryImpl implements ProductRepository {
       await _saveLocally(product, synced: pushed);
       return Right(product);
     } catch (localError) {
-      return Left(DatabaseFailure(message: 'Gagal membuat produk: $localError'));
+      return Left(
+          DatabaseFailure(message: 'Gagal membuat produk: $localError'));
     }
   }
 
@@ -259,6 +287,10 @@ class ProductRepositoryImpl implements ProductRepository {
       stock: Value(p.stock),
       unit: Value(p.unit),
       imageUrl: Value(p.imageUrl),
+      variantsJson: Value(jsonEncode(p.variants
+          .map((v) =>
+              ProductVariantModel.fromEntity(v, productId: p.id).toJson())
+          .toList())),
     );
   }
 
@@ -336,7 +368,8 @@ class ProductRepositoryImpl implements ProductRepository {
       );
       return Right(await _toEntities(rows));
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal mengambil data produk'));
+      return const Left(
+          DatabaseFailure(message: 'Gagal mengambil data produk'));
     }
   }
 
@@ -394,6 +427,11 @@ class ProductRepositoryImpl implements ProductRepository {
           stock: Value(product.stock),
           unit: Value(product.unit),
           imageUrl: Value(product.imageUrl),
+          variantsJson: Value(jsonEncode(product.variants
+              .map((v) =>
+                  ProductVariantModel.fromEntity(v, productId: product.id)
+                      .toJson())
+              .toList())),
           isSynced: Value(pushed),
           updatedAt: Value(DateTime.now()),
         ),
@@ -410,17 +448,121 @@ class ProductRepositoryImpl implements ProductRepository {
       final products = await database.productDao.getLowStock();
       return Right(await _toEntities(products));
     } catch (e) {
-      return const Left(DatabaseFailure(message: 'Gagal mengambil produk stok rendah'));
+      return const Left(
+          DatabaseFailure(message: 'Gagal mengambil produk stok rendah'));
     }
   }
 
   @override
-  Future<Either<Failure, void>> updateStock(String productId, int quantity) async {
+  Future<Either<Failure, void>> updateStock(
+      String productId, int quantity) async {
     try {
       await database.productDao.updateStock(productId, quantity);
       return const Right(null);
     } catch (e) {
       return const Left(DatabaseFailure(message: 'Gagal mengupdate stok'));
+    }
+  }
+
+  Future<void> _refreshProductCache(String productId) async {
+    final model = await remoteDataSource.getProduct(productId);
+    await database.productDao.upsertProduct(_toCompanion(model));
+  }
+
+  String _apiErrorMessage(Object error, String fallback) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final message = data['message'] ?? data['msg'];
+        if (message != null && message.toString().isNotEmpty) {
+          return message.toString();
+        }
+      }
+    }
+    return fallback;
+  }
+
+  @override
+  Future<Either<Failure, List<ProductVariant>>> getProductVariants(
+    String productId,
+  ) async {
+    try {
+      final remote = await remoteDataSource.getVariants(productId);
+      try {
+        await _refreshProductCache(productId);
+      } catch (_) {}
+      return Right(
+        remote.map((v) => v.toEntity(parentProductId: productId)).toList(),
+      );
+    } catch (error) {
+      try {
+        final row = await database.productDao.getById(productId);
+        if (row != null) {
+          return Right(_parseVariants(row.variantsJson, productId));
+        }
+      } catch (_) {}
+      return Left(ServerFailure(
+        message: _apiErrorMessage(error, 'Gagal mengambil varian produk'),
+      ));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> upsertProductVariant(
+    String productId, {
+    String? variantId,
+    required String name,
+    String? sku,
+    String? barcode,
+    String? qrCode,
+    double price = 0,
+    int stock = 0,
+  }) async {
+    final trimmedSku = (sku ?? '').trim();
+    final payload = <String, dynamic>{
+      'name': name,
+      'barcode': barcode,
+      'qrCode': qrCode,
+      'costPrice': 0,
+      'sellingPrice': price,
+      'isActive': true,
+      'stock': stock,
+    };
+    if (variantId == null || trimmedSku.isNotEmpty) {
+      payload['sku'] = trimmedSku;
+    }
+    try {
+      if (variantId == null) {
+        await remoteDataSource.createVariant(productId, payload);
+      } else {
+        await remoteDataSource.updateVariant(productId, variantId, payload);
+      }
+      try {
+        await _refreshProductCache(productId);
+      } catch (_) {}
+      return const Right(null);
+    } catch (error) {
+      return Left(ServerFailure(
+        message: _apiErrorMessage(error, 'Gagal menyimpan varian produk'),
+      ));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteProductVariant(
+    String productId,
+    String variantId,
+  ) async {
+    try {
+      await remoteDataSource.deleteVariant(productId, variantId);
+      try {
+        await _refreshProductCache(productId);
+      } catch (_) {}
+      return const Right(null);
+    } catch (error) {
+      return Left(ServerFailure(
+        message: _apiErrorMessage(error, 'Gagal menghapus varian produk'),
+      ));
     }
   }
 
@@ -471,6 +613,7 @@ class ProductRepositoryImpl implements ProductRepository {
         stock: p.stock,
         unit: p.unit,
         imageUrl: p.imageUrl,
+        variants: _parseVariants(p.variantsJson, p.id),
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
       );

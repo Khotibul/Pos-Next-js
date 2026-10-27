@@ -129,6 +129,14 @@ class RolePermissions {
   static bool can(String? role, String permission) =>
       permissionsFor(role).contains(permission);
 
+  /// Ubah harga jual di keranjang hanya untuk role manajerial.
+  static bool canEditPrice(String? role) {
+    final normalized = role?.trim().toUpperCase();
+    return normalized == 'OWNER' ||
+        normalized == 'ADMIN' ||
+        normalized == 'SUPER_ADMIN';
+  }
+
   /// Route → permission (dipetakan dari nav web di src/components/layout/nav.ts).
   /// `/settings` & `/sync` adalah pengaturan perangkat (bukan tenant) → semua role boleh.
   static const Map<String, String> routePermissions = {

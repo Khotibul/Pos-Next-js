@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart' show DioException;
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
@@ -9,7 +9,6 @@ import '../../core/network/network_info.dart';
 import '../../domain/entities/brand.dart';
 import '../../domain/repositories/brand_repository.dart';
 import '../datasources/local/database/app_database.dart';
-import '../datasources/local/database/tables/brands_table.dart';
 import '../datasources/remote/brand_remote_datasource.dart';
 
 final brandRepositoryProvider = Provider<BrandRepository>((ref) {
@@ -59,7 +58,7 @@ class BrandRepositoryImpl implements BrandRepository {
     try {
       await _syncFromServer();
       final rows = await (database.select(database.brandsTable)
-            ..orderBy([(t) => t.name]))
+            ..orderBy([(t) => OrderingTerm.asc(t.name)]))
           .get();
       return Right(rows.map((r) => Brand(
             id: r.id,

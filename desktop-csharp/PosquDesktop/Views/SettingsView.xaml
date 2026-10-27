@@ -1,0 +1,130 @@
+<UserControl x:Class="PosquDesktop.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="0,0,8,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="Profil &amp; toko" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Informasi akun yang sedang digunakan." Style="{StaticResource MutedText}"
+                               Margin="0,3,0,14" />
+
+                    <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="10" Padding="14">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TenantName}" FontSize="16" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Border Background="{StaticResource PrimarySoftBrush}" CornerRadius="5" Padding="8,3">
+                                    <TextBlock Text="{Binding PlanLabel, StringFormat=Paket {0}}"
+                                               Foreground="{StaticResource PrimaryBrush}" FontSize="10"
+                                               FontWeight="SemiBold" />
+                                </Border>
+                                <TextBlock Text="{Binding SessionInfo}" Style="{StaticResource MutedText}"
+                                           Margin="10,2,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Nama" Style="{StaticResource MutedText}" />
+                        <TextBlock Grid.Column="1" Text="{Binding UserName}" FontWeight="SemiBold" />
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Email" Style="{StaticResource MutedText}" />
+                        <TextBlock Grid.Column="1" Text="{Binding UserEmail}" />
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Peran" Style="{StaticResource MutedText}" />
+                        <TextBlock Grid.Column="1" Text="{Binding UserRole}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="14,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Koneksi server" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Alamat API yang dipakai aplikasi desktop." Style="{StaticResource MutedText}"
+                               Margin="0,3,0,14" />
+                    <TextBox Style="{StaticResource InputTextBox}"
+                             Text="{Binding ApiBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="Mengubah alamat server akan mengakhiri sesi dan meminta login ulang."
+                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,18" />
+
+                    <TextBlock Text="Printer struk" Style="{StaticResource SectionTitle}" FontSize="13" />
+                    <TextBlock Text="Kosongkan untuk memilih printer setiap kali mencetak."
+                               Style="{StaticResource MutedText}" Margin="0,3,0,8" />
+                    <TextBox Style="{StaticResource InputTextBox}"
+                             Text="{Binding PrinterName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Contoh: EPSON TM-T82 Receipt" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <CheckBox Content="Cetak struk otomatis setelah pembayaran"
+                                  IsChecked="{Binding AutoPrintAfterPayment}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button Style="{StaticResource PrimaryButton}" Content="Simpan Pengaturan"
+                                Command="{Binding SaveCommand}" />
+                        <Button Style="{StaticResource SecondaryButton}" Content="Tes Printer" Margin="8,0,0,0"
+                                Command="{Binding TestPrinterCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="Keamanan" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Kredensial disimpan terenkripsi di perangkat ini." Style="{StaticResource MutedText}"
+                               Margin="0,3,0,14" />
+                    <CheckBox Content="Ingat email &amp; password di perangkat ini"
+                              IsChecked="{Binding RememberPassword}" />
+                    <Button Style="{StaticResource DangerButton}" Content="Keluar dari Akun" Margin="0,18,0,0"
+                            HorizontalAlignment="Left" Command="{Binding LogoutCommand}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardBorder}" Margin="14,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="Tentang aplikasi" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="POSQU Pro Desktop Edition" Style="{StaticResource MutedText}" Margin="0,3,0,14" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Versi" Style="{StaticResource MutedText}" />
+                        <TextBlock Grid.Column="1" Text="{Binding AppVersion}" />
+                    </Grid>
+                    <TextBlock Text="Folder data" Style="{StaticResource MutedText}" />
+                    <TextBlock Text="{Binding DataFolder}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
+                    <Border Background="{StaticResource PrimarySoftBrush}" CornerRadius="8" Padding="12"
+                            Margin="0,14,0,0">
+                        <TextBlock Text="Mode offline: transaksi tetap tersimpan di perangkat lalu dikirim otomatis saat koneksi kembali."
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource PrimaryBrush}" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

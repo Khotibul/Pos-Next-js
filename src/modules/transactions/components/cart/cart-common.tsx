@@ -1,7 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Pencil, RotateCcw } from "lucide-react";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 
 export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD" | "CREDIT";
@@ -9,13 +10,27 @@ export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD" | 
 export type Customer = { id: string; name: string; phone?: string | null };
 
 export type CartLine = {
+  lineKey: string;
   productId: string;
+  variantId?: string;
+  variantName?: string;
   name: string;
   sku: string;
   price: number;
   qty: number;
   lineTotal: number;
   isWholesale?: boolean;
+  isPriceOverridden?: boolean;
+};
+
+export type ProductVariant = {
+  id: string;
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  qrCode?: string | null;
+  price: number;
+  stock?: number;
 };
 
 export type Product = {
@@ -30,7 +45,17 @@ export type Product = {
   wholesaleDiscountPercent?: number;
   wholesaleMinQty?: number;
   imageUrl?: string | null;
+  variants?: ProductVariant[];
 };
+
+export function lineKey(productId: string, variantId?: string | null) {
+  return variantId ? `${productId}::${variantId}` : productId;
+}
+
+export function parseLineKey(key: string): { productId: string; variantId?: string } {
+  const [productId, variantId] = key.split("::");
+  return { productId, variantId: variantId || undefined };
+}
 
 export function rupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -40,14 +65,30 @@ export const CartLineItem = memo(function CartLineItem({
   item,
   onInc,
   onDec,
+  canEditPrice = false,
+  onPriceChange,
+  onPriceReset,
 }: {
   item: CartLine;
   product: Product | undefined;
-  onInc: (id: string) => void;
-  onDec: (id: string) => void;
+  onInc: (lineKey: string) => void;
+  onDec: (lineKey: string) => void;
   showSku: boolean;
   showStock: boolean;
+  canEditPrice?: boolean;
+  onPriceChange?: (lineKey: string, price: number) => void;
+  onPriceReset?: (lineKey: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(item.price));
+
+  const commit = () => {
+    const value = Number(draft);
+    if (!Number.isFinite(value) || value < 0) return;
+    onPriceChange?.(item.lineKey, value);
+    setEditing(false);
+  };
+
   return (
     <div className="flex items-center gap-3 rounded-xl bg-muted/40 p-2.5 transition-all hover:bg-muted/60 sm:p-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
@@ -55,20 +96,66 @@ export const CartLineItem = memo(function CartLineItem({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium leading-tight">{item.name}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {rupiah(item.price)} / unit
-          {item.isWholesale ? <span className="ml-1 text-orange-600">Grosir</span> : null}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          {editing ? (
+            <span className="inline-flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                step="any"
+                className="h-7 w-24 rounded-md border bg-background px-2 text-right text-xs"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commit();
+                  if (e.key === "Escape") setEditing(false);
+                }}
+              />
+              <button type="button" className="font-semibold text-primary" onClick={commit}>Simpan</button>
+              <button type="button" onClick={() => setEditing(false)}>Batal</button>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              {rupiah(item.price)} / unit
+              {item.isWholesale ? <span className="text-orange-600">Grosir</span> : null}
+              {item.isPriceOverridden ? <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-700">Manual</span> : null}
+              {canEditPrice ? (
+                <button
+                  type="button"
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                  onClick={() => {
+                    setDraft(String(item.price));
+                    setEditing(true);
+                  }}
+                  aria-label="Ubah harga"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              ) : null}
+              {item.isPriceOverridden && onPriceReset ? (
+                <button
+                  type="button"
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                  onClick={() => onPriceReset(item.lineKey)}
+                  aria-label="Kembalikan harga normal"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              ) : null}
+            </span>
+          )}
         </div>
         <div className="text-xs font-semibold text-primary">{rupiah(item.lineTotal)}</div>
       </div>
       <div className="flex items-center gap-1">
-        <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0 text-base" onClick={() => onDec(item.productId)}>
-          −
+        <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0 text-base" onClick={() => onDec(item.lineKey)}>
+          -
         </Button>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
           {item.qty}
         </div>
-        <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0 text-base" onClick={() => onInc(item.productId)}>
+        <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0 text-base" onClick={() => onInc(item.lineKey)}>
           +
         </Button>
       </div>

@@ -15,6 +15,12 @@ import { invalidateCachedProduct } from "@/lib/transaction-cache";
 import { writeErrorLog } from "@/shared/server/monitoring/log-service";
 import { createDevTimer } from "@/shared/utils/perf";
 
+const PRICE_OVERRIDE_ROLES = new Set(["OWNER", "ADMIN", "SUPER_ADMIN"]);
+
+function canOverridePrice(ctx: { isSuperAdmin: boolean; roleName: string | null }) {
+  return ctx.isSuperAdmin || PRICE_OVERRIDE_ROLES.has((ctx.roleName ?? "").toUpperCase());
+}
+
 export async function createSaleAction(payload: unknown): Promise<ActionResult<{ id: string; invoiceNo: string }>> {
   const endTotal = createDevTimer("pos.createSaleAction.total");
   let idempotencyRelease: { tenantId: string; key: string } | null = null;
@@ -52,10 +58,12 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
       cashierId: ctx.userId,
       branchId: ctx.branchId,
       shiftId: openShift.id,
+      canOverridePrice: canOverridePrice(ctx),
       input: parsed.data,
     });
 
-    const productIds = parsed.data.items.map((i) => i.productId);
+    const productIds = [...new Set(parsed.data.items.map((i) => i.productId))];
+    const overriddenItems = parsed.data.items.filter((i) => i.priceOverride);
     void Promise.allSettled([
       writeAuditLog({
         tenantId: ctx.tenantId,
@@ -63,7 +71,20 @@ export async function createSaleAction(payload: unknown): Promise<ActionResult<{
         action: "CREATE",
         entity: "Sale",
         entityId: created.id,
-        metadata: { invoiceNo: created.invoiceNo, total: created.total },
+        metadata: {
+          invoiceNo: created.invoiceNo,
+          total: created.total,
+          ...(overriddenItems.length > 0
+            ? {
+                priceOverride: true,
+                overriddenProducts: overriddenItems.map((i) => ({
+                  productId: i.productId,
+                  variantId: i.variantId || null,
+                  unitPrice: i.unitPrice,
+                })),
+              }
+            : {}),
+        },
       }),
       invalidateDashboardCache(ctx.tenantId),
       ...productIds.map((pid) => invalidateCachedProduct(ctx.tenantId, pid)),

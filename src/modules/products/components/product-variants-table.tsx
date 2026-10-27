@@ -18,6 +18,7 @@ type VariantRow = {
   qrCode: string | null;
   sellingPrice: number;
   costPrice: number;
+  stock?: number;
   isActive: boolean;
   updatedAt: string;
   attributes?: Record<string, unknown> | null;
@@ -173,6 +174,7 @@ export function ProductVariantsTable({ productId, variants }: { productId: strin
                 <th className="px-3 py-2">Nama</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Harga</th>
+                <th className="px-3 py-2">Stok</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2 text-right">Aksi</th>
               </tr>
@@ -183,6 +185,7 @@ export function ProductVariantsTable({ productId, variants }: { productId: strin
                   <td className="px-3 py-2 font-medium">{v.name}</td>
                   <td className="px-3 py-2 font-mono text-xs">{v.sku}</td>
                   <td className="px-3 py-2">{rupiah(v.sellingPrice)}</td>
+                  <td className="px-3 py-2 tabular-nums">{v.stock ?? 0}</td>
                   <td className="px-3 py-2">
                     {v.isActive ? (
                       <Badge className="border-emerald-200 bg-emerald-100 text-emerald-900">Active</Badge>

@@ -13,7 +13,8 @@ import '../../../domain/entities/sale.dart';
 import '../../../core/widgets/receipt_preview.dart';
 import 'kasir_state.dart';
 
-final kasirStateProvider = StateNotifierProvider<KasirNotifier, KasirState>((ref) {
+final kasirStateProvider =
+    StateNotifierProvider<KasirNotifier, KasirState>((ref) {
   return KasirNotifier(
     saleRepository: ref.read(saleRepositoryProvider),
     productRepository: ref.read(productRepositoryProvider),
@@ -38,8 +39,7 @@ class SavedCart {
   });
 
   double get total =>
-      items.fold(0.0, (sum, i) => sum + i.lineTotal) *
-      (1 - (discount / 100));
+      items.fold(0.0, (sum, i) => sum + i.lineTotal) * (1 - (discount / 100));
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -51,6 +51,8 @@ class SavedCart {
                   'id': i.id,
                   'saleId': i.saleId,
                   'productId': i.productId,
+                  'variantId': i.variantId,
+                  'variantName': i.variantName,
                   'name': i.name,
                   'sku': i.sku,
                   'barcode': i.barcode,
@@ -58,6 +60,7 @@ class SavedCart {
                   'price': i.price,
                   'lineTotal': i.lineTotal,
                   'unit': i.unit,
+                  'priceOverridden': i.priceOverridden,
                 })
             .toList(),
       };
@@ -73,6 +76,8 @@ class SavedCart {
                   id: e['id'] as String? ?? '',
                   saleId: '',
                   productId: e['productId'] as String? ?? '',
+                  variantId: e['variantId'] as String?,
+                  variantName: e['variantName'] as String?,
                   name: e['name'] as String? ?? '',
                   sku: e['sku'] as String? ?? '',
                   barcode: e['barcode'] as String?,
@@ -80,6 +85,7 @@ class SavedCart {
                   price: (e['price'] as num?)?.toDouble() ?? 0,
                   lineTotal: (e['lineTotal'] as num?)?.toDouble() ?? 0,
                   unit: e['unit'] as String?,
+                  priceOverridden: e['priceOverridden'] as bool? ?? false,
                 ))
             .toList(),
       );
@@ -108,28 +114,69 @@ class KasirNotifier extends StateNotifier<KasirState> {
         _cache = cache,
         super(const KasirState());
 
-  double _priceFor(Product product, double qty) {
+  double _priceFor(Product product, double qty, {ProductVariant? variant}) {
     final isWholesaleCustomer = state.isWholesaleCustomer;
+    final basePrice = variant?.price ?? product.sellingPrice;
+    final meetsMinQty =
+        product.wholesaleMinQty > 0 && qty >= product.wholesaleMinQty;
+    final wholesaleActive = isWholesaleCustomer || meetsMinQty;
+
+    if (variant != null) {
+      if (wholesaleActive && product.wholesaleDiscountPercent > 0) {
+        return basePrice * (1 - product.wholesaleDiscountPercent / 100);
+      }
+      return basePrice;
+    }
+
     // Pelanggan grosir: harga grosir tanpa minimal qty, atau diskon persen
     if (isWholesaleCustomer) {
       if (product.wholesalePrice > 0) return product.wholesalePrice;
       if (product.wholesaleDiscountPercent > 0) {
-        return product.sellingPrice * (1 - product.wholesaleDiscountPercent / 100);
+        return product.sellingPrice *
+            (1 - product.wholesaleDiscountPercent / 100);
       }
     }
-    final hasWholesale = product.wholesalePrice > 0 &&
-        product.wholesaleMinQty > 0 &&
-        qty >= product.wholesaleMinQty;
+    final hasWholesale = product.wholesalePrice > 0 && meetsMinQty;
     if (hasWholesale) return product.wholesalePrice;
-    // Fallback diskon grosir untuk qty memenuhi syarat
-    if (hasWholesale && product.wholesaleDiscountPercent > 0) {
-      return product.sellingPrice * (1 - product.wholesaleDiscountPercent / 100);
+    if (meetsMinQty && product.wholesaleDiscountPercent > 0) {
+      return basePrice * (1 - product.wholesaleDiscountPercent / 100);
     }
     return product.sellingPrice;
   }
 
+  ProductVariant? _variantFor(SaleItem item) {
+    if (item.variantId == null) return null;
+    final product = _productCache[item.productId];
+    if (product == null) return null;
+    for (final variant in product.variants) {
+      if (variant.id == item.variantId) return variant;
+    }
+    return null;
+  }
+
+  double basePriceFor(SaleItem item) {
+    final product = _productCache[item.productId];
+    if (product == null) return item.price;
+    return _priceFor(product, item.qty, variant: _variantFor(item));
+  }
+
+  bool isLineWholesale(SaleItem item) {
+    if (item.priceOverridden) return false;
+    final product = _productCache[item.productId];
+    if (product == null) return false;
+    final variant = _variantFor(item);
+    final basePrice = variant?.price ?? product.sellingPrice;
+    final qualifies = state.isWholesaleCustomer ||
+        (product.wholesaleMinQty > 0 && item.qty >= product.wholesaleMinQty);
+    return qualifies && item.price < basePrice;
+  }
+
   bool isWholesalePrice(Product product, double price) {
-    if (state.isWholesaleCustomer && product.wholesalePrice > 0 && price <= product.wholesalePrice) return true;
+    if (state.isWholesaleCustomer &&
+        product.wholesalePrice > 0 &&
+        price <= product.wholesalePrice) {
+      return true;
+    }
     return product.wholesalePrice > 0 &&
         product.wholesaleMinQty > 0 &&
         price <= product.wholesalePrice;
@@ -146,9 +193,11 @@ class KasirNotifier extends StateNotifier<KasirState> {
       final newItems = <SaleItem>[];
       for (final item in state.items) {
         final product = _productCache[item.productId];
-        if (product != null) {
-          final newPrice = _priceFor(product, item.qty);
-          newItems.add(item.copyWith(price: newPrice, lineTotal: item.qty * newPrice));
+        if (product != null && !item.priceOverridden) {
+          final variant = _variantFor(item);
+          final newPrice = _priceFor(product, item.qty, variant: variant);
+          newItems.add(
+              item.copyWith(price: newPrice, lineTotal: item.qty * newPrice));
         } else {
           newItems.add(item);
         }
@@ -162,30 +211,29 @@ class KasirNotifier extends StateNotifier<KasirState> {
 
   Product? cachedProduct(String productId) => _productCache[productId];
 
-  void addProduct(Product product, {double quantity = 1}) {
+  void addProduct(
+    Product product, {
+    ProductVariant? variant,
+    double quantity = 1,
+  }) {
     _productCache[product.id] = product;
-    final unitPrice = _priceFor(product, quantity);
+    final unitPrice = _priceFor(product, quantity, variant: variant);
 
     final existingIndex = state.items.indexWhere(
-      (item) => item.productId == product.id,
+      (item) => item.productId == product.id && item.variantId == variant?.id,
     );
 
     if (existingIndex >= 0) {
       final existing = state.items[existingIndex];
       final newQty = existing.qty + quantity;
-      final newPrice = _priceFor(product, newQty);
+      final newPrice = existing.priceOverridden
+          ? existing.price
+          : _priceFor(product, newQty, variant: variant);
       final newItems = List<SaleItem>.from(state.items);
-      newItems[existingIndex] = SaleItem(
-        id: existing.id,
-        saleId: existing.saleId,
-        productId: existing.productId,
-        name: existing.name,
-        sku: existing.sku,
-        barcode: existing.barcode,
+      newItems[existingIndex] = existing.copyWith(
         qty: newQty,
         price: newPrice,
         lineTotal: newQty * newPrice,
-        unit: existing.unit,
       );
       state = state.copyWith(items: newItems);
     } else {
@@ -195,9 +243,11 @@ class KasirNotifier extends StateNotifier<KasirState> {
           id: const Uuid().v4(),
           saleId: '',
           productId: product.id,
+          variantId: variant?.id,
+          variantName: variant?.name,
           name: product.name,
-          sku: product.sku,
-          barcode: product.barcode,
+          sku: variant?.sku ?? product.sku,
+          barcode: variant?.barcode ?? product.barcode,
           qty: quantity,
           price: unitPrice,
           lineTotal: quantity * unitPrice,
@@ -224,19 +274,49 @@ class KasirNotifier extends StateNotifier<KasirState> {
       return;
     }
     final product = _productCache[item.productId];
-    final price = product != null ? _priceFor(product, qty) : item.price;
+    final variant = _variantFor(item);
+    final price = item.priceOverridden
+        ? item.price
+        : (product != null
+            ? _priceFor(product, qty, variant: variant)
+            : item.price);
     final newItems = List<SaleItem>.from(state.items);
-    newItems[index] = SaleItem(
-      id: item.id,
-      saleId: item.saleId,
-      productId: item.productId,
-      name: item.name,
-      sku: item.sku,
-      barcode: item.barcode,
+    newItems[index] = item.copyWith(
       qty: qty,
       price: price,
       lineTotal: qty * price,
-      unit: item.unit,
+    );
+    state = state.copyWith(items: newItems);
+    _recalculate();
+  }
+
+  void setItemPrice(int index, double price) {
+    if (index < 0 || index >= state.items.length) return;
+    final normalized = price.isFinite && price >= 0 ? price : 0.0;
+    final item = state.items[index];
+    final newItems = List<SaleItem>.from(state.items);
+    newItems[index] = item.copyWith(
+      price: normalized,
+      lineTotal: normalized * item.qty,
+      priceOverridden: true,
+    );
+    state = state.copyWith(items: newItems);
+    _recalculate();
+  }
+
+  void resetItemPrice(int index) {
+    if (index < 0 || index >= state.items.length) return;
+    final item = state.items[index];
+    final product = _productCache[item.productId];
+    final variant = _variantFor(item);
+    final price = product != null
+        ? _priceFor(product, item.qty, variant: variant)
+        : item.price;
+    final newItems = List<SaleItem>.from(state.items);
+    newItems[index] = item.copyWith(
+      price: price,
+      lineTotal: price * item.qty,
+      priceOverridden: false,
     );
     state = state.copyWith(items: newItems);
     _recalculate();
@@ -247,7 +327,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
     final item = state.items[index];
     final product = _productCache[item.productId];
     final unit = product?.unit ?? item.unit ?? 'pcs';
-    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm'].contains(unit.toLowerCase());
+    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm']
+        .contains(unit.toLowerCase());
     final s = step ?? (isFractional ? 0.5 : 1.0);
     updateQuantity(index, item.qty + s);
   }
@@ -257,7 +338,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
     final item = state.items[index];
     final product = _productCache[item.productId];
     final unit = product?.unit ?? item.unit ?? 'pcs';
-    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm'].contains(unit.toLowerCase());
+    final isFractional = ['kg', 'g', 'gram', 'liter', 'l', 'ml', 'meter', 'm']
+        .contains(unit.toLowerCase());
     final s = step ?? (isFractional ? 0.5 : 1.0);
     updateQuantity(index, item.qty - s);
   }
@@ -288,9 +370,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
       final now = DateTime.now();
       final invoiceNo = 'INV-${now.millisecondsSinceEpoch}';
       final saleId = const Uuid().v4();
-      final items = state.items
-          .map((item) => item.copyWith(saleId: saleId))
-          .toList();
+      final items =
+          state.items.map((item) => item.copyWith(saleId: saleId)).toList();
       final sale = Sale(
         id: saleId,
         invoiceNo: invoiceNo,
@@ -315,7 +396,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
       Sale? saved;
       result.fold(
         (failure) {
-          state = state.copyWith(isLoading: false, errorMessage: failure.message);
+          state =
+              state.copyWith(isLoading: false, errorMessage: failure.message);
           saved = null;
         },
         (createdSale) {
@@ -376,9 +458,8 @@ class KasirNotifier extends StateNotifier<KasirState> {
       0,
       SavedCart(
         id: const Uuid().v4(),
-        name: name.trim().isEmpty
-            ? 'Keranjang ${carts.length + 1}'
-            : name.trim(),
+        name:
+            name.trim().isEmpty ? 'Keranjang ${carts.length + 1}' : name.trim(),
         createdAt: DateTime.now(),
         items: List.from(state.items),
         discount: state.discount,
@@ -409,33 +490,86 @@ class KasirNotifier extends StateNotifier<KasirState> {
     await _writeSavedCarts(carts);
   }
 
+  /// Cari produk/varian dari barcode/SKU/QR tanpa langsung menambah ke cart.
+  Future<({Product? product, ProductVariant? variant})> lookupCode(
+    String code,
+  ) async {
+    final value = code.trim();
+    if (value.isEmpty) return (product: null, variant: null);
+
+    final local = await _productRepository.getProducts(limit: 10000);
+    Product? matchedProduct;
+    ProductVariant? matchedVariant;
+    local.fold((_) {}, (products) {
+      for (final product in products) {
+        if (product.barcode == value ||
+            product.qrCode == value ||
+            product.sku == value) {
+          matchedProduct = product;
+          matchedVariant = product.variantByCode(value);
+          return;
+        }
+      }
+      for (final product in products) {
+        final variant = product.variantByCode(value);
+        if (variant != null) {
+          matchedProduct = product;
+          matchedVariant = variant;
+          return;
+        }
+      }
+    });
+
+    if (matchedProduct == null) {
+      final remote = await _productRepository.getProductByBarcode(value);
+      remote.fold((_) {}, (product) {
+        matchedProduct = product;
+        matchedVariant = product.variantByCode(value);
+      });
+    }
+
+    if (matchedProduct != null) {
+      _productCache[matchedProduct!.id] = matchedProduct!;
+    }
+    return (product: matchedProduct, variant: matchedVariant);
+  }
+
   /// Scan barcode/SKU -> cari produk -> langsung masuk keranjang.
   /// Mengembalikan produk yang ditemukan, atau null bila tidak ada.
   Future<Product?> scanBarcode(String code) async {
     state = state.copyWith(isScanning: true);
-    final result = await _productRepository.getProductByBarcode(code);
-    return result.fold(
-      (failure) {
+    final result = await lookupCode(code);
+    if (result.product == null) {
+      state = state.copyWith(
+        isScanning: false,
+        errorMessage: 'Produk dengan barcode $code tidak ditemukan',
+      );
+      return null;
+    }
+    var variant = result.variant;
+    if (variant == null && result.product!.variants.isNotEmpty) {
+      final available = result.product!.variants.where((v) => !v.isOutOfStock);
+      if (available.isEmpty) {
         state = state.copyWith(
           isScanning: false,
-          errorMessage: failure.message,
+          errorMessage: 'Semua varian produk ini stoknya habis.',
         );
         return null;
-      },
-      (product) {
-        addProduct(product);
-        state = state.copyWith(
-          isScanning: false,
-          scannedProduct: product,
-          errorMessage: null,
-        );
-        return product;
-      },
+      }
+      variant = available.first;
+    }
+    addProduct(result.product!, variant: variant);
+    state = state.copyWith(
+      isScanning: false,
+      scannedProduct: result.product,
+      errorMessage: null,
     );
+    return result.product;
   }
 
   void _recalculate() {
-    final subtotal = state.items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+    final subtotal =
+        state.items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final discountAmount = subtotal * (state.discount / 100);
     final taxAmount = (subtotal - discountAmount) * (state.tax / 100);
     final total = subtotal - discountAmount + taxAmount;

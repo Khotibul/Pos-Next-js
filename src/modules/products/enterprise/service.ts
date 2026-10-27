@@ -457,7 +457,7 @@ export async function getProductEnterpriseDetail(params: { tenantId: string; id:
   });
   if (!product) throw Errors.notFound("Produk tidak ditemukan.");
 
-  const [variants, stockRows] = await Promise.all([
+  const [variants, stockRows, variantStockRows] = await Promise.all([
     prisma.productVariant.findMany({
       where: { tenantId: params.tenantId, productId: product.id },
       orderBy: { updatedAt: "desc" },
@@ -479,9 +479,19 @@ export async function getProductEnterpriseDetail(params: { tenantId: string; id:
       where: { tenantId: params.tenantId, productId: product.id },
       _sum: { qty: true },
     }),
+    prisma.productWarehouseStock.groupBy({
+      by: ["variantId"],
+      where: { tenantId: params.tenantId, productId: product.id, variantId: { not: null } },
+      _sum: { qty: true },
+    }),
   ]);
 
   const totalStock = stockRows.length ? numberOrZero(stockRows[0]?._sum?.qty) : 0;
+  const variantStockMap = new Map(variantStockRows.map((row) => [row.variantId, numberOrZero(row._sum?.qty)]));
 
-  return { product, variants, totalStock };
+  return {
+    product,
+    variants: variants.map((variant) => ({ ...variant, stock: variantStockMap.get(variant.id) ?? 0 })),
+    totalStock,
+  };
 }

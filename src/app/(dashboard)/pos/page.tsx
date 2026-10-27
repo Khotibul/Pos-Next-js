@@ -41,10 +41,10 @@ export default async function PosPage() {
   ]);
 
   const warehouseIds = branchWarehouses.map((w) => w.id);
-  const [stockRows, imageRows] = await Promise.all([
+  const [stockRows, imageRows, variantRows] = await Promise.all([
     products.length > 0 && warehouseIds.length > 0
       ? prisma.productWarehouseStock.groupBy({
-          by: ["productId"],
+          by: ["productId", "variantId"],
           where: {
             tenantId: ctx.tenantId,
             productId: { in: products.map((p) => p.id) },
@@ -52,7 +52,7 @@ export default async function PosPage() {
           },
           _sum: { qty: true },
         })
-      : Promise.resolve([] as Array<{ productId: string; _sum: { qty: number | null } }>),
+      : Promise.resolve([] as Array<{ productId: string; variantId: string | null; _sum: { qty: number | null } }>),
     products.length > 0
       ? prisma.productImage.findMany({
           where: { tenantId: ctx.tenantId, productId: { in: products.map((p) => p.id) } },
@@ -60,9 +60,36 @@ export default async function PosPage() {
           select: { productId: true, url: true },
         })
       : Promise.resolve([] as Array<{ productId: string; url: string }>),
+    products.length > 0
+      ? prisma.productVariant.findMany({
+          where: { tenantId: ctx.tenantId, productId: { in: products.map((p) => p.id) }, isActive: true },
+          orderBy: [{ name: "asc" }],
+          select: { id: true, productId: true, name: true, sku: true, barcode: true, qrCode: true, sellingPrice: true },
+        })
+      : Promise.resolve([] as Array<{ id: string; productId: string; name: string; sku: string; barcode: string | null; qrCode: string | null; sellingPrice: unknown }>),
   ]);
 
-  const stockByProductId = new Map(stockRows.map((row) => [row.productId, Number(row._sum.qty ?? 0)]));
+  const stockByProductId = new Map<string, number>();
+  const stockByVariantId = new Map<string, number>();
+  for (const row of stockRows) {
+    const qty = Number(row._sum.qty ?? 0);
+    stockByProductId.set(row.productId, (stockByProductId.get(row.productId) ?? 0) + qty);
+    if (row.variantId) stockByVariantId.set(row.variantId, qty);
+  }
+  const variantsByProductId = new Map<string, Array<{ id: string; name: string; sku: string; barcode: string | null; qrCode: string | null; price: number; stock: number }>>();
+  for (const v of variantRows) {
+    const arr = variantsByProductId.get(v.productId) ?? [];
+    arr.push({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      barcode: v.barcode,
+      qrCode: v.qrCode,
+      price: Number(v.sellingPrice),
+      stock: stockByVariantId.get(v.id) ?? 0,
+    });
+    variantsByProductId.set(v.productId, arr);
+  }
   const imageByProductId = new Map<string, string>();
   for (const r of imageRows) if (!imageByProductId.has(r.productId)) imageByProductId.set(r.productId, r.url);
   endData();
@@ -111,7 +138,9 @@ export default async function PosPage() {
             wholesaleDiscountPercent: Number(p.wholesaleDiscountPercent ?? 0),
             wholesaleMinQty: Number(p.wholesaleMinQty ?? 0),
             imageUrl: imageByProductId.get(p.id) ?? null,
+            variants: variantsByProductId.get(p.id) ?? [],
           }))}
+          canEditPrice={ctx.isSuperAdmin || ["OWNER", "ADMIN", "SUPER_ADMIN"].includes((ctx.roleName ?? "").toUpperCase())}
         />
       )}
     </div>

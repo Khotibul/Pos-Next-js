@@ -6,17 +6,18 @@ import { rupiah } from "./cart/cart-common";
 
 export const ProductCard = memo(function ProductCard({
   product,
-  onInc,
+  onAdd,
   showStock,
 }: {
   product: Product;
-  onInc: (id: string) => void;
+  onAdd: (product: Product) => void;
   showStock: boolean;
 }) {
+  const variantCount = product.variants?.length ?? 0;
   return (
     <button
       className="group relative flex flex-col overflow-hidden rounded-2xl border bg-card text-left shadow-xs transition-all hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]"
-      onClick={() => onInc(product.id)}
+      onClick={() => onAdd(product)}
       type="button"
     >
       <div className="aspect-[4/3] w-full overflow-hidden bg-muted/30">
@@ -38,6 +39,9 @@ export const ProductCard = memo(function ProductCard({
           <span className="text-sm font-bold text-primary sm:text-base 2xl:text-lg">{rupiah(product.price)}</span>
           {product.wholesaleMinQty && product.wholesaleMinQty > 0 ? (
             <span className="shrink-0 rounded-md bg-orange-100 px-1.5 py-0.5 text-[9px] font-semibold text-orange-700 sm:px-2 sm:text-xs">Grosir</span>
+          ) : null}
+          {variantCount > 0 ? (
+            <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary sm:px-2 sm:text-xs">{variantCount} varian</span>
           ) : null}
         </div>
         {showStock ? (

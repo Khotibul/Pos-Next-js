@@ -111,6 +111,8 @@ class SaleItemModel {
   final String id;
   final String saleId;
   final String productId;
+  final String? variantId;
+  final String? variantName;
   final String name;
   final String sku;
   final String? barcode;
@@ -118,11 +120,14 @@ class SaleItemModel {
   final double price;
   final double lineTotal;
   final String? unit;
+  final bool priceOverridden;
 
   const SaleItemModel({
     required this.id,
     required this.saleId,
     required this.productId,
+    this.variantId,
+    this.variantName,
     this.name = '',
     this.sku = '',
     this.barcode,
@@ -130,6 +135,7 @@ class SaleItemModel {
     required this.price,
     required this.lineTotal,
     this.unit,
+    this.priceOverridden = false,
   });
 
   factory SaleItemModel.fromJson(Map<String, dynamic> json) =>
@@ -142,6 +148,8 @@ class SaleItemModel {
       id: id,
       saleId: saleId,
       productId: productId,
+      variantId: variantId,
+      variantName: variantName,
       name: name,
       sku: sku,
       barcode: barcode,
@@ -149,6 +157,7 @@ class SaleItemModel {
       price: price,
       lineTotal: lineTotal,
       unit: unit,
+      priceOverridden: priceOverridden,
     );
   }
 
@@ -157,6 +166,8 @@ class SaleItemModel {
       id: item.id,
       saleId: item.saleId,
       productId: item.productId,
+      variantId: item.variantId,
+      variantName: item.variantName,
       name: item.name,
       sku: item.sku,
       barcode: item.barcode,
@@ -164,6 +175,7 @@ class SaleItemModel {
       price: item.price,
       lineTotal: item.lineTotal,
       unit: item.unit,
+      priceOverridden: item.priceOverridden,
     );
   }
 }

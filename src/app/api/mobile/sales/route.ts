@@ -91,11 +91,14 @@ export const GET = withApiHandler(async (req: Request) => {
           id: i.id,
           saleId: i.saleId,
           productId: i.productId,
+          variantId: i.variantId,
+          variantName: i.variantName,
           name: i.name,
           sku: i.sku,
           price: Number(i.price),
           qty: Number(i.qty),
           lineTotal: Number(i.lineTotal),
+          priceOverridden: i.priceOverridden,
         })),
       };
     }),
@@ -104,11 +107,14 @@ export const GET = withApiHandler(async (req: Request) => {
 
 const saleItemSchema = z.object({
   productId: z.string().min(1),
+  variantId: z.string().nullish(),
   name: z.string().default(""),
+  variantName: z.string().nullish(),
   sku: z.string().default(""),
   price: z.number().nonnegative().default(0),
   qty: z.number().positive(),
   lineTotal: z.number().nonnegative().default(0),
+  priceOverride: z.boolean().optional().default(false),
 });
 
 const createSaleSchema = z.object({
@@ -159,24 +165,102 @@ export const POST = withApiHandler(async (req: Request) => {
     return apiOk({ duplicate: true, id: existing.id });
   }
 
-  const validItems: typeof input.items = [];
+  const validItems: Array<{
+    productId: string;
+    variantId: string | null;
+    name: string;
+    variantName: string | null;
+    sku: string;
+    price: number;
+    qty: number;
+    lineTotal: number;
+    priceOverride: boolean;
+  }> = [];
+  const canOverridePrice = ["OWNER", "ADMIN", "SUPER_ADMIN"].includes((ctx.roleName ?? "").toUpperCase());
+  if (input.items.some((item) => item.priceOverride) && !canOverridePrice) {
+    return Response.json(
+      { ok: false, code: "FORBIDDEN", message: "Anda tidak berwenang mengubah harga jual." },
+      { status: 403 },
+    );
+  }
+  const customer = input.customerId
+    ? await prisma.customer.findFirst({
+        where: { id: input.customerId, tenantId: ctx.tenantId, isActive: true },
+        select: { isWholesale: true },
+      })
+    : null;
+  const isWholesaleCustomer = customer?.isWholesale === true;
+  const resolvedCustomerId = customer ? input.customerId ?? null : null;
+
   for (const item of input.items) {
-    const prod = await prisma.product.findFirst({
+    let prod = await prisma.product.findFirst({
       where: { tenantId: ctx.tenantId, id: item.productId },
-      select: { id: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        sellingPrice: true,
+        wholesalePrice: true,
+        wholesaleDiscountPercent: true,
+        wholesaleMinQty: true,
+      },
     });
-    if (prod) validItems.push(item);
-    else {
-      const bySku = await prisma.product.findFirst({
+    if (!prod && item.sku) {
+      prod = await prisma.product.findFirst({
         where: { tenantId: ctx.tenantId, sku: item.sku },
-        select: { id: true },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          sellingPrice: true,
+          wholesalePrice: true,
+          wholesaleDiscountPercent: true,
+          wholesaleMinQty: true,
+        },
       });
-      if (bySku) validItems.push({ ...item, productId: bySku.id });
     }
+    if (!prod) continue;
+
+    let variant: { id: string; sku: string; name: string; sellingPrice: unknown } | null = null;
+    if (item.variantId) {
+      variant = await prisma.productVariant.findFirst({
+        where: { tenantId: ctx.tenantId, id: item.variantId, productId: prod.id, isActive: true },
+        select: { id: true, sku: true, name: true, sellingPrice: true },
+      });
+      if (!variant) continue;
+    }
+
+    const qty = Math.round(item.qty);
+    const minQty = Number(prod.wholesaleMinQty ?? 0);
+    const wholesale = isWholesaleCustomer || (minQty > 0 && qty >= minQty);
+    const discountPercent = Number(prod.wholesaleDiscountPercent ?? 0);
+    let price = variant ? Number(variant.sellingPrice) : Number(prod.sellingPrice);
+    if (wholesale) {
+      if (!variant && Number(prod.wholesalePrice ?? 0) > 0) {
+        price = Number(prod.wholesalePrice);
+      } else if (discountPercent > 0) {
+        price = price * (1 - discountPercent / 100);
+      }
+    }
+    if (item.priceOverride) price = item.price;
+    validItems.push({
+      productId: prod.id,
+      variantId: variant?.id ?? null,
+      name: variant ? `${prod.name} - ${variant.name}` : (item.name || prod.name),
+      variantName: variant?.name ?? item.variantName ?? null,
+      sku: variant?.sku || item.sku || prod.sku,
+      price,
+      qty,
+      lineTotal: price * qty,
+      priceOverride: item.priceOverride === true,
+    });
   }
   if (validItems.length === 0) {
     return Response.json({ ok: false, code: "VALIDATION_ERROR", message: "Produk tidak ditemukan untuk tenant ini." }, { status: 400 });
   }
+
+  const resolvedSubtotal = validItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const resolvedTotal = Math.max(0, resolvedSubtotal - input.discount + input.tax);
 
   let resolvedShiftId: string | null = input.shiftId ?? null;
   if (resolvedShiftId) {
@@ -193,30 +277,33 @@ export const POST = withApiHandler(async (req: Request) => {
         invoiceNo: input.invoiceNo,
         cashierId: input.cashierId ?? null,
         shiftId: resolvedShiftId,
-        customerId: input.customerId ?? null,
+        customerId: resolvedCustomerId,
         status: isCredit ? "CREDIT" : input.status,
-        subtotal: input.subtotal,
+        subtotal: resolvedSubtotal,
         discount: input.discount,
         tax: input.tax,
-        total: input.total,
+        total: resolvedTotal,
         notes: input.notes ?? null,
         items: {
           create: validItems.map((item) => ({
             tenantId: ctx.tenantId,
             productId: item.productId,
+            variantId: item.variantId,
             name: item.name,
+            variantName: item.variantName,
             sku: item.sku,
             price: item.price,
-            qty: Math.round(item.qty),
+            qty: item.qty,
             lineTotal: item.lineTotal,
+            priceOverridden: item.priceOverride,
           })),
         },
         payments: {
           create: {
             tenantId: ctx.tenantId,
             method: input.paymentMethod,
-            amount: isCredit ? 0 : input.total,
-            receivedAmount: isCredit ? 0 : (input.paidAmount || input.total),
+            amount: isCredit ? 0 : resolvedTotal,
+            receivedAmount: isCredit ? 0 : (input.paidAmount || resolvedTotal),
             changeAmount: isCredit ? 0 : input.changeAmount,
             reference: input.paymentReference ?? null,
           },
@@ -229,13 +316,13 @@ export const POST = withApiHandler(async (req: Request) => {
       await tx.receivable.create({
         data: {
           tenantId: ctx.tenantId,
-          customerId: input.customerId ?? null,
+          customerId: resolvedCustomerId,
           saleId: sale.id,
           invoiceNo: input.invoiceNo,
           description: `Hutang dari penjualan ${input.invoiceNo}`,
-          totalAmount: input.total,
+          totalAmount: resolvedTotal,
           paidAmount: 0,
-          remainingAmount: input.total,
+          remainingAmount: resolvedTotal,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
           status: "UNPAID",
         },
@@ -250,19 +337,26 @@ export const POST = withApiHandler(async (req: Request) => {
 
     if (warehouse) {
       for (const item of validItems) {
-        const stock = await tx.productWarehouseStock.findFirst({
+        const stockRows = await tx.productWarehouseStock.findMany({
           where: {
             tenantId: ctx.tenantId,
             warehouseId: warehouse.id,
             productId: item.productId,
+            variantId: item.variantId,
+            qty: { gt: 0 },
           },
+          orderBy: { updatedAt: "asc" },
           select: { id: true, qty: true },
         });
-        if (stock) {
+        let remaining = item.qty;
+        for (const stock of stockRows) {
+          if (remaining <= 0) break;
+          const decrement = Math.min(remaining, Number(stock.qty));
           await tx.productWarehouseStock.update({
             where: { id: stock.id },
-            data: { qty: Math.max(0, Number(stock.qty) - item.qty) },
+            data: { qty: { decrement } },
           });
+          remaining -= decrement;
         }
       }
     }
@@ -294,11 +388,14 @@ export const POST = withApiHandler(async (req: Request) => {
       id: i.id,
       saleId: i.saleId,
       productId: i.productId,
+      variantId: i.variantId,
+      variantName: i.variantName,
       name: i.name,
       sku: i.sku,
       price: Number(i.price),
       qty: Number(i.qty),
       lineTotal: Number(i.lineTotal),
+      priceOverridden: i.priceOverridden,
     })),
   });
 });

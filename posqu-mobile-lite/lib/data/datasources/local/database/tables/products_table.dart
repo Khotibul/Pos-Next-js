@@ -40,6 +40,7 @@ class ProductsTable extends Table {
   BoolColumn get isSynced => boolean().withDefault(const Constant(true))();
   TextColumn get unit => text().withDefault(const Constant('pcs'))();
   TextColumn get imageUrl => text().nullable()();
+  TextColumn get variantsJson => text().withDefault(const Constant('[]'))();
 
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

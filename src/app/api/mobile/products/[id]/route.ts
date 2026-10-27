@@ -42,6 +42,7 @@ function shapeProduct(p: {
   unit?: { name: string } | null;
   images?: { url: string }[];
   stock?: number;
+  variants?: Array<{ id: string; sku: string; name: string; barcode: string | null; qrCode: string | null; price: number; stock: number }>;
 }) {
   return {
     id: p.id,
@@ -75,6 +76,7 @@ function shapeProduct(p: {
     isConsignment: p.isConsignment,
     type: p.type,
     stock: p.stock ?? 0,
+    variants: p.variants ?? [],
     imageUrl: p.images && p.images.length > 0 ? p.images[0].url : null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
@@ -98,11 +100,38 @@ async function loadProduct(id: string, tenantId: string) {
     include: includeFull,
   });
   if (!p) return null;
-  const agg = await prisma.productWarehouseStock.aggregate({
-    where: { tenantId, productId: id },
-    _sum: { qty: true },
+  const [agg, variants] = await Promise.all([
+    prisma.productWarehouseStock.aggregate({
+      where: { tenantId, productId: id },
+      _sum: { qty: true },
+    }),
+    prisma.productVariant.findMany({
+      where: { tenantId, productId: id, isActive: true },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, sku: true, name: true, barcode: true, qrCode: true, sellingPrice: true },
+    }),
+  ]);
+  const variantStock = variants.length
+    ? await prisma.productWarehouseStock.groupBy({
+        by: ["variantId"],
+        where: { tenantId, productId: id, variantId: { in: variants.map((v) => v.id) } },
+        _sum: { qty: true },
+      })
+    : [];
+  const variantStockMap = new Map(variantStock.map((r) => [r.variantId, Number(r._sum?.qty ?? 0)]));
+  return shapeProduct({
+    ...p,
+    stock: Number(agg._sum?.qty ?? 0),
+    variants: variants.map((v) => ({
+      id: v.id,
+      sku: v.sku,
+      name: v.name,
+      barcode: v.barcode,
+      qrCode: v.qrCode,
+      price: Number(v.sellingPrice),
+      stock: variantStockMap.get(v.id) ?? 0,
+    })),
   });
-  return shapeProduct({ ...p, stock: Number(agg._sum?.qty ?? 0) });
 }
 
 // GET /api/mobile/products/:id — detail produk

@@ -74,6 +74,8 @@ class SaleItem extends Equatable {
   final String id;
   final String saleId;
   final String productId;
+  final String? variantId;
+  final String? variantName;
   final String name;
   final String sku;
   final String? barcode;
@@ -81,11 +83,14 @@ class SaleItem extends Equatable {
   final double price;
   final double lineTotal;
   final String? unit;
+  final bool priceOverridden;
 
   const SaleItem({
     required this.id,
     required this.saleId,
     required this.productId,
+    this.variantId,
+    this.variantName,
     this.name = '',
     this.sku = '',
     this.barcode,
@@ -93,12 +98,19 @@ class SaleItem extends Equatable {
     required this.price,
     required this.lineTotal,
     this.unit,
+    this.priceOverridden = false,
   });
+
+  String get displayName => variantName == null || variantName!.isEmpty
+      ? name
+      : '$name ($variantName)';
 
   SaleItem copyWith({
     String? id,
     String? saleId,
     String? productId,
+    String? variantId,
+    String? variantName,
     String? name,
     String? sku,
     String? barcode,
@@ -106,11 +118,14 @@ class SaleItem extends Equatable {
     double? price,
     double? lineTotal,
     String? unit,
+    bool? priceOverridden,
   }) {
     return SaleItem(
       id: id ?? this.id,
       saleId: saleId ?? this.saleId,
       productId: productId ?? this.productId,
+      variantId: variantId ?? this.variantId,
+      variantName: variantName ?? this.variantName,
       name: name ?? this.name,
       sku: sku ?? this.sku,
       barcode: barcode ?? this.barcode,
@@ -118,6 +133,7 @@ class SaleItem extends Equatable {
       price: price ?? this.price,
       lineTotal: lineTotal ?? this.lineTotal,
       unit: unit ?? this.unit,
+      priceOverridden: priceOverridden ?? this.priceOverridden,
     );
   }
 
@@ -126,6 +142,8 @@ class SaleItem extends Equatable {
         id,
         saleId,
         productId,
+        variantId,
+        variantName,
         name,
         sku,
         barcode,
@@ -133,5 +151,6 @@ class SaleItem extends Equatable {
         price,
         lineTotal,
         unit,
+        priceOverridden,
       ];
 }

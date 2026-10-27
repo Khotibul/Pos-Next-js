@@ -548,6 +548,7 @@ model ProductVariant {
   transferItems ProductTransferItem[]
   adjustmentItems ProductAdjustmentItem[]
   opnameItems ProductOpnameItem[]
+  saleItems SaleItem[]
 
   @@unique([tenantId, sku])
   @@unique([tenantId, qrCode])
@@ -1051,21 +1052,26 @@ model Sale {
 
 model SaleItem {
   id        String   @id @default(cuid())
-  tenantId  String
-  saleId    String
-  productId String
-  name      String
-  sku       String
-  price     Decimal  @default(0)
-  qty       Int      @default(1)
-  lineTotal Decimal  @default(0)
+  tenantId   String
+  saleId     String
+  productId  String
+  variantId  String?
+  name       String
+  variantName String?
+  sku        String
+  price      Decimal  @default(0)
+  qty        Int      @default(1)
+  lineTotal  Decimal  @default(0)
+  priceOverridden Boolean @default(false)
 
   sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([saleId])
   @@index([productId])
+  @@index([variantId])
 }
 
 model Payment {

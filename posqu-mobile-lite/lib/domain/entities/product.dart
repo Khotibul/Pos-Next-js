@@ -1,5 +1,33 @@
 import 'package:equatable/equatable.dart';
 
+class ProductVariant extends Equatable {
+  final String id;
+  final String productId;
+  final String sku;
+  final String name;
+  final String? barcode;
+  final String? qrCode;
+  final double price;
+  final int stock;
+
+  const ProductVariant({
+    required this.id,
+    required this.productId,
+    required this.sku,
+    required this.name,
+    this.barcode,
+    this.qrCode,
+    required this.price,
+    this.stock = 0,
+  });
+
+  bool get isOutOfStock => stock <= 0;
+
+  @override
+  List<Object?> get props =>
+      [id, productId, sku, name, barcode, qrCode, price, stock];
+}
+
 class Product extends Equatable {
   final String id;
   final String sku;
@@ -34,6 +62,7 @@ class Product extends Equatable {
   final int stock;
   final String unit;
   final String? imageUrl;
+  final List<ProductVariant> variants;
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -71,6 +100,7 @@ class Product extends Equatable {
     this.stock = 0,
     this.unit = 'pcs',
     this.imageUrl,
+    this.variants = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -107,6 +137,7 @@ class Product extends Equatable {
     int? stock,
     String? unit,
     String? imageUrl,
+    List<ProductVariant>? variants,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -143,6 +174,7 @@ class Product extends Equatable {
       stock: stock ?? this.stock,
       unit: unit ?? this.unit,
       imageUrl: imageUrl ?? this.imageUrl,
+      variants: variants ?? this.variants,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -150,6 +182,19 @@ class Product extends Equatable {
 
   bool get isLowStock => stock <= minStock;
   bool get isOutOfStock => stock <= 0;
+  bool get hasVariants => variants.isNotEmpty;
+
+  ProductVariant? variantByCode(String code) {
+    final value = code.trim();
+    for (final variant in variants) {
+      if (variant.sku == value ||
+          variant.barcode == value ||
+          variant.qrCode == value) {
+        return variant;
+      }
+    }
+    return null;
+  }
 
   @override
   List<Object?> get props => [
@@ -185,6 +230,7 @@ class Product extends Equatable {
         stock,
         unit,
         imageUrl,
+        variants,
         createdAt,
         updatedAt,
       ];

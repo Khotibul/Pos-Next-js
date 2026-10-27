@@ -26,14 +26,15 @@ export async function createSaleUseCase(params: {
   shiftId: string;
   branchId: string;
   cashierId?: string | null;
+  canOverridePrice?: boolean;
   input: CreateSaleInput;
 }): Promise<SaleResult> {
-  const { tenantId, shiftId, branchId, cashierId, input } = params;
+  const { tenantId, shiftId, branchId, cashierId, canOverridePrice, input } = params;
   if (!shiftId) throw Errors.badRequest("Shift belum dibuka.");
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await executeCreateSale(tenantId, shiftId, branchId, cashierId ?? null, input);
+      return await executeCreateSale(tenantId, shiftId, branchId, cashierId ?? null, input, canOverridePrice === true);
     } catch (e: unknown) {
       const err = e as { code?: string; message?: string };
       const msg = err?.message ?? (e instanceof Error ? e.message : "");
@@ -55,27 +56,77 @@ async function executeCreateSale(
   branchId: string,
   cashierId: string | null,
   input: CreateSaleInput,
+  canOverridePrice: boolean,
 ): Promise<SaleResult> {
   const endProducts = createDevTimer("pos.createSale.products");
-  const productIds = input.items.map((i) => i.productId);
-  const productMap = await getCachedProducts(tenantId, productIds);
+  const productIds = [...new Set(input.items.map((i) => i.productId))];
+  const variantIds = [...new Set(input.items.map((i) => i.variantId).filter(Boolean) as string[])];
+  const [productMap, variantRows] = await Promise.all([
+    getCachedProducts(tenantId, productIds),
+    variantIds.length
+      ? prisma.productVariant.findMany({
+          where: { tenantId, id: { in: variantIds }, isActive: true },
+          select: { id: true, productId: true, name: true, sku: true, sellingPrice: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const variantMap = new Map(variantRows.map((v) => [v.id, v]));
 
   for (const item of input.items) {
-    if (!productMap.has(item.productId)) throw Errors.badRequest("Produk tidak valid atau tidak aktif.");
+    const product = productMap.get(item.productId);
+    if (!product) throw Errors.badRequest("Produk tidak valid atau tidak aktif.");
+    if (item.variantId) {
+      const variant = variantMap.get(item.variantId);
+      if (!variant || variant.productId !== product.id) {
+        throw Errors.badRequest("Varian produk tidak valid atau tidak aktif.");
+      }
+    }
+    if (item.priceOverride && !canOverridePrice) {
+      throw Errors.badRequest("Anda tidak berwenang mengubah harga jual.");
+    }
+    if (item.priceOverride && (item.unitPrice === undefined || !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
+      throw Errors.badRequest("Harga jual manual tidak valid.");
+    }
   }
 
   const lines = input.items.map((i) => {
     const p = productMap.get(i.productId)!;
-    let price = Number(p.sellingPrice);
+    const variant = i.variantId ? variantMap.get(i.variantId) : undefined;
+    let price = variant ? Number(variant.sellingPrice) : Number(p.sellingPrice);
+    let isWholesale = false;
     const minQty = Number((p as unknown as { wholesaleMinQty: unknown }).wholesaleMinQty ?? 0);
-    if (minQty > 0 && i.qty >= minQty) {
+    if (!variant && minQty > 0 && i.qty >= minQty) {
       const wp = Number((p as unknown as { wholesalePrice: unknown }).wholesalePrice ?? 0);
       const disc = Number((p as unknown as { wholesaleDiscountPercent: unknown }).wholesaleDiscountPercent ?? 0);
-      if (wp > 0) price = wp;
-      else if (disc > 0) price = price * (1 - disc / 100);
+      if (wp > 0) {
+        price = wp;
+        isWholesale = true;
+      } else if (disc > 0) {
+        price = price * (1 - disc / 100);
+        isWholesale = true;
+      }
+    } else if (variant && minQty > 0 && i.qty >= minQty) {
+      const disc = Number((p as unknown as { wholesaleDiscountPercent: unknown }).wholesaleDiscountPercent ?? 0);
+      if (disc > 0) {
+        price = price * (1 - disc / 100);
+        isWholesale = true;
+      }
     }
+    const isPriceOverridden = i.priceOverride === true;
+    if (isPriceOverridden) price = i.unitPrice as number;
     const lineTotal = price * i.qty;
-    return { productId: p.id, name: p.name, sku: p.sku, price, qty: i.qty, lineTotal };
+    return {
+      productId: p.id,
+      variantId: variant?.id ?? null,
+      variantName: variant?.name ?? null,
+      name: variant ? `${p.name} - ${variant.name}` : p.name,
+      sku: variant?.sku || p.sku,
+      price,
+      qty: i.qty,
+      lineTotal,
+      isPriceOverridden,
+      isWholesale,
+    };
   });
   endProducts();
 
@@ -92,31 +143,43 @@ async function executeCreateSale(
   if (isCredit && !input.customerId) throw Errors.badRequest("Transaksi hutang wajib memilih pelanggan.");
   endCalc();
 
-  const requestedQtyByProduct = new Map<string, number>();
+  const stockKey = (productId: string, variantId?: string | null) => `${productId}:${variantId ?? ""}`;
+  const requestedQtyByStock = new Map<string, { productId: string; variantId: string | null; qty: number; label: string }>();
   for (const line of lines) {
-    requestedQtyByProduct.set(line.productId, (requestedQtyByProduct.get(line.productId) ?? 0) + line.qty);
+    const key = stockKey(line.productId, line.variantId);
+    const current = requestedQtyByStock.get(key);
+    requestedQtyByStock.set(key, {
+      productId: line.productId,
+      variantId: line.variantId,
+      qty: (current?.qty ?? 0) + line.qty,
+      label: line.variantName ? `${productMap.get(line.productId)?.name ?? "Produk"} - ${line.variantName}` : (productMap.get(line.productId)?.name ?? "Produk"),
+    });
   }
 
   const endStockFetch = createDevTimer("pos.createSale.stockFetch");
-  const allStockRows = await findAvailableStock(tenantId, Array.from(requestedQtyByProduct.keys()), branchId);
+  const allStockRows = await findAvailableStock(
+    tenantId,
+    Array.from(requestedQtyByStock.values()).map((i) => ({ productId: i.productId, variantId: i.variantId })),
+    branchId,
+  );
   endStockFetch();
 
-  const stockByProduct = new Map<string, Array<{ id: string; qty: number }>>();
+  const stockByKey = new Map<string, Array<{ id: string; qty: number }>>();
   for (const row of allStockRows) {
-    const arr = stockByProduct.get(row.productId) ?? [];
+    const key = stockKey(row.productId, row.variantId);
+    const arr = stockByKey.get(key) ?? [];
     arr.push({ id: row.id, qty: Number(row.qty) });
-    stockByProduct.set(row.productId, arr);
+    stockByKey.set(key, arr);
   }
 
   const decrements: Array<{ id: string; qty: number }> = [];
-  for (const [productId, requestedQty] of requestedQtyByProduct.entries()) {
-    const stocks = stockByProduct.get(productId) ?? [];
+  for (const [key, requested] of requestedQtyByStock.entries()) {
+    const stocks = stockByKey.get(key) ?? [];
     const availableQty = stocks.reduce((sum, s) => sum + Number(s.qty), 0);
-    if (availableQty < requestedQty) {
-      const productName = productMap.get(productId)?.name ?? "Produk";
-      throw Errors.badRequest(`Stok ${productName} tidak mencukupi. Tersedia ${availableQty}, diminta ${requestedQty}.`);
+    if (availableQty < requested.qty) {
+      throw Errors.badRequest(`Stok ${requested.label} tidak mencukupi. Tersedia ${availableQty}, diminta ${requested.qty}.`);
     }
-    let remainingQty = requestedQty;
+    let remainingQty = requested.qty;
     for (const stock of stocks) {
       if (remainingQty <= 0) break;
       const stockQty = Number(stock.qty);

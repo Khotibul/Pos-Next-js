@@ -1,6 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../domain/entities/product.dart';
+import 'product_variant_model.dart';
 
 part 'product_model.g.dart';
 
@@ -39,6 +40,7 @@ class ProductModel {
   final int stock;
   final String unit;
   final String? imageUrl;
+  final List<ProductVariantModel> variants;
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -76,6 +78,7 @@ class ProductModel {
     this.stock = 0,
     this.unit = 'pcs',
     this.imageUrl,
+    this.variants = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -119,6 +122,7 @@ class ProductModel {
       stock: stock,
       unit: unit,
       imageUrl: imageUrl,
+      variants: variants.map((v) => v.toEntity(parentProductId: id)).toList(),
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -157,6 +161,9 @@ class ProductModel {
       stock: product.stock,
       unit: product.unit,
       imageUrl: product.imageUrl,
+      variants: product.variants
+          .map((v) => ProductVariantModel.fromEntity(v, productId: product.id))
+          .toList(),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     );

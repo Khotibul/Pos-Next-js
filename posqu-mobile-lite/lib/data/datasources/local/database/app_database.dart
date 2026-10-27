@@ -86,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration {
@@ -136,6 +136,12 @@ class AppDatabase extends _$AppDatabase {
           // Role tenant asli (OWNER/ADMIN/CASHIER/WAREHOUSE/ACCOUNTANT/BRANCH_MANAGER)
           // dari server, agar offline login tetap punya role yang benar.
           await m.addColumn(usersTable, usersTable.role);
+        }
+        if (from < 8) {
+          await m.addColumn(productsTable, productsTable.variantsJson);
+          await m.addColumn(saleItemsTable, saleItemsTable.variantId);
+          await m.addColumn(saleItemsTable, saleItemsTable.variantName);
+          await m.addColumn(saleItemsTable, saleItemsTable.priceOverridden);
         }
       },
       beforeOpen: (details) async {

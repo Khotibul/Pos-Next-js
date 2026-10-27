@@ -4,7 +4,10 @@ export const saleIdSchema = z.string().min(1);
 
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
+  variantId: z.string().optional().or(z.literal("")),
   qty: z.coerce.number().int().min(1).max(999),
+  priceOverride: z.boolean().optional().default(false),
+  unitPrice: z.coerce.number().min(0).optional(),
 });
 
 export const paymentSchema = z.object({

@@ -1,6 +1,6 @@
-import 'package:dartz/dartz.dart';
+import 'package:dartz/dartz.dart' hide Unit;
 import 'package:dio/dio.dart' show DioException;
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/failures.dart';
@@ -9,7 +9,6 @@ import '../../core/network/network_info.dart';
 import '../../domain/entities/unit.dart';
 import '../../domain/repositories/unit_repository.dart';
 import '../datasources/local/database/app_database.dart';
-import '../datasources/local/database/tables/units_table.dart';
 import '../datasources/remote/unit_remote_datasource.dart';
 
 final unitRepositoryProvider = Provider<UnitRepository>((ref) {
@@ -59,7 +58,7 @@ class UnitRepositoryImpl implements UnitRepository {
     try {
       await _syncFromServer();
       final rows = await (database.select(database.unitsTable)
-            ..orderBy([(t) => t.name]))
+            ..orderBy([(t) => OrderingTerm.asc(t.name)]))
           .get();
       return Right(rows.map((r) => Unit(
             id: r.id,

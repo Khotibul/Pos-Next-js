@@ -2,17 +2,34 @@ export type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "EWALLET" | "CARD" | 
 
 export type CartItem = {
   productId: string;
+  variantId?: string;
   qty: number;
+  priceOverride?: boolean;
+  unitPrice?: number;
 };
 
 export type CartLine = {
   productId: string;
+  variantId?: string;
+  variantName?: string;
   name: string;
   sku: string;
   price: number;
   qty: number;
   lineTotal: number;
   isWholesale?: boolean;
+  isPriceOverridden?: boolean;
+};
+
+export type ProductVariant = {
+  id: string;
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  qrCode?: string | null;
+  price: number;
+  stock?: number;
+  isActive?: boolean;
 };
 
 export type Product = {
@@ -26,6 +43,7 @@ export type Product = {
   wholesalePrice?: number;
   wholesaleDiscountPercent?: number;
   wholesaleMinQty?: number;
+  variants?: ProductVariant[];
 };
 
 export type PaymentInput = {
@@ -74,11 +92,14 @@ export type SaleDetail = {
   items: Array<{
     id: string;
     productId: string;
+    variantId?: string | null;
+    variantName?: string | null;
     name: string;
     sku: string;
     price: number;
     qty: number;
     lineTotal: number;
+    priceOverridden?: boolean;
   }>;
   payments: Array<{
     id: string;

@@ -22,6 +22,7 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/barcode_scanner_sheet.dart';
 import '../../../core/widgets/product_image.dart';
 import '../../../domain/entities/cashier_shift.dart';
+import '../../../core/auth/role_permissions.dart';
 
 class KasirScreen extends ConsumerStatefulWidget {
   const KasirScreen({super.key});
@@ -111,7 +112,11 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             _query.isEmpty ||
             p.name.toLowerCase().contains(_query.toLowerCase()) ||
             p.sku.toLowerCase().contains(_query.toLowerCase()) ||
-            (p.barcode ?? '').contains(_query))
+            (p.barcode ?? '').contains(_query) ||
+            p.variants.any((v) =>
+                v.name.toLowerCase().contains(_query.toLowerCase()) ||
+                v.sku.toLowerCase().contains(_query.toLowerCase()) ||
+                (v.barcode ?? '').contains(_query)))
         .toList();
 
     return Focus(
@@ -136,16 +141,25 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                       onTap: () => _showCustomerPicker(context, ref),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: isGrosir ? Colors.blue : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: isGrosir
+                              ? Colors.blue
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isGrosir ? Colors.blue : Colors.transparent),
+                          border: Border.all(
+                              color:
+                                  isGrosir ? Colors.blue : Colors.transparent),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.person_outline, size: 16, color: isGrosir ? Colors.white : null),
+                            Icon(Icons.person_outline,
+                                size: 16,
+                                color: isGrosir ? Colors.white : null),
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
@@ -161,9 +175,16 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                             if (isGrosir) ...[
                               const SizedBox(width: 4),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
-                                child: const Text('GROSIR', style: TextStyle(fontSize: 8, color: Colors.blue, fontWeight: FontWeight.bold)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6)),
+                                child: const Text('GROSIR',
+                                    style: TextStyle(
+                                        fontSize: 8,
+                                        color: Colors.blue,
+                                        fontWeight: FontWeight.bold)),
                               ),
                             ],
                             const Icon(Icons.arrow_drop_down, size: 16),
@@ -189,8 +210,9 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
               const SizedBox(width: 4),
             ],
           ),
-          body: _buildShiftGate(context, userId, activeShift, shiftLoading,
-              kasirState, products, (constraints) {
+          body: _buildShiftGate(
+              context, userId, activeShift, shiftLoading, kasirState, products,
+              (constraints) {
             final width = constraints.maxWidth;
             final height = constraints.maxHeight;
             final compactHeight = height < 500;
@@ -261,15 +283,22 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: Row(
                   children: [
-                    const Icon(Icons.workspace_premium, size: 16, color: Colors.white),
+                    const Icon(Icons.workspace_premium,
+                        size: 16, color: Colors.white),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        plan?.planName != null ? 'Paket ${plan!.planName} (Free) — transaksi & produk hanya lokal, upgrade ke Pro/Enterprise untuk sync PostgreSQL' : 'Paket Free — upgrade ke Pro/Enterprise untuk pakai database & sinkronisasi',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                        plan?.planName != null
+                            ? 'Paket ${plan!.planName} (Free) — transaksi & produk hanya lokal, upgrade ke Pro/Enterprise untuk sync PostgreSQL'
+                            : 'Paket Free — upgrade ke Pro/Enterprise untuk pakai database & sinkronisasi',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -381,8 +410,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                   'Shift aktif sejak $readable',
                   style: TextStyle(
                     fontSize: 12.5,
-                    color:
-                        Theme.of(context).colorScheme.onPrimaryContainer,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -455,7 +483,9 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    itemCount > 0 ? '$itemCount item dikeranjang' : 'Keranjang kosong',
+                    itemCount > 0
+                        ? '$itemCount item dikeranjang'
+                        : 'Keranjang kosong',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   FittedBox(
@@ -510,8 +540,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxHeight:
-                        MediaQuery.of(sheetContext).size.height * 0.82,
+                    maxHeight: MediaQuery.of(sheetContext).size.height * 0.82,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -659,8 +688,7 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: state.items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemBuilder: (context, index) =>
-                      _CartTile(ref, state, index),
+                  itemBuilder: (context, index) => _CartTile(ref, state, index),
                 ),
         ),
         if (state.items.isNotEmpty) ...[
@@ -673,16 +701,76 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
 
   // ================= AKSI =================
 
-  void _addToCart(Product product) {
-    ref.read(kasirStateProvider.notifier).addProduct(product);
+  Future<void> _addToCart(Product product) async {
+    ProductVariant? variant;
+    if (product.variants.isNotEmpty) {
+      variant = await _pickVariant(product);
+      if (variant == null) return;
+    }
+    ref.read(kasirStateProvider.notifier).addProduct(product, variant: variant);
+    if (!mounted) return;
+    final label =
+        variant == null ? product.name : '${product.name} (${variant.name})';
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text('${product.name} masuk keranjang'),
+          content: Text('$label masuk keranjang'),
           duration: const Duration(milliseconds: 800),
         ),
       );
+  }
+
+  Future<ProductVariant?> _pickVariant(Product product) async {
+    return showModalBottomSheet<ProductVariant>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pilih Varian - ${product.name}',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: product.variants.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final variant = product.variants[index];
+                    final out = variant.isOutOfStock;
+                    return ListTile(
+                      enabled: !out,
+                      title: Text(variant.name),
+                      subtitle: Text(
+                        '${variant.sku} • stok ${variant.stock}${out ? ' • habis' : ''}',
+                      ),
+                      trailing: Text(
+                        CurrencyFormatter.format(variant.price),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      onTap: out
+                          ? null
+                          : () => Navigator.pop(sheetContext, variant),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ================= SCAN -> AUTO MASUK KERANJANG =================
@@ -694,30 +782,40 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     if (trimmed.isEmpty || !mounted) return;
 
     final notifier = ref.read(kasirStateProvider.notifier);
-    final product = await notifier.scanBarcode(trimmed);
+    final result = await notifier.lookupCode(trimmed);
     if (!mounted) return;
 
-    if (product != null) {
-      SystemSound.play(SystemSoundType.alert);
+    final product = result.product;
+    if (product == null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('${product.name} masuk keranjang'),
-            duration: const Duration(milliseconds: 1200),
-          ),
-        );
-    } else {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content:
-                Text('Produk dengan barcode "$trimmed" tidak ditemukan'),
+            content: Text('Produk dengan barcode "$trimmed" tidak ditemukan'),
             backgroundColor: Colors.orange,
           ),
         );
+      setState(() {});
+      return;
     }
+
+    var variant = result.variant;
+    if (variant == null && product.variants.isNotEmpty) {
+      variant = await _pickVariant(product);
+      if (!mounted || variant == null) return;
+    }
+    notifier.addProduct(product, variant: variant);
+    SystemSound.play(SystemSoundType.alert);
+    final label =
+        variant == null ? product.name : '${product.name} (${variant.name})';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('$label masuk keranjang'),
+          duration: const Duration(milliseconds: 1200),
+        ),
+      );
     setState(() {});
   }
 
@@ -790,7 +888,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) {
         return DraggableScrollableSheet(
           expand: false,
@@ -803,23 +902,39 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                 return Column(
                   children: [
                     const SizedBox(height: 12),
-                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).dividerColor, borderRadius: BorderRadius.circular(4))),
+                    Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: Theme.of(context).dividerColor,
+                            borderRadius: BorderRadius.circular(4))),
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          Text('Pilih Pelanggan', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('Pilih Pelanggan',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                           const Spacer(),
                           if (selectedId != null)
                             TextButton(
                               onPressed: () {
-                                ref.read(kasirStateProvider.notifier).clearCustomer();
+                                ref
+                                    .read(kasirStateProvider.notifier)
+                                    .clearCustomer();
                                 Navigator.pop(sheetContext);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pelanggan dihapus — harga normal')) );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Pelanggan dihapus — harga normal')));
                               },
                               child: const Text('Hapus'),
                             ),
-                          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(sheetContext)),
+                          IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.pop(sheetContext)),
                         ],
                       ),
                     ),
@@ -828,25 +943,37 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                       child: async.when(
                         data: (customers) {
                           if (customers.isEmpty) {
-                            return const Center(child: Text('Belum ada pelanggan. Tambah di menu Pelanggan.'));
+                            return const Center(
+                                child: Text(
+                                    'Belum ada pelanggan. Tambah di menu Pelanggan.'));
                           }
                           return ListView.separated(
                             controller: controller,
                             padding: const EdgeInsets.all(12),
                             itemCount: customers.length + 1,
-                            separatorBuilder: (_, __) => const SizedBox(height: 6),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 6),
                             itemBuilder: (context, index) {
                               if (index == 0) {
                                 final isSelected = selectedId == null;
                                 return Card(
-                                  color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+                                  color: isSelected
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .primaryContainer
+                                      : null,
                                   child: ListTile(
                                     leading: const Icon(Icons.person_outline),
                                     title: const Text('Umum (Retail)'),
                                     subtitle: const Text('Harga normal'),
-                                    trailing: isSelected ? const Icon(Icons.check, color: Colors.green) : null,
+                                    trailing: isSelected
+                                        ? const Icon(Icons.check,
+                                            color: Colors.green)
+                                        : null,
                                     onTap: () {
-                                      ref.read(kasirStateProvider.notifier).clearCustomer();
+                                      ref
+                                          .read(kasirStateProvider.notifier)
+                                          .clearCustomer();
                                       Navigator.pop(sheetContext);
                                     },
                                   ),
@@ -854,38 +981,77 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                               }
                               final c = customers[index - 1];
                               final isSelected = selectedId == c.id;
-                              final isGrosir = c.isWholesale || c.customerType == 'GROSIR';
+                              final isGrosir =
+                                  c.isWholesale || c.customerType == 'GROSIR';
                               return Card(
-                                color: isSelected ? Theme.of(context).colorScheme.primaryContainer : null,
+                                color: isSelected
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .primaryContainer
+                                    : null,
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: isGrosir ? Colors.blue : Theme.of(context).colorScheme.primary,
-                                    child: Text((c.name.isNotEmpty ? c.name[0] : '?').toUpperCase(), style: const TextStyle(color: Colors.white)),
+                                    backgroundColor: isGrosir
+                                        ? Colors.blue
+                                        : Theme.of(context).colorScheme.primary,
+                                    child: Text(
+                                        (c.name.isNotEmpty ? c.name[0] : '?')
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                            color: Colors.white)),
                                   ),
                                   title: Row(
                                     children: [
-                                      Expanded(child: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                                      Expanded(
+                                          child: Text(c.name,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13))),
                                       if (isGrosir)
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(6)),
-                                          child: const Text('GROSIR', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                              color: Colors.blue,
+                                              borderRadius:
+                                                  BorderRadius.circular(6)),
+                                          child: const Text('GROSIR',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold)),
                                         ),
                                     ],
                                   ),
-                                  subtitle: Text(c.phone ?? c.city ?? '-', style: Theme.of(context).textTheme.bodySmall),
-                                  trailing: isSelected ? const Icon(Icons.check, color: Colors.green) : null,
+                                  subtitle: Text(c.phone ?? c.city ?? '-',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall),
+                                  trailing: isSelected
+                                      ? const Icon(Icons.check,
+                                          color: Colors.green)
+                                      : null,
                                   onTap: () {
-                                    ref.read(kasirStateProvider.notifier).setCustomer(id: c.id, name: c.name, isWholesale: isGrosir);
+                                    ref
+                                        .read(kasirStateProvider.notifier)
+                                        .setCustomer(
+                                            id: c.id,
+                                            name: c.name,
+                                            isWholesale: isGrosir);
                                     Navigator.pop(sheetContext);
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isGrosir ? 'Pelanggan grosir: ${c.name} — harga grosir aktif' : 'Pelanggan: ${c.name}')));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                            content: Text(isGrosir
+                                                ? 'Pelanggan grosir: ${c.name} — harga grosir aktif'
+                                                : 'Pelanggan: ${c.name}')));
                                   },
                                 ),
                               );
                             },
                           );
                         },
-                        loading: () => const Center(child: CircularProgressIndicator()),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
                         error: (e, _) => Center(child: Text('Gagal: $e')),
                       ),
                     ),
@@ -1055,7 +1221,8 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     openingCashController.dispose();
     noteController.dispose();
 
-    final openingCash = double.tryParse(rawOpening.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    final openingCash =
+        double.tryParse(rawOpening.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
     final ok = await ref.read(shiftControllerProvider.notifier).open(
           userId,
           openingCash: openingCash,
@@ -1111,12 +1278,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                     CurrencyFormatter.format(summary.totalExpenses)),
                 _summaryRow(dialogContext, 'Saldo awal',
                     CurrencyFormatter.format(shift.openingCash)),
-                _summaryRow(dialogContext, 'Kas sistem',
-                    CurrencyFormatter.format(summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem),
+                _summaryRow(
+                    dialogContext,
+                    'Kas sistem',
+                    CurrencyFormatter.format(summary.expectedBalance != 0
+                        ? summary.expectedBalance
+                        : summary.cashSystem),
                     bold: true),
                 const Divider(),
                 const SizedBox(height: 8),
-                const Text('Masukkan uang aktual (cash counted) untuk menutup shift.',
+                const Text(
+                    'Masukkan uang aktual (cash counted) untuk menutup shift.',
                     style: TextStyle(fontSize: 12)),
                 const SizedBox(height: 12),
                 TextField(
@@ -1126,8 +1298,10 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
                   decoration: InputDecoration(
                     labelText: 'Cash Counted',
                     prefixText: 'Rp ',
-                    hintText:
-                        (summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem).toStringAsFixed(0),
+                    hintText: (summary.expectedBalance != 0
+                            ? summary.expectedBalance
+                            : summary.cashSystem)
+                        .toStringAsFixed(0),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1166,17 +1340,17 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     cashCountedController.dispose();
     noteController.dispose();
 
-    final fallbackExpected = summary.expectedBalance != 0 ? summary.expectedBalance : summary.cashSystem;
+    final fallbackExpected = summary.expectedBalance != 0
+        ? summary.expectedBalance
+        : summary.cashSystem;
     final cashCounted =
-        double.tryParse(rawCounted.replaceAll(RegExp(r'[^0-9]'), '')) ?? fallbackExpected;
-    final ok = await ref
-        .read(shiftControllerProvider.notifier)
-        .close(
+        double.tryParse(rawCounted.replaceAll(RegExp(r'[^0-9]'), '')) ??
+            fallbackExpected;
+    final ok = await ref.read(shiftControllerProvider.notifier).close(
           shiftId: shift.id,
           cashierId: userId,
           cashCounted: cashCounted,
-          closeNote:
-              rawCloseNote.trim().isEmpty ? null : rawCloseNote.trim(),
+          closeNote: rawCloseNote.trim().isEmpty ? null : rawCloseNote.trim(),
         );
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -1203,7 +1377,6 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
       ],
     );
   }
-
 }
 
 // ================= KATALOG PRODUK =================
@@ -1305,9 +1478,11 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final outOfStock = product.stock <= 0;
-    final hasWholesale =
-        product.wholesalePrice > 0 && product.wholesaleMinQty > 0;
+    final outOfStock = product.variants.isNotEmpty
+        ? product.variants.every((v) => v.isOutOfStock)
+        : product.stock <= 0;
+    final hasWholesale = product.wholesaleDiscountPercent > 0 &&
+        (product.wholesaleMinQty > 0 || product.wholesalePrice > 0);
     final theme = Theme.of(context);
 
     return Opacity(
@@ -1390,7 +1565,9 @@ class _ProductCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '${product.stock % 1 == 0 ? product.stock.toInt() : product.stock} ${product.unit}',
+                        product.variants.isNotEmpty
+                            ? '${product.variants.length} varian'
+                            : '${product.stock % 1 == 0 ? product.stock.toInt() : product.stock} ${product.unit}',
                         style:
                             const TextStyle(color: Colors.white, fontSize: 9),
                       ),
@@ -1477,10 +1654,12 @@ class _CartTile extends StatelessWidget {
     final item = state.items[index];
     final notifier = ref.read(kasirStateProvider.notifier);
     final product = notifier.cachedProduct(item.productId);
-    final isWholesale = product != null &&
-        product.wholesalePrice > 0 &&
-        item.price <= product.wholesalePrice &&
-        item.price < product.sellingPrice;
+    final isWholesale = notifier.isLineWholesale(item);
+    final role = ref.read(authStateProvider).maybeWhen(
+          authenticated: (user) => user.role,
+          orElse: () => null,
+        );
+    final canEditPrice = RolePermissions.canEditPrice(role);
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -1497,7 +1676,7 @@ class _CartTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.name.isEmpty ? 'Produk' : item.name,
+                  item.displayName.isEmpty ? 'Produk' : item.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1523,9 +1702,43 @@ class _CartTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text('Grosir',
-                            style:
-                                TextStyle(fontSize: 9, color: Colors.blue)),
+                            style: TextStyle(fontSize: 9, color: Colors.blue)),
                       ),
+                    ],
+                    if (item.priceOverridden) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('Manual',
+                            style:
+                                TextStyle(fontSize: 9, color: Colors.orange)),
+                      ),
+                    ],
+                    if (canEditPrice) ...[
+                      const SizedBox(width: 2),
+                      InkWell(
+                        onTap: () =>
+                            _showPriceDialog(context, ref, index, item),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: Icon(Icons.edit_outlined, size: 14),
+                        ),
+                      ),
+                      if (item.priceOverridden)
+                        InkWell(
+                          onTap: () => notifier.resetItemPrice(index),
+                          borderRadius: BorderRadius.circular(12),
+                          child: const Padding(
+                            padding: EdgeInsets.all(3),
+                            child: Icon(Icons.restart_alt, size: 14),
+                          ),
+                        ),
                     ],
                   ],
                 ),
@@ -1545,8 +1758,7 @@ class _CartTile extends StatelessWidget {
             child: Text(
               CurrencyFormatter.format(item.lineTotal),
               textAlign: TextAlign.end,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 12),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
         ],
@@ -1582,7 +1794,9 @@ class _QtyStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
             .withOpacity(0.6),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -1600,10 +1814,12 @@ class _QtyStepper extends StatelessWidget {
                 children: [
                   Text(
                     _formatQty(qty),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(width: 2),
-                  Icon(Icons.edit_outlined, size: 10, color: Theme.of(context).colorScheme.primary),
+                  Icon(Icons.edit_outlined,
+                      size: 10, color: Theme.of(context).colorScheme.primary),
                 ],
               ),
             ),
@@ -1620,7 +1836,8 @@ class _QtyStepper extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.all(5),
-        child: Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
+        child:
+            Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
       ),
     );
   }
@@ -1635,7 +1852,10 @@ Future<void> _showQtyDialog(
 ) async {
   final notifier = ref.read(kasirStateProvider.notifier);
   final unit = item.unit ?? product?.unit ?? 'pcs';
-  final controller = TextEditingController(text: item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toString());
+  final controller = TextEditingController(
+      text: item.qty % 1 == 0
+          ? item.qty.toInt().toString()
+          : item.qty.toString());
 
   String? error;
   final result = await showDialog<double>(
@@ -1647,12 +1867,15 @@ Future<void> _showQtyDialog(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Satuan: $unit${product != null ? ' • Stok: ${product.stock} $unit' : ''}', style: Theme.of(context).textTheme.bodySmall),
+            Text(
+                'Satuan: $unit${product != null ? ' • Stok: ${product.stock} $unit' : ''}',
+                style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: false),
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true, signed: false),
               decoration: InputDecoration(
                 labelText: 'Jumlah ($unit)',
                 hintText: 'Contoh: 1.5',
@@ -1661,7 +1884,8 @@ Future<void> _showQtyDialog(
                 errorText: error,
               ),
               onChanged: (_) => setState(() => error = null),
-              onSubmitted: (_) => Navigator.pop(dialogContext, double.tryParse(controller.text.replaceAll(',', '.'))),
+              onSubmitted: (_) => Navigator.pop(dialogContext,
+                  double.tryParse(controller.text.replaceAll(',', '.'))),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -1669,8 +1893,13 @@ Future<void> _showQtyDialog(
               children: [
                 for (final quick in [0.5, 1.0, 1.5, 2.0])
                   ActionChip(
-                    label: Text(quick % 1 == 0 ? quick.toInt().toString() : quick.toString()),
-                    onPressed: () => setState(() => controller.text = quick % 1 == 0 ? quick.toInt().toString() : quick.toString()),
+                    label: Text(quick % 1 == 0
+                        ? quick.toInt().toString()
+                        : quick.toString()),
+                    onPressed: () => setState(() => controller.text =
+                        quick % 1 == 0
+                            ? quick.toInt().toString()
+                            : quick.toString()),
                   ),
               ],
             ),
@@ -1678,13 +1907,18 @@ Future<void> _showQtyDialog(
               const SizedBox(height: 8),
               Text(
                 'Grosir: ${CurrencyFormatter.format(product.wholesalePrice)} min ${product.wholesaleMinQty} $unit',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.blue),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.blue),
               ),
             ],
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Batal')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal')),
           FilledButton(
             onPressed: () {
               final raw = controller.text.trim().replaceAll(',', '.');
@@ -1712,6 +1946,85 @@ Future<void> _showQtyDialog(
   }
 }
 
+Future<void> _showPriceDialog(
+  BuildContext context,
+  WidgetRef ref,
+  int index,
+  SaleItem item,
+) async {
+  final notifier = ref.read(kasirStateProvider.notifier);
+  final controller = TextEditingController(
+    text: item.price % 1 == 0
+        ? item.price.toInt().toString()
+        : item.price.toString(),
+  );
+
+  String? error;
+  final result = await showDialog<double>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text('Edit Harga - ${item.displayName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Harga normal: ${CurrencyFormatter.format(notifier.basePriceFor(item))}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: false),
+              decoration: InputDecoration(
+                labelText: 'Harga satuan',
+                prefixText: 'Rp ',
+                errorText: error,
+              ),
+              onChanged: (_) => setState(() => error = null),
+              onSubmitted: (_) => Navigator.pop(
+                dialogContext,
+                double.tryParse(controller.text.replaceAll('.', '')),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Harga manual akan dicatat untuk audit.',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final raw = controller.text.replaceAll('.', '').trim();
+              final val = double.tryParse(raw.replaceAll(',', '.'));
+              if (val == null || val < 0) {
+                setState(() => error = 'Harga tidak valid');
+                return;
+              }
+              Navigator.pop(dialogContext, val);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  controller.dispose();
+  if (result != null) {
+    notifier.setItemPrice(index, result);
+  }
+}
+
 // ================= FOOTER RINGKASAN + BAYAR =================
 
 class _CartFooter extends StatelessWidget {
@@ -1735,14 +2048,14 @@ class _CartFooter extends StatelessWidget {
                 _summaryRow(context, 'Subtotal',
                     CurrencyFormatter.format(live.subtotal)),
                 const SizedBox(height: 3),
-                _summaryRow(context, 'Diskon',
-                    CurrencyFormatter.format(live.discount)),
+                _summaryRow(
+                    context, 'Diskon', CurrencyFormatter.format(live.discount)),
                 const SizedBox(height: 3),
                 _summaryRow(
                     context, 'Pajak', CurrencyFormatter.format(live.tax)),
                 const Divider(height: 14),
-                _summaryRow(context, 'Total',
-                    CurrencyFormatter.format(live.total),
+                _summaryRow(
+                    context, 'Total', CurrencyFormatter.format(live.total),
                     bold: true),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
@@ -1939,10 +2252,8 @@ class _CartFooter extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.green)),
-                        backgroundColor:
-                            Colors.green.withOpacity(0.08),
-                        side: BorderSide(
-                            color: Colors.green.withOpacity(0.4)),
+                        backgroundColor: Colors.green.withOpacity(0.08),
+                        side: BorderSide(color: Colors.green.withOpacity(0.4)),
                         onPressed: () => setPaid(live.total),
                       ),
                       for (final value in quickAmounts)
@@ -1950,8 +2261,7 @@ class _CartFooter extends StatelessWidget {
                           label: Text(
                             CurrencyFormatter.formatWithoutSymbol(value),
                             style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600),
+                                fontSize: 11, fontWeight: FontWeight.w600),
                           ),
                           onPressed: () => setPaid(value),
                         ),
@@ -1996,8 +2306,7 @@ class _CartFooter extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color:
-                                  change >= 0 ? Colors.green : Colors.orange,
+                              color: change >= 0 ? Colors.green : Colors.orange,
                             ),
                           ),
                         ],

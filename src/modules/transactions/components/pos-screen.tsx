@@ -16,21 +16,24 @@ import type { ReceiptSale } from "@/modules/transactions/components/receipt-view
 import { CartSidebar } from "./cart/cart-sidebar";
 import { MobileCartSheet } from "./cart/mobile-cart-sheet";
 import { ProductCard } from "./product-card";
-import type { PaymentMethod, Product } from "./cart/cart-common";
-import { rupiah } from "./cart/cart-common";
+import { VariantPickerDialog } from "./variant-picker-dialog";
+import type { PaymentMethod, Product, ProductVariant } from "./cart/cart-common";
+import { lineKey, parseLineKey, rupiah } from "./cart/cart-common";
 import type { PrinterSettings } from "@/modules/settings/printer/validators";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 const QrScannerDialog = dynamic(() => import("@/components/pos/qr-scanner-dialog").then((m) => ({ default: m.QrScannerDialog })), { ssr: false });
 const OpenShiftDialog = dynamic(() => import("@/components/shifts/open-shift-dialog").then((m) => ({ default: m.OpenShiftDialog })), { ssr: false });
 
-export function PosScreen({ products, initialSettings, initialOpenShiftId, customers }: { products: Product[]; initialSettings: PrinterSettings; initialOpenShiftId?: string | null; customers?: Array<{ id: string; name: string; phone?: string | null }> }) {
+export function PosScreen({ products, initialSettings, initialOpenShiftId, customers, canEditPrice = false }: { products: Product[]; initialSettings: PrinterSettings; initialOpenShiftId?: string | null; customers?: Array<{ id: string; name: string; phone?: string | null }>; canEditPrice?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const isPosRoute = pathname === "/pos" || pathname.startsWith("/pos/");
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  const [variantProduct, setVariantProduct] = useState<Product | null>(null);
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [cashPaid, setCashPaid] = useState<number>(0);
   const [discount, setDiscount] = useState(0);
@@ -122,6 +125,20 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
     return map;
   }, [allProducts]);
 
+  const variantByCode = useMemo(() => {
+    const map = new Map<string, { product: Product; variant: ProductVariant }>();
+    for (const product of allProducts) {
+      for (const variant of product.variants ?? []) {
+        const codes = [variant.sku, variant.barcode, variant.qrCode].filter(Boolean) as string[];
+        for (const code of codes) {
+          const key = code.trim().toLowerCase();
+          if (key) map.set(key, { product, variant });
+        }
+      }
+    }
+    return map;
+  }, [allProducts]);
+
   const productMap = useMemo(() => {
     return new Map(allProducts.map((p) => [p.id, p]));
   }, [allProducts]);
@@ -129,24 +146,54 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
   const lines = useMemo(() => {
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
-      .map(([productId, qty]) => {
+      .map(([key, qty]) => {
+        const { productId, variantId } = parseLineKey(key);
         const p = productMap.get(productId);
         if (!p) return null;
+        const variant = variantId ? p.variants?.find((v) => v.id === variantId) : undefined;
+        if (variantId && !variant) return null;
         const minQty = p.wholesaleMinQty ?? 0;
         const isWholesale = minQty > 0 && qty >= minQty;
-        let unitPrice = p.price;
+        let unitPrice = variant ? variant.price : p.price;
         if (isWholesale) {
-          if (p.wholesalePrice && p.wholesalePrice > 0) {
+          if (!variant && p.wholesalePrice && p.wholesalePrice > 0) {
             unitPrice = p.wholesalePrice;
           } else if (p.wholesaleDiscountPercent && p.wholesaleDiscountPercent > 0) {
-            unitPrice = p.price * (1 - p.wholesaleDiscountPercent / 100);
+            unitPrice = unitPrice * (1 - p.wholesaleDiscountPercent / 100);
           }
         }
+        const overridePrice = priceOverrides[key];
+        const isPriceOverridden = overridePrice !== undefined;
+        if (isPriceOverridden) unitPrice = overridePrice;
         const lineTotal = unitPrice * qty;
-        return { productId, name: p.name, sku: p.sku, price: unitPrice, qty, lineTotal, isWholesale };
+        return {
+          lineKey: key,
+          productId,
+          variantId: variant?.id,
+          variantName: variant?.name,
+          name: variant ? `${p.name} - ${variant.name}` : p.name,
+          sku: variant?.sku || p.sku,
+          price: unitPrice,
+          qty,
+          lineTotal,
+          isWholesale,
+          isPriceOverridden,
+        };
       })
-      .filter(Boolean) as Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number; isWholesale?: boolean }>;
-  }, [cart, productMap]);
+      .filter(Boolean) as Array<{
+        lineKey: string;
+        productId: string;
+        variantId?: string;
+        variantName?: string;
+        name: string;
+        sku: string;
+        price: number;
+        qty: number;
+        lineTotal: number;
+        isWholesale?: boolean;
+        isPriceOverridden?: boolean;
+      }>;
+  }, [cart, productMap, priceOverrides]);
 
   const effectiveDiscount = settings.cartShowDiscount ? discount : 0;
   const effectiveTaxRate = settings.cartShowTax ? taxRate : 0;
@@ -155,17 +202,53 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
   const total = Math.max(0, subtotal - effectiveDiscount + tax);
   const cashChange = Math.max(0, cashPaid - total);
 
-  const addProductToCart = useCallback((product: Product) => {
+  const addProductToCart = useCallback((product: Product, variant?: ProductVariant) => {
     setExtraProducts((prev) => (prev.some((item) => item.id === product.id) ? prev : [...prev, product]));
-    setCart((prev) => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + 1 }));
-    setNotice(`Ditambahkan: ${product.name}`);
+    const key = lineKey(product.id, variant?.id);
+    setCart((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+    setNotice(`Ditambahkan: ${variant ? `${product.name} - ${variant.name}` : product.name}`);
   }, []);
 
-  const inc = useCallback((id: string) => {
-    setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  const handleProductAdd = useCallback((product: Product) => {
+    if ((product.variants?.length ?? 0) > 0) {
+      setVariantProduct(product);
+      return;
+    }
+    addProductToCart(product);
+  }, [addProductToCart]);
+
+  const updateCart = useCallback((next: Record<string, number>) => {
+    setCart(next);
+    setPriceOverrides((prev) => {
+      const filtered = Object.entries(prev).filter(([key]) => (next[key] ?? 0) > 0);
+      return filtered.length === Object.keys(prev).length ? prev : Object.fromEntries(filtered);
+    });
   }, []);
-  const dec = useCallback((id: string) => {
-    setCart((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
+
+  const inc = useCallback((key: string) => {
+    setCart((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+  }, []);
+  const dec = useCallback((key: string) => {
+    setCart((prev) => ({ ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) }));
+    setPriceOverrides((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const changePrice = useCallback((key: string, price: number) => {
+    setPriceOverrides((prev) => ({ ...prev, [key]: price }));
+  }, []);
+
+  const resetPrice = useCallback((key: string) => {
+    setPriceOverrides((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }, []);
 
   const handleOpenShift = useCallback(() => {
@@ -184,7 +267,12 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
         return;
       }
       const payload = {
-        items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+        items: lines.map((l) => ({
+          productId: l.productId,
+          ...(l.variantId ? { variantId: l.variantId } : {}),
+          qty: l.qty,
+          ...(l.isPriceOverridden ? { priceOverride: true, unitPrice: l.price } : {}),
+        })),
         discount: effectiveDiscount,
         taxRate: effectiveTaxRate,
         payment: {
@@ -205,6 +293,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
       }
       setInvoice(res.data.invoiceNo);
       setCart({});
+      setPriceOverrides({});
       setCashPaid(0);
       setCustomerId("");
       setDueDate("");
@@ -239,9 +328,12 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
     const lower = productName.toLowerCase();
     const found = allProducts.find((p) => p.name.toLowerCase().includes(lower) || lower.includes(p.name.toLowerCase()));
     if (!found) return false;
+    const variant = found.variants?.find((v) => Number(v.stock ?? 0) > 0);
+    if ((found.variants?.length ?? 0) > 0 && !variant) return false;
     setExtraProducts((prev) => (prev.some((item) => item.id === found.id) ? prev : [...prev, found]));
-    setCart((prev) => ({ ...prev, [found.id]: (prev[found.id] ?? 0) + qty }));
-    setNotice(`Suara: ${found.name} x${qty}`);
+    const key = lineKey(found.id, variant?.id);
+    setCart((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + qty }));
+    setNotice(`Suara: ${found.name}${variant ? ` - ${variant.name}` : ""} x${qty}`);
     return true;
   }, [allProducts]);
 
@@ -256,6 +348,13 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
 
     setError(null);
     setNotice(null);
+
+    const localVariant = variantByCode.get(clean.toLowerCase());
+    if (localVariant) {
+      addProductToCart(localVariant.product, localVariant.variant);
+      if (options?.clearQuery) setQ("");
+      return true;
+    }
 
     const localProduct = productByCode.get(clean.toLowerCase());
     if (localProduct) {
@@ -280,7 +379,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
     addProductToCart(p);
     if (options?.clearQuery) setQ("");
     return true;
-  }, [addProductToCart, productByCode]);
+  }, [addProductToCart, productByCode, variantByCode]);
 
   const addByCodeRef = useRef(addByCode);
   addByCodeRef.current = addByCode;
@@ -343,7 +442,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
       if (originalProductIds.has(p.id)) {
         return true;
       }
-      return cart[p.id] > 0;
+      return Object.keys(cart).some((key) => parseLineKey(key).productId === p.id && cart[key] > 0);
     });
     if (newExtraProducts.length !== extraProducts.length) {
       hasChanged = true;
@@ -419,7 +518,7 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
           ) : (
             <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filtered.map((p) => (
-                <ProductCard key={p.id} product={p} onInc={inc} showStock={settings.cartShowStock} />
+                <ProductCard key={p.id} product={p} onAdd={handleProductAdd} showStock={settings.cartShowStock} />
               ))}
             </div>
           )}
@@ -453,7 +552,11 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
             setCashPaid={setCashPaid}
             setDiscount={setDiscount}
             setTaxRate={setTaxRate}
-            setCart={setCart}
+            setCart={updateCart}
+            canEditPrice={canEditPrice}
+
+            onPriceChange={changePrice}
+            onPriceReset={resetPrice}
             onPay={handlePay}
             onOpenShift={handleOpenShift}
             customers={customers}
@@ -509,7 +612,11 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
             setCashPaid={setCashPaid}
             setDiscount={setDiscount}
             setTaxRate={setTaxRate}
-            setCart={setCart}
+            setCart={updateCart}
+            canEditPrice={canEditPrice}
+
+            onPriceChange={changePrice}
+            onPriceReset={resetPrice}
             onPay={handlePay}
             onOpenShift={handleOpenShift}
             customers={customers}
@@ -569,6 +676,15 @@ export function PosScreen({ products, initialSettings, initialOpenShiftId, custo
           onDetected={async (code) => {
             await addByCode(code, { throwOnFail: true });
           }}
+        />
+
+        <VariantPickerDialog
+          product={variantProduct}
+          open={Boolean(variantProduct)}
+          onOpenChange={(open) => {
+            if (!open) setVariantProduct(null);
+          }}
+          onSelect={(product, variant) => addProductToCart(product, variant)}
         />
 
         {isPosRoute ? (

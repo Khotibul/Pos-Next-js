@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 export type StockRow = {
   id: string;
   productId: string;
+  variantId: string | null;
   qty: number;
 };
 
@@ -62,14 +63,18 @@ export async function findSaleDetail(tenantId: string, id: string) {
       status: true,
       createdAt: true,
       updatedAt: true,
-      items: { select: { id: true, productId: true, name: true, sku: true, price: true, qty: true, lineTotal: true } },
+      items: { select: { id: true, productId: true, variantId: true, variantName: true, name: true, sku: true, price: true, qty: true, lineTotal: true, priceOverridden: true } },
       payments: { select: { id: true, method: true, amount: true, receivedAmount: true, changeAmount: true, reference: true, createdAt: true } },
     },
   });
 }
 
-export async function findAvailableStock(tenantId: string, productIds: string[], branchId: string) {
-  if (productIds.length === 0) return [];
+export async function findAvailableStock(
+  tenantId: string,
+  items: Array<{ productId: string; variantId?: string | null }>,
+  branchId: string,
+) {
+  if (items.length === 0) return [];
   // Cepatkan: ambil warehouseIds dulu, lalu filter stock via warehouseId IN (pakai index), hindari join warehouse
   const warehouses = await prisma.warehouse.findMany({
     where: { tenantId, isActive: true, OR: [{ branchId }, { branchId: null }] },
@@ -80,12 +85,15 @@ export async function findAvailableStock(tenantId: string, productIds: string[],
   return prisma.productWarehouseStock.findMany({
     where: {
       tenantId,
-      productId: { in: productIds },
       warehouseId: { in: warehouseIds },
       qty: { gt: 0 },
+      OR: items.map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId ? item.variantId : null,
+      })),
     },
-    orderBy: [{ productId: "asc" }, { updatedAt: "asc" }],
-    select: { id: true, productId: true, qty: true },
+    orderBy: [{ productId: "asc" }, { variantId: "asc" }, { updatedAt: "asc" }],
+    select: { id: true, productId: true, variantId: true, qty: true },
   });
 }
 
@@ -122,7 +130,17 @@ export async function createSaleInTransaction(
     tax: number;
     total: number;
     status?: string;
-    lines: Array<{ productId: string; name: string; sku: string; price: number; qty: number; lineTotal: number }>;
+    lines: Array<{
+      productId: string;
+      variantId?: string | null;
+      variantName?: string | null;
+      name: string;
+      sku: string;
+      price: number;
+      qty: number;
+      lineTotal: number;
+      isPriceOverridden?: boolean;
+    }>;
     payment: { method: string; amount: number; receivedAmount: number; changeAmount: number; reference: string | null };
   },
 ) {
@@ -138,7 +156,20 @@ export async function createSaleInTransaction(
       tax: data.tax,
       total: data.total,
       status: data.status ?? "PAID",
-      items: { create: data.lines.map((l) => ({ tenantId: data.tenantId, ...l })) },
+      items: {
+        create: data.lines.map((l) => ({
+          tenantId: data.tenantId,
+          productId: l.productId,
+          variantId: l.variantId ?? null,
+          variantName: l.variantName ?? null,
+          name: l.name,
+          sku: l.sku,
+          price: l.price,
+          qty: l.qty,
+          lineTotal: l.lineTotal,
+          priceOverridden: l.isPriceOverridden === true,
+        })),
+      },
       payments: { create: { tenantId: data.tenantId, ...data.payment } },
     },
     select: { id: true, invoiceNo: true, total: true, createdAt: true, discount: true, tax: true, subtotal: true, status: true },
@@ -172,35 +203,36 @@ export async function deleteSaleById(tenantId: string, id: string) {
       where: { tenantId, id },
       select: {
         id: true, shiftId: true, status: true, total: true,
-        items: { select: { productId: true, qty: true } },
+        items: { select: { productId: true, variantId: true, qty: true } },
       },
     });
     if (!sale) return;
 
+    const warehouses = await tx.warehouse.findMany({
+      where: { tenantId, isActive: true },
+      select: { id: true },
+    });
+    const warehouseIds = warehouses.map((w) => w.id);
+
     for (const item of sale.items) {
-      const warehouses = await tx.warehouse.findMany({
-        where: { tenantId, isActive: true },
-        select: { id: true },
-      });
-      const warehouseIds = warehouses.map((w) => w.id);
       if (warehouseIds.length === 0) continue;
 
-      const stockRows = await tx.productWarehouseStock.findMany({
-        where: { tenantId, productId: item.productId, warehouseId: { in: warehouseIds } },
+      const stockRow = await tx.productWarehouseStock.findFirst({
+        where: {
+          tenantId,
+          productId: item.productId,
+          variantId: item.variantId ?? null,
+          warehouseId: { in: warehouseIds },
+        },
         orderBy: { updatedAt: "asc" },
-        select: { id: true, qty: true },
+        select: { id: true },
       });
+      if (!stockRow) continue;
 
-      let remaining = item.qty;
-      for (const row of stockRows) {
-        if (remaining <= 0) break;
-        const addQty = Math.min(remaining, Number.MAX_SAFE_INTEGER);
-        await tx.productWarehouseStock.update({
-          where: { id: row.id },
-          data: { qty: { increment: addQty } },
-        });
-        remaining -= addQty;
-      }
+      await tx.productWarehouseStock.update({
+        where: { id: stockRow.id },
+        data: { qty: { increment: item.qty } },
+      });
     }
 
     if (sale.status === "CREDIT") {
