@@ -478,6 +478,8 @@ export async function importProducts(params: {
       await tx.productImage.deleteMany({ where: { tenantId: params.tenantId } });
       await tx.productWarehouseStock.deleteMany({ where: { tenantId: params.tenantId } });
       await tx.productBatch.deleteMany({ where: { tenantId: params.tenantId } });
+      await tx.saleItem.deleteMany({ where: { product: { tenantId: params.tenantId } } });
+      await tx.purchaseOrderItem.deleteMany({ where: { product: { tenantId: params.tenantId } } });
       await tx.product.deleteMany({ where: { tenantId: params.tenantId } });
     });
   }
