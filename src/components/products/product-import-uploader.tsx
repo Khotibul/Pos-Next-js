@@ -228,7 +228,7 @@ export function ProductImportUploader() {
     setState({ step: "preview", rows });
   }
 
-  async function saveImport(rows: ImportPreviewRow[]) {
+  async function saveImport(rows: ImportPreviewRow[], replace = false) {
     setErr(null);
     setState({ step: "saving", rows });
 
@@ -275,7 +275,7 @@ export function ProductImportUploader() {
         const res = await fetch("/api/products/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: chunk }),
+          body: JSON.stringify({ rows: chunk, replace }),
         });
         const json = (await res.json().catch(() => null)) as unknown;
         const isOk = isRecord(json) && json.ok === true && isRecord(json.data);
@@ -395,11 +395,26 @@ export function ProductImportUploader() {
                 </Button>
                 <Button
                   type="button"
+                  variant="destructive"
                   className="rounded-xl"
                   disabled={pending || state.step === "saving" || okRows === 0}
-                  onClick={() => void saveImport(previewRows)}
+                  onClick={() => {
+                    const ok = window.confirm(
+                      "Timpa semua produk dengan data dari file ini? Stok/batch/gambar saat ini akan dihapus dan diganti dengan data import. Lanjutkan?",
+                    );
+                    if (!ok) return;
+                    void saveImport(previewRows, true);
+                  }}
                 >
-                  {state.step === "saving" ? `Menyimpan... ${progress?.done ?? 0}/${progress?.total ?? 0}` : "Simpan Import"}
+                  {state.step === "saving" ? `Menyimpan... ${progress?.done ?? 0}/${progress?.total ?? 0}` : "Timpa & Ganti Semua"}
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-xl"
+                  disabled={pending || state.step === "saving" || okRows === 0}
+                  onClick={() => void saveImport(previewRows, false)}
+                >
+                  {state.step === "saving" ? `Menyimpan... ${progress?.done ?? 0}/${progress?.total ?? 0}` : "Tambah/Perbarui"}
                 </Button>
               </div>
             </div>

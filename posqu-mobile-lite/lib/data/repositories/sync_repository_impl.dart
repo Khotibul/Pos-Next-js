@@ -94,33 +94,47 @@ class SyncRepositoryImpl implements SyncRepository {
       final pending = await database.syncQueueDao.getPending();
       if (pending.isEmpty) return const Right(true);
 
-      final batch = pending.map((item) {
-        Map<String, dynamic> data = {};
+      const batchSize = 25;
+      for (var i = 0; i < pending.length; i += batchSize) {
+        final chunk = pending.skip(i).take(batchSize).toList();
+        final batch = chunk.map((item) {
+          Map<String, dynamic> data = {};
+          try {
+            data = jsonDecode(item.data);
+          } catch (_) {}
+          return {
+            'id': item.id,
+            'action': item.action,
+            'record_id': item.recordId,
+            'data': data,
+          };
+        }).toList();
+
         try {
-          data = jsonDecode(item.data);
-        } catch (_) {}
-        return {
-          'id': item.id,
-          'action': item.action,
-          'record_id': item.recordId,
-          'data': data,
-        };
-      }).toList();
-
-      final result = await remoteDataSource.sendBatch(batch);
-      final syncedIds = List<int>.from(result['synced_ids'] ?? []);
-
-      for (final id in syncedIds) {
-        await database.syncQueueDao.updateStatus(id, 'completed');
-      }
-
-      final failedItems = List<Map<String, dynamic>>.from(result['failed'] ?? []);
-      for (final failed in failedItems) {
-        await database.syncQueueDao.updateStatus(
-          failed['id'],
-          'failed',
-          errorMessage: failed['error'],
-        );
+          final result = await remoteDataSource.sendBatch(batch);
+          final syncedIds = List<int>.from(result['synced_ids'] ?? []);
+          for (final id in syncedIds) {
+            await database.syncQueueDao.updateStatus(id, 'completed');
+          }
+          final failedItems = List<Map<String, dynamic>>.from(result['failed'] ?? []);
+          for (final failed in failedItems) {
+            await database.syncQueueDao.updateStatus(
+              failed['id'],
+              'failed',
+              errorMessage: failed['error'],
+            );
+          }
+        } catch (e) {
+          for (final item in chunk) {
+            try {
+              await database.syncQueueDao.updateStatus(
+                item.id,
+                'pending',
+                errorMessage: e.toString(),
+              );
+            } catch (_) {}
+          }
+        }
       }
 
       return const Right(true);

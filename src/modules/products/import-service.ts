@@ -466,15 +466,25 @@ export async function importProducts(params: {
   userId: string;
   rows: ImportRow[];
   chunkSize?: number;
+  replace?: boolean;
 }) {
   if (params.rows.length === 0) throw Errors.badRequest("Tidak ada data untuk diimport.");
   if (!params.branchId) throw Errors.badRequest("Branch tidak valid.");
   const branch = await prisma.branch.findFirst({ where: { id: params.branchId, tenantId: params.tenantId }, select: { id: true } });
   if (!branch) throw Errors.badRequest("Cabang tidak ditemukan.");
 
+  if (params.replace) {
+    await prisma.$transaction(async (tx) => {
+      await tx.productImage.deleteMany({ where: { tenantId: params.tenantId } });
+      await tx.productWarehouseStock.deleteMany({ where: { tenantId: params.tenantId } });
+      await tx.productBatch.deleteMany({ where: { tenantId: params.tenantId } });
+      await tx.product.deleteMany({ where: { tenantId: params.tenantId } });
+    });
+  }
+
   const warehouseId = await ensureDefaultWarehouse({ tenantId: params.tenantId, branchId: params.branchId });
   const meta = await loadMetaMaps(params.tenantId, params.rows);
-  const index = await loadExistingIndex(params.tenantId, params.rows);
+  const index = params.replace ? { bySku: new Map(), byBarcode: new Map(), qrOwner: new Map() } : await loadExistingIndex(params.tenantId, params.rows);
 
   const writeChunk = Math.min(500, Math.max(50, params.chunkSize ?? WRITE_CHUNK));
   const result: ImportResult = { created: 0, updated: 0, errors: [] };

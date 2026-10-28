@@ -53,16 +53,18 @@ class DioClient {
   Dio _createDio() {
     final dio = Dio(BaseOptions(
       baseUrl: ApiConstants.defaultBaseUrl,
-      connectTimeout: ApiConstants.connectTimeout,
-      receiveTimeout: ApiConstants.timeout,
-      sendTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 60),
+      sendTimeout: const Duration(seconds: 60),
       headers: {
         ApiConstants.contentType: ApiConstants.applicationJson,
         'Connection': 'keep-alive',
-        'Keep-Alive': 'timeout=30, max=100',
+        'Keep-Alive': 'timeout=60, max=1000',
+        'Accept': 'application/json',
       },
-      // Keep-alive pooling: Dio's HttpClient reuses connections by default (persistentConnection true)
       persistentConnection: true,
+      followRedirects: true,
+      maxRedirects: 5,
     ));
 
     dio.interceptors.addAll([
@@ -74,26 +76,28 @@ class DioClient {
     return dio;
   }
 
-  /// Retry untuk error transient (500/502/503/504/429/timeout) — exponential backoff 2x
-  /// Membuat koneksi stabil di jaringan Android yang flaky
+  /// Retry untuk error transient (500/502/503/504/429/timeout) — exponential backoff
   Interceptor _retryInterceptor(Dio dio) {
     return InterceptorsWrapper(
       onError: (error, handler) async {
         final extra = error.requestOptions.extra;
         final retries = (extra['retries'] as int?) ?? 0;
         final status = error.response?.statusCode;
-        final shouldRetry = retries < 2 &&
+        final shouldRetry = retries < 4 &&
             (error.type == DioExceptionType.connectionTimeout ||
                 error.type == DioExceptionType.receiveTimeout ||
                 error.type == DioExceptionType.sendTimeout ||
                 error.type == DioExceptionType.connectionError ||
+                error.type == DioExceptionType.unknown ||
+                status == 408 ||
+                status == 425 ||
+                status == 429 ||
                 status == 500 ||
                 status == 502 ||
                 status == 503 ||
-                status == 504 ||
-                status == 429);
+                status == 504);
         if (shouldRetry) {
-          final delayMs = (retries + 1) * 800 + (retries * 400);
+          final delayMs = (1 << retries) * 500; // 500,1000,2000,4000
           await Future.delayed(Duration(milliseconds: delayMs));
           try {
             error.requestOptions.extra['retries'] = retries + 1;

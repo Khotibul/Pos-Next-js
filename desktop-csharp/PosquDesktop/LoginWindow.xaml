@@ -91,12 +91,18 @@
 
                         <TextBlock Text="Email" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,22,0,6" />
+                        <!-- TabIndex eksplisit: fokus keyboard selalu urut ke input ini -->
                         <TextBox x:Name="EmailInput" Style="{StaticResource InputTextBox}"
+                                 IsTabStop="True" TabIndex="0" Focusable="True"
+                                 InputMethod.IsInputMethodEnabled="False"
+                                 SpellCheck.IsEnabled="False"
                                  Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
 
                         <TextBlock Text="Password" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,14,0,6" />
                         <PasswordBox x:Name="PasswordInput" Style="{StaticResource InputPasswordBox}"
+                                     Focusable="True" TabIndex="1" IsTabStop="True"
+                                     InputMethod.IsInputMethodEnabled="False"
                                      PasswordChanged="PasswordInput_PasswordChanged" />
 
                         <Grid Margin="0,16,0,0">
@@ -124,8 +130,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Button Margin="0,24,0,0" Height="44"
-                                Command="{Binding LoginCommand}" IsDefault="True">
+                        <Button x:Name="LoginButton" Margin="0,24,0,0" Height="44" TabIndex="2"
+                                Click="LoginButton_Click" Command="{Binding LoginCommand}" IsDefault="True">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
                                     <Setter Property="Content" Value="Masuk" />

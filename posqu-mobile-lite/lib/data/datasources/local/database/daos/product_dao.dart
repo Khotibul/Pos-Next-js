@@ -9,15 +9,19 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
   ProductDao(super.db);
 
   Future<List<ProductsTableData>> getAll({String? search, String? categoryId}) {
+    final q = search?.trim().toLowerCase();
     return (select(productsTable)
           ..orderBy([(t) => OrderingTerm(expression: t.name)])
           ..where((t) {
             final exprs = <Expression<bool>>[];
-            if (search != null && search.isNotEmpty) {
+            if (q != null && q.isNotEmpty) {
+              final lowerName = t.name.lower();
+              final lowerSku = t.sku.lower();
+              final lowerBarcode = t.barcode.lower();
               exprs.add(
-                t.name.like('%$search%') |
-                    t.sku.like('%$search%') |
-                    t.barcode.like('%$search%'),
+                lowerName.like('%$q%') |
+                    lowerSku.like('%$q%') |
+                    lowerBarcode.like('%$q%'),
               );
             }
             if (categoryId != null && categoryId.isNotEmpty) {
@@ -68,15 +72,18 @@ class ProductDao extends DatabaseAccessor<AppDatabase> with _$ProductDaoMixin {
     return (delete(productsTable)..where((t) => t.id.equals(id))).go();
   }
 
-  Future<List<ProductsTableData>> search(String query) {
-    return (select(productsTable)
+  Future<List<ProductsTableData>> search(String query) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return <ProductsTableData>[];
+    final rows = await (select(productsTable)
           ..where((t) =>
-              t.name.like('%$query%') |
-              t.sku.like('%$query%') |
-              t.barcode.like('%$query%'))
+              t.name.lower().like('%$q%') |
+              t.sku.lower().like('%$q%') |
+              t.barcode.lower().like('%$q%'))
           ..orderBy([(t) => OrderingTerm(expression: t.name)])
-          ..limit(20))
+          ..limit(50))
         .get();
+    return rows;
   }
 
   Future<List<ProductsTableData>> getLowStock() async {

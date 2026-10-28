@@ -107,16 +107,20 @@ class _KasirScreenState extends ConsumerState<KasirScreen> {
     final shiftLoading =
         activeShiftAsync.isLoading && activeShiftAsync.valueOrNull == null;
 
+    final q = _query.trim().toLowerCase();
     final products = (productsAsync.valueOrNull ?? const <Product>[])
-        .where((p) =>
-            _query.isEmpty ||
-            p.name.toLowerCase().contains(_query.toLowerCase()) ||
-            p.sku.toLowerCase().contains(_query.toLowerCase()) ||
-            (p.barcode ?? '').contains(_query) ||
-            p.variants.any((v) =>
-                v.name.toLowerCase().contains(_query.toLowerCase()) ||
-                v.sku.toLowerCase().contains(_query.toLowerCase()) ||
-                (v.barcode ?? '').contains(_query)))
+        .where((p) {
+          if (q.isEmpty) return true;
+          if (p.name.toLowerCase().contains(q)) return true;
+          if (p.sku.toLowerCase().contains(q)) return true;
+          if ((p.barcode ?? '').toLowerCase().contains(q)) return true;
+          for (final v in p.variants) {
+            if (v.name.toLowerCase().contains(q)) return true;
+            if (v.sku.toLowerCase().contains(q)) return true;
+            if ((v.barcode ?? '').toLowerCase().contains(q)) return true;
+          }
+          return false;
+        })
         .toList();
 
     return Focus(
@@ -1408,6 +1412,9 @@ class _CatalogPanel extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: TextField(
             onChanged: onQueryChanged,
+            textInputAction: TextInputAction.search,
+            autocorrect: false,
+            enableSuggestions: false,
             decoration: InputDecoration(
               hintText: 'Cari nama, SKU, atau barcode...',
               filled: true,

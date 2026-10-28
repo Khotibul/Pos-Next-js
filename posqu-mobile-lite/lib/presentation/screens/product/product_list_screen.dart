@@ -10,6 +10,7 @@ import '../../../core/widgets/loading_widget.dart';
 import '../../../core/widgets/product_image.dart';
 import '../../../data/services/product_excel_service.dart';
 import '../../../data/repositories/product_repository_impl.dart';
+import '../../../domain/entities/product.dart';
 
 class ProductListScreen extends ConsumerWidget {
   const ProductListScreen({super.key});
@@ -34,7 +35,10 @@ class ProductListScreen extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {},
+            onPressed: () => showSearch(
+              context: context,
+              delegate: ProductSearchDelegate(ref),
+            ),
           ),
         ],
       ),
@@ -226,6 +230,81 @@ class ProductListScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class ProductSearchDelegate extends SearchDelegate<Product?> {
+  final WidgetRef ref;
+
+  ProductSearchDelegate(this.ref);
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () => query = '',
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildList(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildList(context);
+
+  Widget _buildList(BuildContext context) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) {
+      return const Center(child: Text('Cari produk berdasarkan nama, SKU, atau barcode'));
+    }
+    final productsAsync = ref.watch(productListProvider);
+    return productsAsync.when(
+      data: (products) {
+        final results = products.where((p) {
+          if (p.name.toLowerCase().contains(q)) return true;
+          if (p.sku.toLowerCase().contains(q)) return true;
+          if ((p.barcode ?? '').toLowerCase().contains(q)) return true;
+          for (final v in p.variants) {
+            if (v.name.toLowerCase().contains(q)) return true;
+            if (v.sku.toLowerCase().contains(q)) return true;
+            if ((v.barcode ?? '').toLowerCase().contains(q)) return true;
+          }
+          return false;
+        }).toList();
+        if (results.isEmpty) {
+          return const Center(child: Text('Produk tidak ditemukan'));
+        }
+        return ListView.builder(
+          itemCount: results.length,
+          itemBuilder: (context, index) {
+            final product = results[index];
+            return ListTile(
+              leading: ProductImageThumb(url: product.imageUrl, size: 40),
+              title: Text(product.name),
+              subtitle: Text('${product.sku} | Stok: ${product.stock} ${product.unit}'),
+              trailing: Text(CurrencyFormatter.format(product.sellingPrice)),
+              onTap: () {
+                close(context, product);
+                context.push('/products/edit/${product.id}');
+              },
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(child: Text('Gagal memuat produk')),
+    );
   }
 }
 

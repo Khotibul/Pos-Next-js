@@ -12,6 +12,7 @@ export const maxDuration = 60;
 
 const payloadSchema = z.object({
   rows: z.array(importRowSchema).min(1).max(5000),
+  replace: z.boolean().optional(),
 });
 
 export const POST = withApiHandler(async (req: Request) => {
@@ -27,6 +28,7 @@ export const POST = withApiHandler(async (req: Request) => {
     branchId: ctx.branchId,
     userId: ctx.userId,
     rows: parsed.data.rows,
+    replace: parsed.data.replace === true,
   });
 
   return NextResponse.json({ ok: true, data: result });

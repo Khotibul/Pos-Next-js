@@ -39,28 +39,41 @@ public sealed class OfflineSyncService
             foreach (var operation in queue)
             {
                 ct.ThrowIfCancellationRequested();
-                try
+                var attempt = 0;
+                while (attempt < 4)
                 {
-                    await _api.SendQueuedOperationAsync(operation, ct);
-                    _store.RemoveOperation(operation.Id);
-                    synced++;
+                    try
+                    {
+                        await _api.SendQueuedOperationAsync(operation, ct);
+                        _store.RemoveOperation(operation.Id);
+                        synced++;
+                        break;
+                    }
+                    catch (ApiException ex) when (ex.StatusCode is >= 400 and < 500 and not 401 and not 408 and not 429)
+                    {
+                        operation.Attempts++;
+                        _store.ArchiveFailed(operation, ex.Message);
+                        _store.RemoveOperation(operation.Id);
+                        LastError = ex.Message;
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        attempt++;
+                        operation.Attempts++;
+                        operation.LastError = ex.Message;
+                        if (attempt >= 4)
+                        {
+                            _store.UpdateOperation(operation);
+                            LastError = ex.Message;
+                            goto next;
+                        }
+                        var delay = (int)Math.Pow(2, attempt) * 250;
+                        await Task.Delay(delay, ct);
+                    }
                 }
-                catch (ApiException ex) when (ex.StatusCode is >= 400 and < 500 and not 401 and not 408 and not 429)
-                {
-                    // Server menolak permanen (validasi/duplikat): arsipkan agar data tidak hilang diam-diam.
-                    operation.Attempts++;
-                    _store.ArchiveFailed(operation, ex.Message);
-                    _store.RemoveOperation(operation.Id);
-                    LastError = ex.Message;
-                }
-                catch (ApiException ex)
-                {
-                    operation.Attempts++;
-                    operation.LastError = ex.Message;
-                    _store.UpdateOperation(operation);
-                    LastError = ex.Message;
-                    break;
-                }
+                continue;
+            next:;
             }
 
             if (synced > 0) _store.MarkSynced();

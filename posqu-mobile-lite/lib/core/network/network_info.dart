@@ -18,20 +18,39 @@ class NetworkInfoImpl implements NetworkInfo {
 
   NetworkInfoImpl(this._connectivity);
 
+  static const _hosts = [
+    'pos-next-js-kohl.vercel.app',
+    '8.8.8.8',
+    '1.1.1.1',
+  ];
+
   @override
   Future<bool> get isConnected async {
-    final result = await _connectivity.checkConnectivity();
-    return _hasConnection(result);
+    try {
+      final result = await _connectivity.checkConnectivity();
+      return _hasConnection(result);
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
   /// Cek internet nyata (DNS lookup) untuk login — mencegah false-online WiFi tanpa internet
-  /// Timeout 3 detik, dipakai khusus login agar tidak hang 45s
   Future<bool> get hasInternetAccess async {
     if (!await isConnected) return false;
+    for (final host in _hosts) {
+      try {
+        final lookup = await InternetAddress.lookup(host).timeout(const Duration(seconds: 4));
+        if (lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty) {
+          return true;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
     try {
-      final lookup = await InternetAddress.lookup('pos-next-js-kohl.vercel.app').timeout(const Duration(seconds: 3));
-      if (lookup.isEmpty || lookup.first.rawAddress.isEmpty) return false;
+      final socket = await Socket.connect('8.8.8.8', 53, timeout: const Duration(seconds: 3));
+      await socket.close();
       return true;
     } catch (_) {
       return false;
@@ -40,14 +59,13 @@ class NetworkInfoImpl implements NetworkInfo {
 
   @override
   Stream<bool> get onConnectivityChanged {
-    return _connectivity.onConnectivityChanged.map(_hasConnection);
+    return _connectivity.onConnectivityChanged
+        .map(_hasConnection)
+        .distinct();
   }
 
   bool _hasConnection(List<ConnectivityResult> results) {
     if (results.isEmpty) return false;
-    // connectivity_plus mengembalikan list; false hanya jika semua none
-    // True-online tetap perlu validasi server (Dio akan handle timeout/401),
-    // tapi ACCESS_NETWORK_STATE (sudah ditambahkan Manifest) meningkatkan akurasi di Android 14+.
     return results.any((result) => result != ConnectivityResult.none);
   }
 }

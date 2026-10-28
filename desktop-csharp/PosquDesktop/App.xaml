@@ -65,6 +65,15 @@
                 <Setter Property="FontFamily" Value="Segoe UI" />
                 <Setter Property="Background" Value="{StaticResource AppBackgroundGradientBrush}" />
                 <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+                <!--
+                    Workaround bug keyboard input WPF: style global menghilangkan KeyboardNavigation
+                    internal sehingga capture Alt yang tidak dilepas dan menelan semua ketikan
+                    pada TextBox/PasswordBox. Me-restore default framework members di sini
+                    (apply ke SEMUA Window termasuk LoginWindow) tanpa mengubah tampilan.
+                    Sumber: https://stackoverflow.com/q/77863197
+                -->
+                <Setter Property="KeyboardNavigation.TabNavigation" Value="Cycle" />
+                <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Cycle" />
             </Style>
 
             <Style TargetType="TextBlock">
