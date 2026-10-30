@@ -60,7 +60,10 @@
         <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="0,12,0,0" Padding="0">
             <Grid>
                 <DataGrid ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}"
-                          BorderThickness="0" Background="Transparent">
+                          BorderThickness="0" Background="Transparent"
+                          EnableRowVirtualization="True"
+                          EnableColumnVirtualization="True"
+                          MaxHeight="640">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Nama produk" Binding="{Binding Name}" Width="*" />
                         <DataGridTextColumn Header="SKU" Binding="{Binding Sku}" Width="120" />

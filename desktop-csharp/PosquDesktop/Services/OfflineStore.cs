@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace PosquDesktop.Services;
@@ -16,6 +15,11 @@ public sealed class OfflineOperation
     public string? LastError { get; set; }
 }
 
+/// <summary>
+/// Akses data offline desktop. Seluruh isi (salinan data website, antrean
+/// offline, dan metadata) disimpan pada database SQLite lokal lewat
+/// <see cref="LocalDatabase"/>.
+/// </summary>
 public sealed class OfflineStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -24,6 +28,7 @@ public sealed class OfflineStore
         WriteIndented = false
     };
 
+    private readonly LocalDatabase _database;
     private readonly string _directory;
     private readonly object _sync = new();
 
@@ -33,20 +38,41 @@ public sealed class OfflineStore
         foreach (var ch in Path.GetInvalidFileNameChars())
             safeScope = safeScope.Replace(ch, '_');
         _directory = Path.Combine(rootDirectory, "offline", safeScope);
-        Directory.CreateDirectory(_directory);
+        _database = new LocalDatabase(_directory);
     }
 
     public string DirectoryPath => _directory;
+    public string DatabasePath => _database.FilePath;
 
     public T? Read<T>(string key)
     {
-        lock (_sync)
+        string? raw;
+        // Pembacaan tidak dikunci: WAL menyediakan snapshot terisolasi sehingga reader
+        // tidak pernah menunggu writer. Kalau dikunci, thread UI menunggu penulis
+        // 34 ribu record di latar belakang dan jendela jadi "Not Responding".
+        try
         {
-            var path = FilePath(key);
+            raw = _database.ReadValue(key);
+        }
+        catch
+        {
+            return default;
+        }
+
+        if (raw == null) return default;
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(raw, JsonOptions);
+        }
+        catch
+        {
+            // Nilai cache versi lama tersimpan sebagai string JSON ter-escape.
+            var unwrapped = Unwrap(raw);
+            if (unwrapped == null || unwrapped == raw) return default;
             try
             {
-                if (!File.Exists(path)) return default;
-                return JsonSerializer.Deserialize<T>(File.ReadAllText(path), JsonOptions);
+                return JsonSerializer.Deserialize<T>(unwrapped, JsonOptions);
             }
             catch
             {
@@ -57,20 +83,74 @@ public sealed class OfflineStore
 
     public void Write<T>(string key, T value)
     {
+        try
+        {
+            WriteJson(key, JsonSerializer.Serialize(value, JsonOptions));
+        }
+        catch
+        {
+            // Cache lokal tidak boleh membuat aplikasi berhenti.
+        }
+    }
+
+    /// <summary>Menyimpan data mentah dari server (JSON) ke database lokal.</summary>
+    public void WriteJson(string key, JsonElement value)
+    {
+        try
+        {
+            WriteJson(key, value.GetRawText());
+        }
+        catch
+        {
+            // abaikan payload yang tidak valid
+        }
+    }
+
+    public void WriteJson(string key, string json)
+    {
         lock (_sync)
         {
-            var path = FilePath(key);
             try
             {
-                var temp = path + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(value, JsonOptions), Encoding.UTF8);
-                File.Move(temp, path, true);
+                _database.WriteValue(key, json);
             }
             catch
             {
-                // Cache lokal tidak boleh membuat aplikasi berhenti.
+                // abaikan kegagalan tulis cache
             }
         }
+    }
+
+    public string? ReadJson(string key)
+    {
+        try
+        {
+            return Unwrap(_database.ReadValue(key));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Versi lama menyimpan JSON sebagai string ter-escape; buka satu lapis
+    /// supaya data lama tetap bisa dibaca.
+    /// </summary>
+    private static string? Unwrap(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            if (document.RootElement.ValueKind == JsonValueKind.String)
+                return document.RootElement.GetString();
+        }
+        catch
+        {
+            // bukan JSON, kembalikan apa adanya
+        }
+        return raw;
     }
 
     public void Remove(string key)
@@ -79,8 +159,7 @@ public sealed class OfflineStore
         {
             try
             {
-                var path = FilePath(key);
-                if (File.Exists(path)) File.Delete(path);
+                _database.RemoveValue(key);
             }
             catch
             {
@@ -91,19 +170,13 @@ public sealed class OfflineStore
 
     public List<OfflineOperation> ReadQueue()
     {
-        lock (_sync)
+        try
         {
-            try
-            {
-                var path = FilePath("outbox");
-                if (!File.Exists(path)) return new List<OfflineOperation>();
-                return JsonSerializer.Deserialize<List<OfflineOperation>>(
-                    File.ReadAllText(path), JsonOptions) ?? new List<OfflineOperation>();
-            }
-            catch
-            {
-                return new List<OfflineOperation>();
-            }
+            return _database.ReadOperations("outbox");
+        }
+        catch
+        {
+            return new List<OfflineOperation>();
         }
     }
 
@@ -111,9 +184,14 @@ public sealed class OfflineStore
     {
         lock (_sync)
         {
-            var queue = ReadQueueLocked();
-            queue.Add(operation);
-            WriteQueueLocked(queue);
+            try
+            {
+                _database.SaveOperation("outbox", operation, operation.CreatedAt);
+            }
+            catch
+            {
+                // abaikan
+            }
         }
     }
 
@@ -121,9 +199,14 @@ public sealed class OfflineStore
     {
         lock (_sync)
         {
-            var queue = ReadQueueLocked();
-            var removed = queue.RemoveAll(o => o.Id == id);
-            if (removed > 0) WriteQueueLocked(queue);
+            try
+            {
+                _database.RemoveOperation("outbox", id);
+            }
+            catch
+            {
+                // abaikan
+            }
         }
     }
 
@@ -131,11 +214,14 @@ public sealed class OfflineStore
     {
         lock (_sync)
         {
-            var queue = ReadQueueLocked();
-            var index = queue.FindIndex(o => o.Id == operation.Id);
-            if (index >= 0) queue[index] = operation;
-            else queue.Add(operation);
-            WriteQueueLocked(queue);
+            try
+            {
+                _database.SaveOperation("outbox", operation, operation.CreatedAt);
+            }
+            catch
+            {
+                // abaikan
+            }
         }
     }
 
@@ -143,9 +229,28 @@ public sealed class OfflineStore
     {
         get
         {
-            lock (_sync)
+            try
             {
-                return ReadQueueLocked().Count;
+                return _database.CountOperations("outbox");
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+    }
+
+    public int FailedCount
+    {
+        get
+        {
+            try
+            {
+                return _database.CountOperations("failed_operations");
+            }
+            catch
+            {
+                return 0;
             }
         }
     }
@@ -157,10 +262,8 @@ public sealed class OfflineStore
             try
             {
                 operation.LastError = reason;
-                var failed = ReadFailedLocked();
-                failed.Insert(0, operation);
-                if (failed.Count > 200) failed.RemoveRange(200, failed.Count - 200);
-                WriteFailedLocked(failed);
+                _database.SaveOperation("failed_operations", operation, DateTime.Now);
+                _database.TrimOperations("failed_operations", 200);
             }
             catch
             {
@@ -171,9 +274,13 @@ public sealed class OfflineStore
 
     public List<OfflineOperation> ReadFailed()
     {
-        lock (_sync)
+        try
         {
-            return ReadFailedLocked();
+            return _database.ReadOperations("failed_operations");
+        }
+        catch
+        {
+            return new List<OfflineOperation>();
         }
     }
 
@@ -181,101 +288,45 @@ public sealed class OfflineStore
     {
         lock (_sync)
         {
-            var failed = ReadFailedLocked();
-            if (failed.Count == 0) return 0;
-
-            var queue = ReadQueueLocked();
-            foreach (var operation in failed)
+            try
             {
-                operation.Attempts = 0;
-                operation.LastError = null;
-                queue.Add(operation);
+                var failed = _database.ReadOperations("failed_operations");
+                if (failed.Count == 0) return 0;
+
+                foreach (var operation in failed)
+                {
+                    operation.Attempts = 0;
+                    operation.LastError = null;
+                    _database.SaveOperation("outbox", operation, operation.CreatedAt);
+                }
+                _database.ClearOperations("failed_operations");
+                return failed.Count;
             }
-            WriteQueueLocked(queue);
-            WriteFailedLocked(new List<OfflineOperation>());
-            return failed.Count;
+            catch
+            {
+                return 0;
+            }
         }
     }
+
+    private DateTime? _lastSyncAt;
 
     public DateTime? LastSyncAt
     {
         get
         {
+            // Binding status di thread UI membaca properti ini setiap kali status
+            // berubah; simpan di memori supaya tidak membuka SQLite berulang kali.
+            if (_lastSyncAt.HasValue) return _lastSyncAt;
             var value = Read<string>("last_sync");
-            return DateTime.TryParse(value, out var parsed) ? parsed : null;
+            if (DateTime.TryParse(value, out var parsed)) _lastSyncAt = parsed;
+            return _lastSyncAt;
         }
     }
 
     public void MarkSynced()
     {
-        Write("last_sync", DateTime.Now.ToString("O"));
-    }
-
-    private List<OfflineOperation> ReadQueueLocked()
-    {
-        try
-        {
-            var path = FilePath("outbox");
-            if (!File.Exists(path)) return new List<OfflineOperation>();
-            return JsonSerializer.Deserialize<List<OfflineOperation>>(
-                File.ReadAllText(path), JsonOptions) ?? new List<OfflineOperation>();
-        }
-        catch
-        {
-            return new List<OfflineOperation>();
-        }
-    }
-
-    private void WriteQueueLocked(List<OfflineOperation> queue)
-    {
-        try
-        {
-            var path = FilePath("outbox");
-            var temp = path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(queue, JsonOptions), Encoding.UTF8);
-            File.Move(temp, path, true);
-        }
-        catch
-        {
-            // abaikan kegagalan tulis antrean
-        }
-    }
-
-    private List<OfflineOperation> ReadFailedLocked()
-    {
-        try
-        {
-            var path = FilePath("failed");
-            if (!File.Exists(path)) return new List<OfflineOperation>();
-            return JsonSerializer.Deserialize<List<OfflineOperation>>(
-                File.ReadAllText(path), JsonOptions) ?? new List<OfflineOperation>();
-        }
-        catch
-        {
-            return new List<OfflineOperation>();
-        }
-    }
-
-    private void WriteFailedLocked(List<OfflineOperation> failed)
-    {
-        try
-        {
-            var path = FilePath("failed");
-            var temp = path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(failed, JsonOptions), Encoding.UTF8);
-            File.Move(temp, path, true);
-        }
-        catch
-        {
-            // abaikan
-        }
-    }
-
-    private string FilePath(string key)
-    {
-        var safe = key;
-        foreach (var ch in Path.GetInvalidFileNameChars())
-            safe = safe.Replace(ch, '_');
-        return Path.Combine(_directory, safe + ".json");
+        _lastSyncAt = DateTime.Now;
+        Write("last_sync", _lastSyncAt.Value.ToString("O"));
     }
 }

@@ -35,8 +35,25 @@ public partial class App : Application
             ShowLogin();
     }
 
+    internal static void Trace(string message)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(Path.GetTempPath(), "posqu-trace.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] {message}{Environment.NewLine}");
+        }
+        catch { }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Trace("APP EXIT kode=" + e.ApplicationExitCode);
+        base.OnExit(e);
+    }
+
     public void ShowLogin()
     {
+        Trace("ShowLogin");
         var viewModel = new LoginViewModel(AppServices.Current);
         viewModel.LoginSucceeded += ShowMain;
         var window = new LoginWindow { DataContext = viewModel };
@@ -54,6 +71,7 @@ public partial class App : Application
             return;
         }
 
+        Trace("ShowMain");
         var viewModel = new MainViewModel(AppServices.Current);
         viewModel.LogoutRequested += ShowLogin;
         var window = new MainWindow { DataContext = viewModel };
@@ -61,6 +79,8 @@ public partial class App : Application
         MainWindow = window;
         CloseOtherWindows(window);
         viewModel.Start();
+        // Segarkan salinan data website ke database lokal tanpa menunggu aksi user.
+        _ = AppServices.Current.RefreshFromServerAsync();
         window.Activate();
     }
 
@@ -78,6 +98,7 @@ public partial class App : Application
         if (MainWindow is LoginWindow) return;
 
         _handlingUnauthorized = true;
+        Trace("HandleUnauthorized: " + message);
         try
         {
             MessageBox.Show(

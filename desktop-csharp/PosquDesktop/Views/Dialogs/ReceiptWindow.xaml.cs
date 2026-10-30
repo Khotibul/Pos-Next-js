@@ -10,6 +10,8 @@ public sealed class ReceiptLine
     public string Name { get; init; } = "";
     public string QtyPrice { get; init; } = "";
     public string TotalText { get; init; } = "";
+    public string SkuLabel { get; init; } = "";
+    public bool ShowSkuLine => SkuLabel.Length > 0;
 }
 
 public partial class ReceiptWindow : Window
@@ -18,15 +20,23 @@ public partial class ReceiptWindow : Window
     private readonly AppSettings _settings;
 
     public string StoreName { get; }
+    public string HeaderTitle => string.IsNullOrWhiteSpace(_settings.ReceiptHeaderTitle)
+        ? StoreName
+        : _settings.ReceiptHeaderTitle.Trim();
+    public string HeaderSubtitle => _settings.ReceiptHeaderSubtitle.Trim();
+    public bool HasSubtitle => HeaderSubtitle.Length > 0;
+    public string FooterNote => _settings.ReceiptFooterNote.Trim();
+    public bool ShowPolicyLine => _settings.ShowPolicyLine;
+    public double ReceiptMaxWidth => _settings.NormalizedPaperSize == ReceiptPaper.Size58mm ? 250 : 340;
     public string InvoiceNo => _sale.InvoiceNo;
     public string DateLabel => _sale.CreatedAt.ToString("dd/MM/yyyy HH:mm");
     public string CashierName => AppServices.Current.User.Name;
     public bool HasCustomer => !string.IsNullOrWhiteSpace(_sale.CustomerName);
     public string CustomerLabel => _sale.CustomerName ?? "";
     public string SubtotalText => Formatters.Rupiah(_sale.Subtotal);
-    public bool HasDiscount => _sale.Discount > 0;
+    public bool HasDiscount => _sale.Discount > 0 && _settings.ShowDiscount;
     public string DiscountText => "-" + Formatters.Rupiah(_sale.Discount);
-    public bool HasTax => _sale.Tax > 0;
+    public bool HasTax => _sale.Tax > 0 && _settings.ShowTax;
     public string TaxText => Formatters.Rupiah(_sale.Tax);
     public bool HasDueDate => _sale.DueDate.HasValue;
     public string DueDateText => _sale.DueDate?.ToString("dd/MM/yyyy") ?? "";
@@ -46,7 +56,8 @@ public partial class ReceiptWindow : Window
         {
             Name = i.Name,
             QtyPrice = $"{Formatters.Number(i.Qty)} x {Formatters.Rupiah(i.Price)}",
-            TotalText = Formatters.Rupiah(i.LineTotal)
+            TotalText = Formatters.Rupiah(i.LineTotal),
+            SkuLabel = settings.ShowSku && !string.IsNullOrWhiteSpace(i.Sku) ? $"[{i.Sku}]" : ""
         }).ToList();
 
         InitializeComponent();
@@ -63,7 +74,7 @@ public partial class ReceiptWindow : Window
         {
             try
             {
-                PrintHelper.Print(_sale, StoreName, _settings.PrinterName, silent: true);
+                PrintHelper.Print(_sale, StoreName, _settings, silent: true);
             }
             catch
             {
@@ -76,7 +87,7 @@ public partial class ReceiptWindow : Window
     {
         try
         {
-            PrintHelper.Print(_sale, StoreName, _settings.PrinterName, silent: false);
+            PrintHelper.Print(_sale, StoreName, _settings, silent: false);
         }
         catch (Exception ex)
         {

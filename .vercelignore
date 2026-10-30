@@ -16,6 +16,23 @@ dist-desktop/
 dist-desktop-build/
 .desktop-userdata/
 
+# ---------------------------------------------------------------
+# LOKAL SAJA - alat bantu & hasil build di mesin developer,
+# tidak perlu di-upload ke Vercel (selaras dengan .gitignore)
+# ---------------------------------------------------------------
+.dotnet-sdk-tmp/
+tmp-dbtest/
+desktop-csharp/**/bin/
+desktop-csharp/**/obj/
+desktop-csharp/release/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+logs/
+
 # android/capacitor build outputs
 android/.gradle/
 android/**/build/
@@ -79,3 +96,4 @@ public/downloads/*.apk
 
 # AI / tooling caches
 .mimocode/
+.freebuff/

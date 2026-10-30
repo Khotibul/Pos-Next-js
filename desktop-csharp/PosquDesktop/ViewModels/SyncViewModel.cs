@@ -43,18 +43,18 @@ public partial class SyncViewModel : ViewModelBase
     public SyncViewModel(AppServices services)
     {
         _services = services;
+        // Waktu sinkron terakhir tersimpan di database lokal, jadi tetap tampil
+        // benar setelah aplikasi ditutup dan dibuka kembali.
+        LastSyncLabel = services.LastSyncAt is { } last
+            ? $"Terakhir sinkron {last:dd/MM/yyyy HH:mm:ss}"
+            : "Belum pernah sinkron pada perangkat ini";
         ResetSteps();
     }
 
     private void ResetSteps()
     {
         Steps.Clear();
-        foreach (var name in new[]
-                 {
-                     "Produk & stok", "Kategori", "Satuan", "Pelanggan",
-                     "Supplier", "Purchase order", "Piutang", "Utang", "Kas",
-                     "Penjualan 30 hari", "Shift kasir", "Data tenant"
-                 })
+        foreach (var name in OfflineSyncService.StepNames)
         {
             Steps.Add(new SyncStep { Name = name });
         }
@@ -106,6 +106,9 @@ public partial class SyncViewModel : ViewModelBase
             ErrorMessage = "Tidak dapat memuat data baru saat offline. Periksa koneksi internet lalu coba lagi.";
             return;
         }
+        var sync = _services.Sync;
+        if (sync == null) return;
+
         ResetSteps();
         LastSyncLabel = "Sinkronisasi berjalan…";
 
@@ -119,57 +122,37 @@ public partial class SyncViewModel : ViewModelBase
                 NotifyStatusChanged();
             }
 
-            var index = 0;
-            async Task StepAsync(Func<Task<string>> action)
+            // Penarikan memparsing JSON puluhan ribu record dan menulis SQLite.
+            // Kalau dijalankan di thread UI, jendela berhenti merespons selama
+            // sinkronisasi. Callback dipindahkan ke dispatcher karena menyentuh
+            // properti yang dibinding oleh UI.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            void OnUi(Action action)
             {
-                var step = Steps[index++];
-                step.Status = "Berjalan…";
-                ProgressMessage = step.Name;
-                try
-                {
-                    step.Detail = await action();
-                    step.Status = "Selesai";
-                }
-                catch (Exception ex)
-                {
-                    step.Status = "Gagal";
-                    step.Detail = ex.Message;
-                    throw;
-                }
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action);
             }
 
-            await StepAsync(async () =>
-            {
-                var progress = new Progress<string>(p => ProgressMessage = p);
-                var products = await _services.Api.GetAllProductsAsync(progress);
-                return $"{products.Count} produk";
-            });
-            await StepAsync(async () => $"{(await _services.Api.GetCategoriesAsync()).Count} kategori");
-            await StepAsync(async () => $"{(await _services.Api.GetUnitsAsync()).Count} satuan");
-            await StepAsync(async () => $"{(await _services.Api.GetCustomersAsync()).Count} pelanggan");
-            await StepAsync(async () => $"{(await _services.Api.GetSuppliersAsync()).Count} supplier");
-            await StepAsync(async () => $"{(await _services.Api.GetPurchaseOrdersAsync()).Count} purchase order");
-            await StepAsync(async () => $"{(await _services.Api.GetReceivablesAsync()).Count} piutang");
-            await StepAsync(async () => $"{(await _services.Api.GetPayablesAsync()).Count} utang");
-            await StepAsync(async () => $"{(await _services.Api.GetCashTransactionsAsync(500)).Count} transaksi kas");
-            await StepAsync(async () =>
-            {
-                var sales = await _services.Api.GetSalesAsync(DateTime.Today.AddDays(-30), DateTime.Now, null, 500);
-                return $"{sales.Count} transaksi";
-            });
-            await StepAsync(async () => $"{(await _services.Api.GetShiftsAsync(null, null, 100)).Count} shift");
-            await StepAsync(async () =>
-            {
-                var tenant = await _services.Api.GetTenantAsync();
-                _services.UpdateTenant(tenant);
-                return tenant?.Tenant?.Name ?? _services.TenantName;
-            });
+            await Task.Run(() => sync.PullFromServerAsync(
+                onUpdate: update => OnUi(() =>
+                {
+                    var step = Steps.FirstOrDefault(s => s.Name == update.Name);
+                    if (step == null) return;
+                    step.Status = update.Status;
+                    if (!string.IsNullOrWhiteSpace(update.Detail)) step.Detail = update.Detail;
+                    ProgressMessage = update.Name;
+                }),
+                onProgress: message => OnUi(() => ProgressMessage = message)));
+
+            if (sync.LastTenant != null)
+                _services.UpdateTenant(sync.LastTenant);
 
             LastSyncLabel = $"Terakhir sinkron {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
             ProgressMessage = "Selesai";
             StatusMessage = "Semua data berhasil dimuat dari server.";
         });
 
+        NotifyStatusChanged();
         if (HasError)
         {
             LastSyncLabel = "Sinkronisasi gagal";

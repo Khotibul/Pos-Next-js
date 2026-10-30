@@ -1,5 +1,31 @@
 # dependencies
 node_modules/
+
+# ---------------------------------------------------------------
+# LOKAL SAJA — jangan pernah di-commit / upload ke GitHub
+# (SDK, alat bantu, dan hasil uji lokal; bukan bagian dari aplikasi)
+# ---------------------------------------------------------------
+.dotnet-sdk-tmp/
+tmp-dbtest/
+.desktop-userdata/
+
+# hasil build desktop C# (WPF) — cukup source-nya saja yang di-commit
+desktop-csharp/**/bin/
+desktop-csharp/**/obj/
+desktop-csharp/release/
+desktop-csharp/**/*.user
+desktop-csharp/**/*.suo
+
+# database lokal (SQLite) dan berkas pendampingnya
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# log & dump lokal
+*.log
+logs/
 .npm-cache/
 **/.npm-cache/
 src/.npm-cache/
@@ -13,7 +39,6 @@ out/
 dist-electron/
 dist-desktop/
 dist-desktop-build/
-.desktop-userdata/
 
 # android/capacitor build outputs
 android/.gradle/
@@ -86,6 +111,7 @@ public/downloads/*.apk
 
 # AI / tooling caches
 .mimocode/
+.freebuff/
 
 # FVM Version Cache
 .fvm/

@@ -25,7 +25,36 @@ public sealed class AppServices
 
     public event Action? StateChanged;
 
+    /// <summary>
+    /// Pemberitahuan status bisa berasal dari thread latar (loop sinkronisasi),
+    /// jadi selalu diteruskan ke thread UI sebelum mengubah binding WPF.
+    /// </summary>
+    private void RaiseStateChanged()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted || dispatcher.CheckAccess())
+        {
+            StateChanged?.Invoke();
+            return;
+        }
+
+        try
+        {
+            dispatcher.BeginInvoke(new Action(() => StateChanged?.Invoke()));
+        }
+        catch
+        {
+            // aplikasi sedang ditutup
+        }
+    }
+
     private CancellationTokenSource? _syncLoopCts;
+    private int _refreshing;
+
+    // Data dari website diambil ulang otomatis selama aplikasi terbuka.
+    // Penarikan bersifat penuh (bisa puluhan ribu produk), jadi jangan terlalu sering;
+    // pengguna tetap bisa memakai tombol "Muat Ulang Data" kapan saja.
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
 
     private AppServices(SessionStore store)
     {
@@ -48,15 +77,15 @@ public sealed class AppServices
         Offline = new OfflineStore(Store.DataDirectory, scope);
         Api.UseOfflineStore(Offline);
         Sync = new OfflineSyncService(Api, Offline);
-        Sync.StatusChanged += () => StateChanged?.Invoke();
+        Sync.StatusChanged += () => RaiseStateChanged();
         StartSyncLoop();
     }
 
     private void OnConnectivityChanged()
     {
-        StateChanged?.Invoke();
+        RaiseStateChanged();
         if (IsOnline && IsLoggedIn)
-            _ = SyncNowAsync();
+            _ = RefreshFromServerAsync();
     }
 
     private void StartSyncLoop()
@@ -77,6 +106,8 @@ public sealed class AppServices
                         await SyncNowAsync(token);
                     else if (Api.IsOffline)
                         await RefreshConnectivityAsync(token);
+                    else if (LastSyncAt == null || DateTime.Now - LastSyncAt > RefreshInterval)
+                        await RefreshFromServerAsync(token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -108,8 +139,41 @@ public sealed class AppServices
     {
         if (Sync == null || !IsLoggedIn) return false;
         var ok = await Sync.FlushAsync(ct);
-        StateChanged?.Invoke();
+        RaiseStateChanged();
         return ok;
+    }
+
+    /// <summary>
+    /// Menarik data terbaru dari website ke database lokal desktop tanpa
+    /// mengganggu halaman yang sedang dibuka.
+    /// </summary>
+    public async Task<bool> RefreshFromServerAsync(CancellationToken ct = default)
+    {
+        if (Sync == null || !IsLoggedIn || Api.IsOffline) return false;
+        if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return false;
+
+        try
+        {
+            // Dijalankan di thread latar supaya UI tetap responsif saat menarik ribuan record.
+            var ok = await Task.Run(() => Sync.PullFromServerAsync(null, null, ct), ct);
+            if (ok && Sync.LastTenant != null)
+                UpdateTenant(Sync.LastTenant);
+            return ok;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Sync.ReportError(ex.Message);
+            return false;
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshing, 0);
+            RaiseStateChanged();
+        }
     }
 
     public async Task RefreshConnectivityAsync(CancellationToken ct = default)
@@ -119,15 +183,15 @@ public sealed class AppServices
         {
             var tenant = await Api.GetTenantAsync(ct);
             if (tenant != null) Tenant = tenant;
-            StateChanged?.Invoke();
+            RaiseStateChanged();
         }
         catch (ApiException)
         {
-            StateChanged?.Invoke();
+            RaiseStateChanged();
         }
     }
 
-    public void NotifySyncStatus() => StateChanged?.Invoke();
+    public void NotifySyncStatus() => RaiseStateChanged();
 
     public static AppServices Initialize()
     {
@@ -174,13 +238,14 @@ public sealed class AppServices
         Api.SetBaseUrl(Store.Settings.ApiBaseUrl);
         if (rememberSession) Store.SaveSession(session);
         AttachOffline();
-        StateChanged?.Invoke();
+        RaiseStateChanged();
+        _ = RefreshFromServerAsync();
     }
 
     public void UpdateTenant(TenantResponse? tenant)
     {
         Tenant = tenant;
-        StateChanged?.Invoke();
+        RaiseStateChanged();
     }
 
     public void SignOut(bool showMessage = false)
@@ -190,7 +255,7 @@ public sealed class AppServices
         Session = null;
         Tenant = null;
         Api.Token = null;
-        StateChanged?.Invoke();
+        RaiseStateChanged();
         if (showMessage)
             MessageBox.Show("Sesi berakhir. Silakan login kembali.", "POSQU Desktop",
                 MessageBoxButton.OK, MessageBoxImage.Information);

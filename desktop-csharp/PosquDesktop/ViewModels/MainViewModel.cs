@@ -29,6 +29,7 @@ public partial class MainViewModel : ObservableObject
     private readonly AppServices _services;
     private readonly Dictionary<string, NavItem> _navByKey = new();
     private readonly Dictionary<string, object> _pages = new();
+    private DateTime? _lastSyncSeen;
 
     [ObservableProperty] private object? currentPage;
     [ObservableProperty] private string currentTitle = "Dashboard";
@@ -85,6 +86,7 @@ public partial class MainViewModel : ObservableObject
 
     private void OnServicesChanged()
     {
+        RefreshPageAfterSync();
         OnPropertyChanged(nameof(IsOnline));
         OnPropertyChanged(nameof(ConnectionLabel));
         OnPropertyChanged(nameof(ConnectionHint));
@@ -97,6 +99,21 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowOfflineBanner));
         OnPropertyChanged(nameof(TenantName));
         OnPropertyChanged(nameof(PlanLabel));
+    }
+
+    /// <summary>
+    /// Begitu penarikan data dari website selesai, halaman yang sedang terbuka
+    /// dimuat ulang supaya data hasil sinkronisasi langsung terlihat pengguna.
+    /// </summary>
+    private void RefreshPageAfterSync()
+    {
+        var lastSync = _services.LastSyncAt;
+        if (lastSync == null || _services.IsSyncing) return;
+        if (_lastSyncSeen == lastSync) return;
+
+        _lastSyncSeen = lastSync;
+        if (CurrentPage is IRefreshable refreshable)
+            _ = refreshable.RefreshAsync();
     }
 
     [RelayCommand]

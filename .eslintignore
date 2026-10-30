@@ -19,6 +19,20 @@ posqu-mobile-lite/windows/flutter/ephemeral/
 src/legacy/**
 legacy/**
 .mimocode/
+.freebuff/
+
+# lokal saja (selaras dengan .gitignore)
+.dotnet-sdk-tmp/
+tmp-dbtest/
+.desktop-userdata/
+desktop-csharp/**/bin/
+desktop-csharp/**/obj/
+desktop-csharp/release/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 .vercel/
 *.tsbuildinfo
 next-env.d.ts

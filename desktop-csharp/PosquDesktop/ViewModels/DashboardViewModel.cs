@@ -50,7 +50,7 @@ public partial class DashboardViewModel : ViewModelBase
         await RunAsync(async () =>
         {
             var salesTask = _services.Api.GetSalesAsync(weekStart, now, limit: 500);
-            var productsTask = _services.Api.GetProductsAsync(null, 1, 500);
+            var productsTask = _services.Api.GetSyncedProductsAsync();
             var shiftsTask = _services.Api.GetShiftsAsync("OPEN", _services.User.Id, 10);
 
             await Task.WhenAll(salesTask, productsTask, shiftsTask);

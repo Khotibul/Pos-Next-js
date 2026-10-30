@@ -10,9 +10,14 @@
         </Grid.RowDefinitions>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <Border Background="White" CornerRadius="10" Padding="22,24" MaxWidth="340" HorizontalAlignment="Center">
+            <Border Background="White" CornerRadius="10" Padding="22,24"
+                    MaxWidth="{Binding ReceiptMaxWidth}" HorizontalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="{Binding StoreName}" FontSize="16" FontWeight="Bold" TextAlignment="Center" />
+                    <TextBlock Text="{Binding HeaderTitle}" FontSize="16" FontWeight="Bold" TextAlignment="Center" />
+                    <TextBlock Text="{Binding HeaderSubtitle}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextAlignment="Center"
+                               Margin="0,3,0,0"
+                               Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="Struk Penjualan" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                TextAlignment="Center" Margin="0,3,0,0" />
                     <TextBlock Text="--------------------------------" FontFamily="Consolas" TextAlignment="Center"
@@ -49,6 +54,9 @@
                                                    Foreground="{StaticResource TextMutedBrush}" />
                                         <TextBlock Text="{Binding TotalText}" FontSize="11" HorizontalAlignment="Right" />
                                     </Grid>
+                                    <TextBlock Text="{Binding SkuLabel}" FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,1,0,0"
+                                               Visibility="{Binding ShowSkuLine, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -96,9 +104,12 @@
 
                     <TextBlock Text="--------------------------------" FontFamily="Consolas" TextAlignment="Center"
                                Foreground="{StaticResource BorderStrongBrush}" Margin="0,12,0,8" />
-                    <TextBlock Text="Terima kasih telah berbelanja" FontSize="11" TextAlignment="Center" />
+                    <TextBlock Text="{Binding FooterNote}" FontSize="11" TextWrapping="Wrap"
+                               TextAlignment="Center" Margin="0,12,0,0" />
                     <TextBlock Text="Barang yang sudah dibeli tidak dapat ditukar" FontSize="9"
-                               Foreground="{StaticResource TextMutedBrush}" TextAlignment="Center" Margin="0,3,0,0" />
+                               Foreground="{StaticResource TextMutedBrush}" TextAlignment="Center"
+                               TextWrapping="Wrap" Margin="0,3,0,0"
+                               Visibility="{Binding ShowPolicyLine, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Border>
         </ScrollViewer>

@@ -113,6 +113,47 @@ Rekomendasi cepat untuk Gmail:
 - Buat **App Password**
 - Set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`
 
+## Struktur Repo: Di-commit vs Lokal Saja
+
+Repo ini berisi beberapa aplikasi (web, mobile, desktop). Tidak semua yang ada di folder kerja ikut di-upload ke GitHub — hanya **source code dan konfigurasi** yang perlu. Aturan lengkapnya ada di `.gitignore` (root) dan `desktop-csharp/.gitignore`.
+
+### Ikut di-commit (source)
+
+| Path | Isi |
+| --- | --- |
+| `src/` | Aplikasi web Next.js + Prisma schema |
+| `mobile/` | Source mobile (Capacitor/React) |
+| `posqu-mobile-lite/` | Source Flutter (source saja, tanpa build) |
+| `desktop-csharp/PosquDesktop/` | Source desktop C# WPF (`.cs`, `.xaml`, `.csproj`) |
+| `desktop-csharp/PosquDesktop.sln` | Solution file |
+| `electron/`, `scripts/`, `assets/`, `build/`, `public/` | Kode Electron, script, aset web |
+| `docs/` | Dokumentasi |
+| `.env.example` | Template env (tanpa nilai rahasia) |
+| `.github/`, file konfigurasi root | CI, ESLint, Tailwind, TypeScript, dsb. |
+
+### Lokal saja (tidak di-commit / tidak di-upload)
+
+| Path | Kenapa |
+| --- | --- |
+| `.dotnet-sdk-tmp/` | SDK .NET sementara untuk build di mesin lokal |
+| `tmp-dbtest/` | Proyek uji coba baca database SQLite lokal |
+| `desktop-csharp/**/bin/`, `obj/`, `release/` | Hasil build dan EXE publish desktop |
+| `dist-desktop/`, `dist-desktop-build/`, `dist-electron/` | Output build installer Electron |
+| `.desktop-userdata/` | User data Electron saat development |
+| `*.db`, `*.db-shm`, `*.db-wal`, `*.sqlite`, `*.sqlite3` | Database lokal (data tenant tidak boleh masuk repo) |
+| `.env`, `.env.local`, `.env.*` | Rahasia/konfigurasi mesin (`!.env.example` tetap di-commit) |
+| `*.jks`, `*.keystore`, `keystore.properties`, `local.properties` | Signing key Android / path SDK lokal |
+| `node_modules/`, `.next/`, `.npm-cache/`, `*.tsbuildinfo` | Dependency & cache build |
+| `.vercel/`, `.vscode/`, `.idea/`, `.mimocode/`, `.freebuff/` | Folder tooling/editor per mesin |
+| `*.log`, `logs/` | Log lokal |
+| `android/**/build/`, `android/app/release/`, `*.apk`, `*.aab` | Output build Android |
+
+Catatan:
+
+- Sebelum commit, `git status --short` hanya boleh menampilkan source yang memang diubah. Kalau muncul folder SDK, hasil build, database, atau file log, berarti ada yang perlu ditambahkan ke `.gitignore`.
+- Script uji UI lokal `desktop-csharp/.uia-test*.ps1` dan `.uia-watch.ps1` sengaja tidak di-track (tetap ada di disk).
+- Folder `.dotnet-sdk-tmp/` dan `tmp-dbtest/` boleh dihapus kapan saja; keduanya hanya alat bantu pengujian dan akan dibuat ulang bila perlu.
+
 ## Notes
 
 - Prisma schema PostgreSQL ada di `src/prisma/schema.prisma`, MySQL ada di `src/prisma/schema.mysql.prisma`.

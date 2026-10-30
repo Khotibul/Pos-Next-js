@@ -16,6 +16,31 @@ public sealed class AppSettings
     public string? ProtectedPassword { get; set; }
     public string? PrinterName { get; set; }
     public bool AutoPrintAfterPayment { get; set; }
+
+    public string PaperSize { get; set; } = ReceiptPaper.Size80mm;
+    public string ReceiptHeaderTitle { get; set; } = "";
+    public string ReceiptHeaderSubtitle { get; set; } = "";
+    public string ReceiptFooterNote { get; set; } = "Terima kasih telah berbelanja";
+    public bool ShowSku { get; set; } = true;
+    public bool ShowDiscount { get; set; } = true;
+    public bool ShowTax { get; set; } = true;
+    public bool ShowPolicyLine { get; set; } = true;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string NormalizedPaperSize =>
+        PaperSize == ReceiptPaper.Size58mm ? ReceiptPaper.Size58mm : ReceiptPaper.Size80mm;
+}
+
+public static class ReceiptPaper
+{
+    public const string Size80mm = "80mm";
+    public const string Size58mm = "58mm";
+
+    public sealed record Metrics(double PageWidth, double ContentWidth, double ColumnName, double ColumnAmount, int DashCount);
+
+    public static Metrics Resolve(string? paperSize) => paperSize == Size58mm
+        ? new Metrics(PageWidth: 219, ContentWidth: 200, ColumnName: 140, ColumnAmount: 60, DashCount: 30)
+        : new Metrics(PageWidth: 302, ContentWidth: 278, ColumnName: 190, ColumnAmount: 78, DashCount: 42);
 }
 
 public sealed class SessionStore

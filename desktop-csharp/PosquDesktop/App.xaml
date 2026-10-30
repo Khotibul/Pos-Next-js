@@ -82,7 +82,7 @@
             </Style>
 
             <Style x:Key="PageTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontSize" Value="26" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             </Style>
@@ -228,23 +228,32 @@
 
             <Style x:Key="InputTextBox" TargetType="TextBox">
                 <Setter Property="Height" Value="38" />
-                <Setter Property="Padding" Value="10,9" />
+                <Setter Property="Padding" Value="10,0" />
                 <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="Foreground" Value="#000000" />
+                <Setter Property="Background" Value="#FFFFFF" />
                 <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="#000000" />
+                <Setter Property="SelectionBrush" Value="#2563EB" />
+                <Setter Property="SelectionOpacity" Value="0.4" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="TextBox">
                             <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
                                     CornerRadius="8" SnapsToDevicePixels="True">
-                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center" />
+                                <!--
+                                    PART_ContentHost wajib stretch & tidak fokusable, sama seperti template
+                                    default WPF. Kalau di-center, ScrollViewer ikut mengecil setinggi isi
+                                    sehingga kursor dan teks yang diketik tidak pernah ter-render.
+                                -->
+                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
@@ -261,22 +270,26 @@
 
             <Style x:Key="InputPasswordBox" TargetType="PasswordBox">
                 <Setter Property="Height" Value="38" />
-                <Setter Property="Padding" Value="10,9" />
+                <Setter Property="Padding" Value="10,0" />
                 <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="Foreground" Value="#000000" />
+                <Setter Property="Background" Value="#FFFFFF" />
                 <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="CaretBrush" Value="#000000" />
+                <Setter Property="SelectionBrush" Value="#2563EB" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="PasswordBox">
                             <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
                                     CornerRadius="8" SnapsToDevicePixels="True">
-                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center" />
+                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsKeyboardFocused" Value="True">

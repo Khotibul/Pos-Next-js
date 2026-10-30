@@ -10,6 +10,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Border Style="{StaticResource CardBorder}">
@@ -65,28 +66,14 @@
                     <TextBlock Text="Koneksi server" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="Alamat API yang dipakai aplikasi desktop." Style="{StaticResource MutedText}"
                                Margin="0,3,0,14" />
-                    <TextBox Style="{StaticResource InputTextBox}"
+                    <TextBox x:Name="ApiUrlBox" Style="{StaticResource InputTextBox}"
                              Text="{Binding ApiBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Text="Mengubah alamat server akan mengakhiri sesi dan meminta login ulang."
-                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,18" />
+                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,0" />
 
-                    <TextBlock Text="Printer struk" Style="{StaticResource SectionTitle}" FontSize="13" />
-                    <TextBlock Text="Kosongkan untuk memilih printer setiap kali mencetak."
-                               Style="{StaticResource MutedText}" Margin="0,3,0,8" />
-                    <TextBox Style="{StaticResource InputTextBox}"
-                             Text="{Binding PrinterName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Contoh: EPSON TM-T82 Receipt" />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                        <CheckBox Content="Cetak struk otomatis setelah pembayaran"
-                                  IsChecked="{Binding AutoPrintAfterPayment}" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
                         <Button Style="{StaticResource PrimaryButton}" Content="Simpan Pengaturan"
                                 Command="{Binding SaveCommand}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Tes Printer" Margin="8,0,0,0"
-                                Command="{Binding TestPrinterCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -124,6 +111,80 @@
                                    FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource PrimaryBrush}" />
                     </Border>
                 </StackPanel>
+            </Border>
+
+            <Border Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource CardBorder}" Margin="0,14,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="Printer" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Printer yang terpasang di Windows. Kosongkan untuk memilih printer setiap kali mencetak."
+                                   Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,3,0,8" />
+
+                        <ComboBox x:Name="PrinterCombo" Style="{StaticResource InputCombo}"
+                                  IsEditable="True" IsTextSearchEnabled="False"
+                                  ItemsSource="{Binding AvailablePrinters}"
+                                  Text="{Binding PrinterName, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="Contoh: EPSON TM-T82 Receipt" />
+                        <TextBlock Text="{Binding StatusPrinter}" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+
+                        <Button x:Name="RefreshPrintersButton" Style="{StaticResource SecondaryButton}"
+                                Content="Muat daftar printer" Margin="0,10,0,0" HorizontalAlignment="Left"
+                                Command="{Binding RefreshPrintersCommand}" />
+
+                        <TextBlock Text="Ukuran kertas" Style="{StaticResource SectionTitle}" FontSize="13"
+                                   Margin="0,20,0,3" />
+                        <TextBlock Text="Lebar kertas thermal yang dipakai untuk struk."
+                                   Style="{StaticResource MutedText}" Margin="0,0,0,8" />
+                        <ComboBox x:Name="PaperSizeCombo" Style="{StaticResource InputCombo}" Width="220"
+                                  HorizontalAlignment="Left" SelectedValuePath="Tag"
+                                  SelectedValue="{Binding PaperSize, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBoxItem Content="80 mm (standar)" Tag="80mm" />
+                            <ComboBoxItem Content="58 mm (thermal kecil)" Tag="58mm" />
+                        </ComboBox>
+
+                        <Button x:Name="TestPrinterButton" Style="{StaticResource SecondaryButton}" Content="Tes Printer"
+                                Margin="0,20,0,0" HorizontalAlignment="Left"
+                                Command="{Binding TestPrinterCommand}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Format struk" Style="{StaticResource SectionTitle}" />
+
+                        <TextBlock Text="Judul atas struk" Style="{StaticResource MutedText}" Margin="0,12,0,4" />
+                        <TextBox x:Name="HeaderTitleBox" Style="{StaticResource InputTextBox}"
+                                 Text="{Binding ReceiptHeaderTitle, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Kosongkan untuk memakai nama toko." />
+
+                        <TextBlock Text="Sub-judul (alamat / telp)" Style="{StaticResource MutedText}" Margin="0,10,0,4" />
+                        <TextBox x:Name="HeaderSubtitleBox" Style="{StaticResource InputTextBox}"
+                                 Text="{Binding ReceiptHeaderSubtitle, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Text="Catatan kaki struk" Style="{StaticResource MutedText}" Margin="0,10,0,4" />
+                        <TextBox x:Name="FooterNoteBox" Style="{StaticResource InputTextBox}"
+                                 Text="{Binding ReceiptFooterNote, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <StackPanel Margin="0,14,0,0">
+                            <CheckBox x:Name="ShowSkuBox" Content="Tampilkan SKU" IsChecked="{Binding ShowSku}" />
+                            <CheckBox x:Name="ShowDiscountBox" Content="Tampilkan diskon" Margin="0,8,0,0"
+                                      IsChecked="{Binding ShowDiscount}" />
+                            <CheckBox x:Name="ShowTaxBox" Content="Tampilkan pajak" Margin="0,8,0,0"
+                                      IsChecked="{Binding ShowTax}" />
+                            <CheckBox x:Name="ShowPolicyBox" Content="Tampilkan ketentuan pengembalian"
+                                      Margin="0,8,0,0" IsChecked="{Binding ShowPolicyLine}" />
+                        </StackPanel>
+
+                        <TextBlock Text="Transaksi" Style="{StaticResource SectionTitle}" FontSize="13"
+                                   Margin="0,20,0,8" />
+                        <CheckBox x:Name="AutoPrintBox" Content="Cetak struk otomatis setelah pembayaran"
+                                  IsChecked="{Binding AutoPrintAfterPayment}" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </ScrollViewer>

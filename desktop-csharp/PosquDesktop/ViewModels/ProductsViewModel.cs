@@ -23,7 +23,10 @@ public partial class ProductsViewModel : ViewModelBase
     [ObservableProperty] private int activeCount;
     [ObservableProperty] private int lowStockCount;
 
-    public ObservableCollection<Product> Products { get; } = new();
+    // Diganti sebagai satu instance utuh: menambah 34 ribu item satu per satu ke
+    // ObservableCollection memicu 34 ribu CollectionChanged di thread UI dan
+    // membuat jendela "Not Responding". DataGrid hanya butuh satu notifikasi.
+    [ObservableProperty] private ObservableCollection<Product> products = new();
     public ObservableCollection<string> CategoryFilters { get; } = new() { "Semua Kategori" };
 
     public bool IsEmpty => Products.Count == 0;
@@ -41,7 +44,7 @@ public partial class ProductsViewModel : ViewModelBase
     {
         await RunAsync(async () =>
         {
-            var productsTask = _services.Api.GetAllProductsAsync();
+            var productsTask = _services.Api.GetSyncedProductsAsync();
             var categoriesTask = _services.Api.GetCategoriesAsync();
             var unitsTask = _services.Api.GetUnitsAsync();
             await Task.WhenAll(productsTask, categoriesTask, unitsTask);
@@ -70,22 +73,31 @@ public partial class ProductsViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
-        var search = SearchText.Trim().ToLowerInvariant();
-        Products.Clear();
-        foreach (var product in _allProducts
-                     .Where(p => !OnlyLowStock || IsLowStock(p))
-                     .Where(p => SelectedCategoryFilter == "Semua Kategori" ||
-                                 string.Equals(p.CategoryName, SelectedCategoryFilter, StringComparison.OrdinalIgnoreCase))
-                     .Where(p => search.Length == 0 ||
-                                 p.Name.ToLowerInvariant().Contains(search) ||
-                                 p.Sku.ToLowerInvariant().Contains(search) ||
-                                 (p.Barcode ?? "").ToLowerInvariant().Contains(search))
-                     .OrderBy(p => p.Name))
+        var search = SearchText.Trim();
+        var filtered = new List<Product>();
+        foreach (var p in _allProducts)
         {
-            Products.Add(product);
+            if (OnlyLowStock && !IsLowStock(p)) continue;
+            if (SelectedCategoryFilter != "Semua Kategori" &&
+                !string.Equals(p.CategoryName, SelectedCategoryFilter, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (search.Length > 0 && !Matches(p, search)) continue;
+            filtered.Add(p);
         }
+        filtered.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+
+        // Satu penggantian koleksi = satu notifikasi ke DataGrid. Menambah item satu
+        // per satu memicu puluhan ribu CollectionChanged dan membekukan thread UI.
+        Products = new ObservableCollection<Product>(filtered);
         OnPropertyChanged(nameof(IsEmpty));
     }
+
+    // IndexOf dengan OrdinalIgnoreCase tidak mengalokasikan string baru, berbeda
+    // ToLowerInvariant() yang membuat 3 string per produk pada setiap ketikan.
+    private static bool Matches(Product p, string search) =>
+        p.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+        p.Sku.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+        (p.Barcode?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
 
     [RelayCommand]
     private async Task AddAsync()
@@ -135,7 +147,7 @@ public partial class ProductsViewModel : ViewModelBase
 
     private async Task ReloadProductsAsync()
     {
-        var refreshed = await _services.Api.GetAllProductsAsync();
+        var refreshed = await _services.Api.GetSyncedProductsAsync();
         _allProducts.Clear();
         _allProducts.AddRange(refreshed);
         TotalCount = _allProducts.Count;

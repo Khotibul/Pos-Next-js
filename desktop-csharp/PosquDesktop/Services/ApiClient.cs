@@ -49,6 +49,70 @@ public sealed class ApiClient : IDisposable
 
     public void UseOfflineStore(OfflineStore store) => _offline = store;
 
+    // ---------------- Salinan produk lokal ----------------
+
+    private List<Product>? _localProducts;
+    private readonly object _localProductsLock = new();
+
+    /// <summary>
+    /// Produk dari salinan database lokal hasil sinkronisasi. Halaman Produk, Kasir,
+    /// dan Dashboard memakai ini supaya data langsung tampil tanpa harus mengunduh
+    /// ulang puluhan ribu produk setiap kali halaman dibuka. Sinkronisasi berkala di
+    /// latar belakang yang memperbarui salinannya.
+    /// Kalau salinan belum ada (instalasi baru), data ditarik dari server sekali.
+    /// </summary>
+    public async Task<List<Product>> GetSyncedProductsAsync(
+        IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        // Membaca products_all (puluhan ribu record) + deserialisasi JSON bisa makan
+        // waktu beberapa detik. Jalankan di thread latar supaya thread UI tidak macet
+        // ("Not Responding") saat halaman Produk/Kasir/Dashboard dibuka.
+        var local = await Task.Run(() => LocalProducts(), ct);
+        if (local is { Count: > 0 }) return local;
+        return await GetAllProductsAsync(progress, ct);
+    }
+
+    private List<Product>? LocalProducts()
+    {
+        lock (_localProductsLock)
+        {
+            if (_localProducts != null) return _localProducts;
+            var cached = _offline?.Read<List<Product>>("products_all");
+            if (cached is not { Count: > 0 }) return null;
+            _localProducts = cached;
+            return _localProducts;
+        }
+    }
+
+    /// <summary>Membuang salinan produk di memori agar dibaca ulang dari database lokal.</summary>
+    public void InvalidateLocalProducts()
+    {
+        lock (_localProductsLock) _localProducts = null;
+    }
+
+    private void SaveLocalProducts(List<Product> products)
+    {
+        lock (_localProductsLock) _localProducts = products;
+        _offline?.Write("products_all", products);
+        _offline?.Write("cache_products", products);
+    }
+
+    private void UpsertLocalProduct(Product product)
+    {
+        var current = LocalProducts();
+        if (current == null) return;
+        var next = current.Where(p => p.Id != product.Id).ToList();
+        next.Insert(0, product);
+        SaveLocalProducts(next);
+    }
+
+    private void RemoveLocalProduct(string id)
+    {
+        var current = LocalProducts();
+        if (current == null) return;
+        SaveLocalProducts(current.Where(p => p.Id != id).ToList());
+    }
+
     private void SetOffline()
     {
         if (IsOffline) return;
@@ -178,7 +242,7 @@ public sealed class ApiClient : IDisposable
 
             SetOnline();
             if (cacheKey != null && result.ValueKind != JsonValueKind.Undefined)
-                _offline?.Write("cache_" + cacheKey, result.GetRawText());
+                _offline?.WriteJson("cache_" + cacheKey, result);
             return result;
         }
     }
@@ -190,7 +254,7 @@ public sealed class ApiClient : IDisposable
 
         if (method == HttpMethod.Get && cacheKey != null && _offline != null)
         {
-            var raw = _offline.Read<string>("cache_" + cacheKey);
+            var raw = _offline.ReadJson("cache_" + cacheKey);
             if (!string.IsNullOrWhiteSpace(raw))
             {
                 try
@@ -397,11 +461,14 @@ public sealed class ApiClient : IDisposable
     public async Task<List<Product>> GetAllProductsAsync(
         IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        const int pageSize = 500;
+        const int pageSize = 1000;
         var all = new List<Product>();
         try
         {
-        for (var page = 1; page <= 40; page++)
+        // Server membatasi 1000 produk per halaman. Ambil sampai halaman terakhir
+        // (bukan jumlah halaman tetap) supaya database desktop benar-benar sama
+        // dengan katalog website, berapa pun jumlah produknya.
+        for (var page = 1; page <= 1000; page++)
         {
             ct.ThrowIfCancellationRequested();
             var batch = await GetProductsAsync(null, page, pageSize, ct);
@@ -409,9 +476,18 @@ public sealed class ApiClient : IDisposable
             progress?.Report($"Memuat produk halaman {page} ({all.Count} produk)…");
             if (batch.Count < pageSize) break;
         }
-        _offline?.Write("products_all", all);
-        if (all.Count > 0) _offline?.Write("cache_products", all);
-        return all;
+            // Penulisan 34 ribu+ record ke SQLite memakan waktu; jalankan di thread
+            // latar agar thread UI tidak berhenti merespons selama sinkronisasi.
+            lock (_localProductsLock) _localProducts = all;
+            if (all.Count > 0)
+            {
+                await Task.Run(() =>
+                {
+                    _offline?.Write("products_all", all);
+                    _offline?.Write("cache_products", all);
+                }, ct);
+            }
+            return all;
         }
         catch (ApiException)
         {
@@ -424,16 +500,19 @@ public sealed class ApiClient : IDisposable
     public async Task CreateProductAsync(Product p, CancellationToken ct = default)
     {
         await SendAsync(HttpMethod.Post, "mobile/products", BuildProductPayload(p), entity: "product", ct: ct);
+        UpsertLocalProduct(p);
     }
 
     public async Task UpdateProductAsync(Product p, CancellationToken ct = default)
     {
         await SendAsync(HttpMethod.Put, $"mobile/products/{Uri.EscapeDataString(p.Id)}", BuildProductPayload(p, includeId: false), entity: "product", ct: ct);
+        UpsertLocalProduct(p);
     }
 
     public async Task DeleteProductAsync(string id, CancellationToken ct = default)
     {
         await SendAsync(HttpMethod.Delete, $"mobile/products/{Uri.EscapeDataString(id)}", entity: "product", ct: ct);
+        RemoveLocalProduct(id);
     }
 
     private static object BuildProductPayload(Product p, bool includeId = true)
@@ -504,6 +583,12 @@ public sealed class ApiClient : IDisposable
     public async Task SaveUnitAsync(ProductUnit u, CancellationToken ct = default)
     {
         await SendAsync(HttpMethod.Post, "mobile/units", new { id = u.Id, name = u.Name }, entity: "unit", ct: ct);
+    }
+
+    public async Task<List<ProductBrand>> GetBrandsAsync(CancellationToken ct = default)
+    {
+        var data = await SendAsync(HttpMethod.Get, "mobile/brands", cacheKey: "brands", entity: "brand", ct: ct);
+        return Deserialize<List<ProductBrand>>(data) ?? new List<ProductBrand>();
     }
 
     // ---------------- Partners ----------------
@@ -637,6 +722,7 @@ public sealed class ApiClient : IDisposable
 
         _offline.Write("products_all", products);
         _offline.Write("cache_products", products);
+        InvalidateLocalProducts();
     }
 
     public async Task DeleteSaleAsync(string id, CancellationToken ct = default)
@@ -725,7 +811,8 @@ public sealed class ApiClient : IDisposable
         var data = await SendAsync(HttpMethod.Get, "mobile/receivables", query: new Dictionary<string, string?>
         {
             ["status"] = string.IsNullOrWhiteSpace(status) ? null : status,
-            ["search"] = string.IsNullOrWhiteSpace(search) ? null : search
+            ["search"] = string.IsNullOrWhiteSpace(search) ? null : search,
+            ["limit"] = "500"
         }, cacheKey: string.IsNullOrWhiteSpace(search) && string.IsNullOrWhiteSpace(status) ? "receivables" : null, entity: "receivable", ct: ct);
         return Deserialize<List<Receivable>>(data) ?? new List<Receivable>();
     }
@@ -735,7 +822,8 @@ public sealed class ApiClient : IDisposable
         var data = await SendAsync(HttpMethod.Get, "mobile/payables", query: new Dictionary<string, string?>
         {
             ["status"] = string.IsNullOrWhiteSpace(status) ? null : status,
-            ["search"] = string.IsNullOrWhiteSpace(search) ? null : search
+            ["search"] = string.IsNullOrWhiteSpace(search) ? null : search,
+            ["limit"] = "500"
         }, cacheKey: string.IsNullOrWhiteSpace(search) && string.IsNullOrWhiteSpace(status) ? "payables" : null, entity: "payable", ct: ct);
         return Deserialize<List<Payable>>(data) ?? new List<Payable>();
     }

@@ -1,8 +1,6 @@
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Threading;
 using PosquDesktop.ViewModels;
 
 namespace PosquDesktop;
@@ -13,7 +11,6 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
-        RootCard.MouseLeftButtonDown += OnRootCardMouseLeftButtonDown;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -24,30 +21,25 @@ public partial class LoginWindow : Window
             vm.Password = PasswordInput.Password;
         }
 
-        FocusManager.SetFocusedElement(this, EmailInput);
-        EmailInput.Focus();
-        Keyboard.Focus(EmailInput);
-        if (DataContext is LoginViewModel vm2 && !string.IsNullOrWhiteSpace(vm2.Email))
-            EmailInput.SelectAll();
-    }
-
-    private void OnRootCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ButtonState != MouseButtonState.Pressed) return;
-        if (e.OriginalSource is DependencyObject source && IsInteractive(source)) return;
-
-        try { DragMove(); }
-        catch { }
-    }
-
-    private static bool IsInteractive(DependencyObject source)
-    {
-        for (DependencyObject? current = source; current != null; current = LogicalTreeHelper.GetParent(current) ?? VisualTreeHelper.GetParent(current))
+        // Fokus baru diberikan setelah window benar-benar aktif; kalau tidak,
+        // ketikan pertama bisa hilang karena window belum menerima keyboard focus.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
-            if (current is TextBox or PasswordBox or ButtonBase or ComboBox or CheckBox or ToggleButton)
-                return true;
-        }
-        return false;
+            try
+            {
+                Activate();
+                EmailInput.Focus();
+                Keyboard.Focus(EmailInput);
+                FocusManager.SetFocusedElement(this, EmailInput);
+
+                if (EmailInput.Text.Length > 0)
+                    EmailInput.SelectAll();
+            }
+            catch
+            {
+                // abaikan kegagalan fokus, user masih bisa klik field secara manual
+            }
+        }));
     }
 
     private void PasswordInput_PasswordChanged(object sender, RoutedEventArgs e)

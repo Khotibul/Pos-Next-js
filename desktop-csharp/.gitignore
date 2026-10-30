@@ -3,3 +3,7 @@ obj/
 .vs/
 *.user
 release/
+
+# script uji UI lokal (hanya untuk mesin developer)
+.uia-test*.ps1
+.uia-watch.ps1

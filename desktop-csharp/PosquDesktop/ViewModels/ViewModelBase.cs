@@ -28,10 +28,13 @@ public abstract partial class ViewModelBase : ObservableObject, IRefreshable
 
     public virtual Task LoadAsync() => Task.CompletedTask;
 
-    public async Task RefreshAsync()
-    {
-        await RunAsync(LoadAsync);
-    }
+    /// <summary>
+    /// Setiap <c>LoadAsync</c> sudah membungkus pekerjaannya dengan <see cref="RunAsync"/>,
+    /// jadi di sini tidak boleh dibungkus lagi: kalau dibungkus dua kali, panggilan
+    /// RunAsync bagian dalam langsung keluar karena IsBusy masih true dan halaman
+    /// berakhir kosong tanpa pesan error.
+    /// </summary>
+    public Task RefreshAsync() => LoadAsync();
 
     protected async Task RunAsync(Func<Task> action, string? successMessage = null)
     {

@@ -45,12 +45,19 @@
                     </Grid>
                     <ComboBox Grid.Column="1" Style="{StaticResource InputCombo}" Width="180" Margin="10,0,0,0"
                               ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" />
-                    <TextBlock Grid.Column="2" Text="{Binding FilteredProducts.Count, StringFormat={}{0} produk}"
+                    <TextBlock Grid.Column="2" Text="{Binding ProductSummary}"
                                Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="14,0,4,0" />
                 </Grid>
             </Border>
 
             <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,12,0,0" Padding="14">
+                <StackPanel>
+                    <Border Background="{StaticResource WarningSoftBrush}" CornerRadius="8" Padding="10,8"
+                            Margin="0,0,0,10"
+                            Visibility="{Binding TruncatedHint, Converter={StaticResource StringToVisibility}}">
+                        <TextBlock Text="{Binding TruncatedHint}" Foreground="{StaticResource WarningBrush}"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </Border>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding FilteredProducts}">
                         <ItemsControl.ItemsPanel>
@@ -101,6 +108,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+                </StackPanel>
             </Border>
         </Grid>
 

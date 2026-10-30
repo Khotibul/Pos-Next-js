@@ -143,7 +143,7 @@ public partial class PosViewModel : ViewModelBase
     {
         await RunAsync(async () =>
         {
-            var productsTask = _services.Api.GetAllProductsAsync();
+            var productsTask = _services.Api.GetSyncedProductsAsync();
             var categoriesTask = _services.Api.GetCategoriesAsync();
             var customersTask = _services.Api.GetCustomersAsync();
             var shiftsTask = _services.Api.GetShiftsAsync("OPEN", _services.User.Id, 5);
@@ -175,25 +175,58 @@ public partial class PosViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
-        var search = SearchText.Trim().ToLowerInvariant();
+        var search = SearchText.Trim();
         FilteredProducts.Clear();
-        foreach (var product in _allProducts
-                     .Where(p => p.IsActive)
-                     .Where(p => SelectedCategory == "Semua Kategori" ||
-                                 string.Equals(p.CategoryName, SelectedCategory, StringComparison.OrdinalIgnoreCase))
-                     .Where(p => search.Length == 0 ||
-                                 p.Name.ToLowerInvariant().Contains(search) ||
-                                 p.Sku.ToLowerInvariant().Contains(search) ||
-                                 (p.Barcode ?? "").ToLowerInvariant().Contains(search) ||
-                                 p.Variants.Any(v =>
-                                     v.Name.ToLowerInvariant().Contains(search) ||
-                                     v.Sku.ToLowerInvariant().Contains(search) ||
-                                     (v.Barcode ?? "").ToLowerInvariant().Contains(search)))
-                     .OrderBy(p => p.Name))
+
+        var matches = new List<Product>();
+        foreach (var p in _allProducts)
         {
-            FilteredProducts.Add(product);
+            if (!p.IsActive) continue;
+            if (SelectedCategory != "Semua Kategori" &&
+                !string.Equals(p.CategoryName, SelectedCategory, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (search.Length > 0 && !PosMatches(p, search)) continue;
+            matches.Add(p);
         }
+        matches.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+
+        // Panel ubin POS memakai WrapPanel tanpa virtualisasi: setiap produk menjadi
+        // ratusan elemen UI di thread UI. Dengan puluhan ribu produk, memuat seluruhnya
+        // membuat jendela "Not Responding". Batasi hasil yang dirender; pencarian/barcode
+        // tetap bekerja penuh lewat _allProducts.
+        var limit = Math.Min(matches.Count, VisibleProductLimit);
+        for (var i = 0; i < limit; i++) FilteredProducts.Add(matches[i]);
+
+        HiddenProductCount = matches.Count - limit;
+        OnPropertyChanged(nameof(TruncatedHint));
+        OnPropertyChanged(nameof(ProductSummary));
     }
+
+    // Pencarian tanpa ToLowerInvariant(): setiap ketikan pada katalog puluhan ribu
+    // produk sebelumnya mengalokasikan >100 ribu string baru di thread UI.
+    private static bool PosMatches(Product p, string search) =>
+        p.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+        p.Sku.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+        (p.Barcode?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0 ||
+        p.Variants.Any(v =>
+            v.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            v.Sku.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+            (v.Barcode?.IndexOf(search, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0);
+
+    private const int VisibleProductLimit = 120;
+
+    public string ProductSummary => FilteredProductCount <= 0
+        ? "0 produk"
+        : HiddenProductCount > 0
+            ? $"{FilteredProducts.Count:N0} dari {FilteredProductCount:N0} produk"
+            : $"{FilteredProductCount:N0} produk";
+
+    public string TruncatedHint => HiddenProductCount <= 0
+        ? ""
+        : $"Menampilkan {FilteredProducts.Count:N0} dari {FilteredProductCount:N0} produk. Ketik nama, SKU, atau barcode untuk mempersempit.";
+
+    private int HiddenProductCount { get; set; }
+    private int FilteredProductCount => FilteredProducts.Count + HiddenProductCount;
 
     private decimal PriceFor(Product product, int quantity, ProductVariant? variant = null)
     {
